@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ━━━ Core Entities ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Contact {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  name            String
+  email           String?
+  secondaryEmail  String?   @map("secondary_email")
+  company         String?
+  phone           String?
+  status          String?
+  lastContact     DateTime? @map("last_contact") @db.Date
+  value           Decimal?  @db.Decimal(12, 2)
+  notes           String?   @db.Text
+  leadSource      String?   @map("lead_source")
+  campaignId      String?   @map("campaign_id") @db.Uuid
+  avatar          String?
+
+  campaign        Campaign?  @relation(fields: [campaignId], references: [id])
+  deals           Deal[]
+  tickets         Ticket[]
+
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("contacts")
+}
+
+model Deal {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  title            String
+  contactId        String?   @map("contact_id") @db.Uuid
+  contactName      String?   @map("contact_name")
+  rep              String?
+  stage            String?
+  probability      Int?
+  priority         String?
+  dueDate          DateTime? @map("due_date") @db.Date
+  productId        String?   @map("product_id") @db.Uuid
+  value            Decimal?  @db.Decimal(12, 2)
+  wonDate          DateTime? @map("won_date") @db.Date
+  deliveryDate     DateTime? @map("delivery_date") @db.Date
+  assignedDesigner String?   @map("assigned_designer")
+  dealType         String?   @map("deal_type") @default("new")
+  launchFeeAmount  Decimal?  @map("launch_fee_amount") @db.Decimal(12, 2)
+  allNotes         Json?     @map("all_notes")
+  smsTrail         Json?     @map("sms_trail")
+  emailTrail       Json?     @map("email_trail")
+  calendarHistory  Json?     @map("calendar_history")
+
+  contact          Contact?           @relation(fields: [contactId], references: [id])
+  product          Product?           @relation(fields: [productId], references: [id])
+  launchFeePayments LaunchFeePayment[]
+  onboarding       Onboarding[]
+
+  deletedAt        DateTime?  @map("deleted_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  @@map("deals")
+}
+
+model LaunchFeePayment {
+  id      String    @id @default(uuid()) @db.Uuid
+  dealId  String    @map("deal_id") @db.Uuid
+  amount  Decimal?  @db.Decimal(12, 2)
+  dueDate DateTime? @map("due_date") @db.Date
+
+  deal    Deal      @relation(fields: [dealId], references: [id])
+
+  @@map("launch_fee_payments")
+}
+
+model Product {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  description     String
+  price           Decimal   @db.Decimal(12, 2)
+  category        String?
+  commissionType  String?   @map("commission_type")
+  commissionValue Decimal?  @map("commission_value") @db.Decimal(12, 2)
+
+  deals           Deal[]
+  onboardings     Onboarding[]
+
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model Campaign {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  name            String
+  type            String?
+  status          String?
+  contactCount    Int?      @map("contact_count")
+
+  contacts        Contact[]
+
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("campaigns")
+}
+
+model TeamMember {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  firstName       String?   @map("first_name")
+  lastName        String?   @map("last_name")
+  phone           String?
+  email           String?
+  monthlyTarget   Decimal?  @map("monthly_target") @db.Decimal(12, 2)
+  role            String?
+  active          Boolean   @default(true)
+
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("team_members")
+}
+
+model Designer {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  name            String?
+  email           String?
+  team            String?
+  active          Boolean   @default(true)
+
+  @@map("designers")
+}
+
+model Onboarding {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  dealId           String?   @map("deal_id") @db.Uuid
+  customerName     String?   @map("customer_name")
+  businessName     String?   @map("business_name")
+  phone            String?
+  email            String?
+  existingUrl      String?   @map("existing_url")
+  newUrl           String?   @map("new_url")
+  offshoreDesigner String?   @map("offshore_designer")
+  usDesigner       String?   @map("us_designer")
+  rep              String?
+  productId        String?   @map("product_id") @db.Uuid
+  value            Decimal?  @db.Decimal(12, 2)
+  wonDate          DateTime? @map("won_date") @db.Date
+  status           String?
+
+  deal             Deal?     @relation(fields: [dealId], references: [id])
+  product          Product?  @relation(fields: [productId], references: [id])
+  items            OnboardingItem[]
+  webOwners        OnboardingWebOwner[]
+
+  deletedAt        DateTime?  @map("deleted_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  @@map("onboarding")
+}
+
+model OnboardingItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  onboardingId  String    @map("onboarding_id") @db.Uuid
+  itemName      String?   @map("item_name")
+  stage         String?
+  owner         String?
+  dueDate       DateTime? @map("due_date") @db.Date
+
+  onboarding    Onboarding @relation(fields: [onboardingId], references: [id])
+
+  @@map("onboarding_items")
+}
+
+model OnboardingWebOwner {
+  id            String    @id @default(uuid()) @db.Uuid
+  onboardingId  String    @map("onboarding_id") @db.Uuid
+  stageKey      String?   @map("stage_key")
+  owner         String?
+
+  onboarding    Onboarding @relation(fields: [onboardingId], references: [id])
+
+  @@map("onboarding_web_owners")
+}
+
+model Ticket {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  subject         String?
+  contactId       String?   @map("contact_id") @db.Uuid
+  contactName     String?   @map("contact_name")
+  priority        String?
+  status          String?
+  category        String?
+  description     String?   @db.Text
+
+  contact         Contact?  @relation(fields: [contactId], references: [id])
+
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("tickets")
+}
+
+model ArAccount {
+  id                  String    @id @default(uuid()) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  businessName        String?   @map("business_name")
+  customerName        String?   @map("customer_name")
+  email               String?
+  phone               String?
+  product             String?
+  mrr                 Decimal?  @db.Decimal(12, 2)
+  status              String?
+  stripeStatus        String?   @map("stripe_status")
+  daysPastDue         Int?      @map("days_past_due")
+  amountDue           Decimal?  @map("amount_due") @db.Decimal(12, 2)
+  amountPaid          Decimal?  @map("amount_paid") @db.Decimal(12, 2)
+  paidDate            DateTime? @map("paid_date") @db.Date
+  lastPaymentDate     DateTime? @map("last_payment_date") @db.Date
+  failedDate          DateTime? @map("failed_date") @db.Date
+  subscriptionCreated DateTime? @map("subscription_created") @db.Date
+  reactivated         Boolean   @default(false)
+
+  timeline            ArTimeline[]
+
+  deletedAt           DateTime?  @map("deleted_at")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  @@map("ar_accounts")
+}
+
+model ArTimeline {
+  id    String    @id @default(uuid()) @db.Uuid
+  arId  String    @map("ar_id") @db.Uuid
+  date  DateTime? @db.Date
+  type  String?
+  note  String?   @db.Text
+
+  arAccount ArAccount @relation(fields: [arId], references: [id])
+
+  @@map("ar_timeline")
+}
