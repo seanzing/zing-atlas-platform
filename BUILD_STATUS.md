@@ -28,7 +28,7 @@
 - [x] Committed and pushed to origin main
 
 ### Backend
-- [ ] All API routes implemented
+- [x] All API routes implemented (19 route files, all tested end-to-end)
 - [x] Seed data loaded
 - [ ] Stripe webhook handler (with idempotency)
 - [ ] Circuit breakers on external calls
@@ -48,21 +48,50 @@
 
 ## Completed This Session (2026-03-29)
 
+### Session 1: Scaffold + Schema + Seed
 - Scaffolded Next.js 14 (App Router) project in platform/
 - Installed all dependencies: @supabase/supabase-js, @supabase/ssr, prisma, @prisma/client, @prisma/adapter-pg, pino, @sentry/nextjs, opossum, bullmq
 - Configured Tailwind with full ZING design system colors
-- Wrote Prisma schema with all 13 tables matching SPEC.md: contacts, deals, launch_fee_payments, products, campaigns, team_members, designers, onboarding, onboarding_items, onboarding_web_owners, tickets, ar_accounts, ar_timeline
-- All tables include organization_id (multi-tenancy ready), deleted_at (soft delete), created_at/updated_at (audit)
+- Wrote Prisma schema with all 13 tables matching SPEC.md
 - Ran migration `init_schema` against Supabase — all tables live
 - Created and ran seed script with full prototype data set
-- Verified all data via count queries
 - Set up Supabase client, Prisma client (with PrismaPg driver adapter for Prisma 7), and Pino structured logger
 - Configured Sentry with modern Next.js instrumentation pattern
 - Created health API endpoint
 
+### Session 2: All API Routes
+Built and tested all 19 API route files:
+
+| Route | Methods | Notes |
+|-------|---------|-------|
+| /api/contacts | GET, POST | Filterable by status, includes deal count |
+| /api/contacts/[id] | GET, PUT, DELETE | GET includes deals/tickets/onboarding; DELETE = CCPA cascade hard delete |
+| /api/deals | GET, POST | Filterable by stage/rep/contactId; POST with stage=won auto-creates onboarding + 12 items |
+| /api/deals/[id] | GET, PUT, DELETE | PUT to stage=won auto-creates onboarding; DELETE = soft delete |
+| /api/onboarding | GET, POST | Includes items and webOwners; filterable by status |
+| /api/onboarding/[id] | GET, PUT | Includes items/webOwners/deal/product |
+| /api/onboarding/[id]/items/[item] | PUT | Update stage/owner/dueDate on individual item |
+| /api/tickets | GET, POST | Filterable by status/priority |
+| /api/tickets/[id] | GET, PUT | Includes contact |
+| /api/products | GET, POST | |
+| /api/products/[id] | GET, PUT, DELETE | Soft delete |
+| /api/campaigns | GET, POST | Includes contact count |
+| /api/ar | GET | Includes timeline; filterable by status |
+| /api/ar/[id] | GET, PUT | Includes timeline |
+| /api/ar/[id]/timeline | POST | Adds timeline entry |
+| /api/team | GET | Active members only |
+| /api/designers | GET | Active designers only |
+| /api/dashboard | GET | period_revenue, today_revenue, nrr, deal_type_breakdown, daily_revenue_chart, rep_leaderboard |
+| /api/pipeline | GET | Filterable by from/to/rep; includes contact + product |
+
+Key business logic implemented:
+- **CCPA cascade delete**: contacts/[id] DELETE hard-deletes contact + deals + onboarding + items + webOwners + tickets + AR accounts + AR timeline
+- **Won deal auto-onboarding**: POST and PUT deals auto-creates onboarding record + 12 onboarding items with spec-defined due date offsets
+- **Dashboard metrics**: NRR calculation, deal type breakdown, daily revenue chart, rep leaderboard
+- **Org-scoped + soft-delete**: All queries filter by organization_id and exclude deleted_at IS NOT NULL
+
 ## What's Next
 
-- Week 1 remaining: API routes for all entities (contacts, deals, products, campaigns, team, designers, onboarding, tickets, AR, dashboard, pipeline)
 - Week 2: Dashboard, Pipeline, and Contacts frontend views
 
 ---
