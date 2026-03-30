@@ -1,6 +1,6 @@
 # Atlas Build Status
 
-**Current Phase:** Phase 1, Week 1 — Foundation
+**Current Phase:** Phase 1, Week 2 — Frontend Views
 **Last Updated:** 2026-03-29
 **Updated By:** Atlas (Platform Engineer)
 
@@ -35,9 +35,16 @@
 - [x] Sentry + Pino configured
 
 ### Frontend
-- [ ] Dashboard view
-- [ ] Pipeline view
-- [ ] Contacts view
+- [x] App shell: Sidebar navigation with ZING Oxford Blue background
+- [x] 8 nav items with SVG icons (Dashboard, Contacts, Pipeline, Onboarding, Tasks, Support, AR, Settings)
+- [x] ZING logo/wordmark at top with gradient Z icon
+- [x] Active state highlighting with ultramarine gradient
+- [x] Main content area with correct background (#F5F7FA)
+- [x] Shared UI components (Badge, Avatar, StatCard, SearchBar, Btn, Modal, FormField, Input, Select, FilterBtn)
+- [x] SWR data fetching configured
+- [x] Dashboard view — complete
+- [x] Contacts view — complete (list + detail)
+- [x] Pipeline view — complete (kanban + deal panel + won modal)
 - [ ] Onboarding (by customer)
 - [ ] Onboarding (by task)
 - [ ] AR view
@@ -48,51 +55,81 @@
 
 ## Completed This Session (2026-03-29)
 
-### Session 1: Scaffold + Schema + Seed
-- Scaffolded Next.js 14 (App Router) project in platform/
-- Installed all dependencies: @supabase/supabase-js, @supabase/ssr, prisma, @prisma/client, @prisma/adapter-pg, pino, @sentry/nextjs, opossum, bullmq
-- Configured Tailwind with full ZING design system colors
-- Wrote Prisma schema with all 13 tables matching SPEC.md
-- Ran migration `init_schema` against Supabase — all tables live
-- Created and ran seed script with full prototype data set
-- Set up Supabase client, Prisma client (with PrismaPg driver adapter for Prisma 7), and Pino structured logger
-- Configured Sentry with modern Next.js instrumentation pattern
-- Created health API endpoint
+### Session 3: Week 2 Frontend — Dashboard, Contacts, Pipeline
 
-### Session 2: All API Routes
-Built and tested all 19 API route files:
+Built complete frontend matching the prototype:
 
-| Route | Methods | Notes |
-|-------|---------|-------|
-| /api/contacts | GET, POST | Filterable by status, includes deal count |
-| /api/contacts/[id] | GET, PUT, DELETE | GET includes deals/tickets/onboarding; DELETE = CCPA cascade hard delete |
-| /api/deals | GET, POST | Filterable by stage/rep/contactId; POST with stage=won auto-creates onboarding + 12 items |
-| /api/deals/[id] | GET, PUT, DELETE | PUT to stage=won auto-creates onboarding; DELETE = soft delete |
-| /api/onboarding | GET, POST | Includes items and webOwners; filterable by status |
-| /api/onboarding/[id] | GET, PUT | Includes items/webOwners/deal/product |
-| /api/onboarding/[id]/items/[item] | PUT | Update stage/owner/dueDate on individual item |
-| /api/tickets | GET, POST | Filterable by status/priority |
-| /api/tickets/[id] | GET, PUT | Includes contact |
-| /api/products | GET, POST | |
-| /api/products/[id] | GET, PUT, DELETE | Soft delete |
-| /api/campaigns | GET, POST | Includes contact count |
-| /api/ar | GET | Includes timeline; filterable by status |
-| /api/ar/[id] | GET, PUT | Includes timeline |
-| /api/ar/[id]/timeline | POST | Adds timeline entry |
-| /api/team | GET | Active members only |
-| /api/designers | GET | Active designers only |
-| /api/dashboard | GET | period_revenue, today_revenue, nrr, deal_type_breakdown, daily_revenue_chart, rep_leaderboard |
-| /api/pipeline | GET | Filterable by from/to/rep; includes contact + product |
+**App Shell:**
+- Sidebar navigation (220px wide, Oxford Blue #050536 background)
+- 8 nav items with SVG Heroicons: Dashboard, Contacts, Pipeline, Onboarding, Tasks, Support, AR, Settings
+- ZING Local logo with gradient Z icon
+- Active state: gradient background (ultramarine→violet), turquoise-light text
+- User avatar (Amy Bourke / Admin) at bottom
+- Next.js App Router route groups for platform layout
 
-Key business logic implemented:
-- **CCPA cascade delete**: contacts/[id] DELETE hard-deletes contact + deals + onboarding + items + webOwners + tickets + AR accounts + AR timeline
-- **Won deal auto-onboarding**: POST and PUT deals auto-creates onboarding record + 12 onboarding items with spec-defined due date offsets
-- **Dashboard metrics**: NRR calculation, deal type breakdown, daily revenue chart, rep leaderboard
-- **Org-scoped + soft-delete**: All queries filter by organization_id and exclude deleted_at IS NOT NULL
+**Shared Components (components/ui/index.tsx):**
+- Badge — pill-style colored label
+- Avatar — gradient circle with initials
+- StatCard — metric card with colored top stripe
+- SearchBar — search input with magnifier icon
+- Btn — gradient primary, secondary, danger variants
+- Modal — backdrop blur overlay dialog
+- FormField / Input / Select — form components
+- FilterBtn — pill toggle buttons
+
+**Dashboard (/dashboard):**
+- Date range picker with 5 presets (This Month, Last Month, Last 7 Days, Last 30 Days, Year to Date) + custom dates
+- 3 StatCards: Period Revenue, Today's Revenue, NRR
+- Revenue by Deal Type (New/Upgrade/Add-on) with progress bars and stacked bar
+- Calendar with month navigation, dot indicators on days with deals, range highlight
+- Daily revenue bar chart (click bar to select day)
+- Daily Breakdown panel (selected day deals)
+- Period Breakdown panel (total, daily average, best day)
+- Rep Leaderboard with color-coded cards, progress bars
+- All data fetched from /api/dashboard and /api/deals via SWR
+
+**Contacts (/contacts):**
+- 4 StatCards counting by status (Live Customers, Active Leads, Cancelled, DNC)
+- SearchBar with 5 filter buttons
+- Contact table: 7-column grid with Avatar, Name, Email, Company, Campaign Badge, Lead Source Badge, Status Badge, Value
+- Click row → Contact Detail page
+- Add Contact modal with form fields, POST to API
+- Campaign data fetched from /api/campaigns
+
+**Contact Detail (/contacts/[id]):**
+- Back navigation link
+- Contact header card with large Avatar, name, company/email/phone, status badge
+- 4 pill-style tabs: Customer Info, Pre Sale Comms, Post Sale Comms, Cancelled
+- Customer Info: 3-column read mode, 2-column edit mode with Save/Cancel
+- Secondary email toggle for active communications
+- Related Deals card and Support Tickets card
+- Timeline tabs with vertical colored timeline, dot indicators, channel badges
+
+**Pipeline (/pipeline):**
+- Rep tabs (All + each rep) with avatar, name, deal count
+- Date range picker for won deals filtering
+- 4 StatCards: Avg MRR/Deal, MRR/Biz Day, Won in Period, Appointments
+- Team Leaderboard (All tab only) — clickable rep cards
+- Product Breakdown bars (DISCOVER/BOOST/DOMINATE)
+- Kanban board: 10 columns (call-now → won), horizontally scrollable
+- Deal cards with product color stripe, contact, rep, priority badge, value
+- Quick action hover buttons (Call, Text, Email, Appt)
+- Drag-and-drop between stages
+- Deal slide-out panel: stage mover, quick actions, SMS/Email/Calendar tabs, 5-section notes
+- Won Deal modal: deal type selector, product/amount/delivery/designer, launch fee with split payments
+- Add Won Deal button + modal
+
+**Technical:**
+- SWR for all data fetching with cache mutation on writes
+- All data from real Supabase database (16 contacts, 55 deals, 7 team members)
+- Next.js App Router with route groups for platform layout
+- Inter font via next/font/google
+- Inline styles matching prototype exactly (colors, radii, spacing, weights)
 
 ## What's Next
 
-- Week 2: Dashboard, Pipeline, and Contacts frontend views
+- Week 3: Onboarding views (by customer + by task), AR module, Support tickets
+- Week 4: Settings module, remaining filters/search, performance review
 
 ---
 
@@ -113,3 +150,6 @@ None currently.
 | 2026-03-29 | Circuit breakers via opossum | Graceful degradation on Stripe/Twilio failures |
 | 2026-03-29 | Prisma 7 with PrismaPg adapter | Prisma 7 requires driver adapters for direct DB connections; using @prisma/adapter-pg |
 | 2026-03-29 | Default org_id for Phase 1 | Single-tenant Phase 1 uses static UUID; schema supports multi-tenancy |
+| 2026-03-29 | SWR for frontend data fetching | Lightweight, built-in caching, revalidation. No Redux needed for Phase 1 |
+| 2026-03-29 | Inline styles matching prototype | Prototype uses inline styles; matching exactly before converting to Tailwind later |
+| 2026-03-29 | Port 3001 for dev (3000 occupied) | Another service uses port 3000 on this machine; dev server runs on 3001 |
