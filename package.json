@@ -1,20 +1,12 @@
 {
   "name": "atlas",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "ZING Atlas Platform",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "build": "cd platform && npm ci && npx prisma generate && npm run build",
+    "start": "cd platform && npm run start"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "better-sqlite3": "^12.8.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
