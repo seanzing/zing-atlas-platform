@@ -1,3 +1,4 @@
+# Build v4 - 2026-04-03
 FROM node:24-alpine AS builder
 
 RUN apk add --no-cache libc6-compat openssl
