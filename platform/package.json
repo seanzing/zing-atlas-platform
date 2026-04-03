@@ -15,7 +15,6 @@
     "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "@sentry/nextjs": "^10.46.0",
     "@stripe/react-stripe-js": "^6.1.0",
@@ -26,7 +25,6 @@
     "dotenv": "^17.3.1",
     "next": "14.2.35",
     "opossum": "^9.0.0",
-    "pg": "^8.20.0",
     "pino": "^10.3.1",
     "prisma": "^7.6.0",
     "react": "^18",
@@ -37,7 +35,6 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/opossum": "^8.1.9",
-    "@types/pg": "^8.20.0",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
