@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
+import { requireAuth } from "@/lib/api-auth";
 
 type RouteContext = { params: { id: string } };
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { id } = params;
 
     const contact = await prisma.contact.findFirst({
@@ -38,7 +41,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
-    return NextResponse.json(contact, { status: 200 });
+    // Flatten onboarding items for frontend consumption
+    const onboardingItems = contact.deals.flatMap((deal) =>
+      deal.onboarding.flatMap((ob) => ob.items)
+    );
+
+    return NextResponse.json({ ...contact, onboarding: onboardingItems }, { status: 200 });
   } catch (error) {
     logger.error({ err: error }, "GET /api/contacts/[id] error");
     return NextResponse.json(
@@ -50,6 +58,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { id } = params;
 
     const existing = await prisma.contact.findFirst({
@@ -66,9 +76,16 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     const body = await request.json();
 
+    // Whitelist allowed fields to prevent mass assignment
+    const allowedFields: Record<string, unknown> = {};
+    const whitelist = ["name", "email", "phone", "company", "status", "source", "notes", "campaignId"];
+    for (const key of whitelist) {
+      if (key in body) allowedFields[key] = body[key];
+    }
+
     const contact = await prisma.contact.update({
       where: { id },
-      data: body,
+      data: allowedFields,
     });
 
     return NextResponse.json(contact, { status: 200 });
@@ -83,6 +100,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { id } = params;
 
     // 1. Find the contact
@@ -114,9 +133,9 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       : [];
     const onboardingIds = onboardings.map((o) => o.id);
 
-    // 4. Find all ar_accounts matching contact name
+    // 4. Find all ar_accounts matching contact name within org
     const arAccounts = await prisma.arAccount.findMany({
-      where: { customerName: contact.name },
+      where: { customerName: contact.name, organizationId: ORG_ID },
       select: { id: true },
     });
     const arAccountIds = arAccounts.map((a) => a.id);
@@ -159,10 +178,18 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
             }),
           ]
         : []),
-      // Delete ar_accounts by customer_name
+      // Delete ar_accounts by customer_name within org
       prisma.arAccount.deleteMany({
-        where: { customerName: contact.name },
+        where: { customerName: contact.name, organizationId: ORG_ID },
       }),
+      // Delete launch_fee_payments for deals (ON DELETE RESTRICT requires explicit delete)
+      ...(dealIds.length
+        ? [
+            prisma.launchFeePayment.deleteMany({
+              where: { dealId: { in: dealIds } },
+            }),
+          ]
+        : []),
       // Delete deals by contact_id
       prisma.deal.deleteMany({
         where: { contactId: id },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
+import { requireAuth } from "@/lib/api-auth";
 
 function getDefaultRange(): { from: Date; to: Date } {
   const now = new Date();
@@ -16,6 +17,8 @@ function toDateString(date: Date): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { searchParams } = req.nextUrl;
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
@@ -33,12 +36,13 @@ export async function GET(req: NextRequest) {
     const todayEnd = new Date(todayStr);
     todayEnd.setHours(23, 59, 59, 999);
 
-    // 1. period_revenue
+    // 1. period_revenue (only confirmed payments count as revenue)
     const periodDeals = await prisma.deal.findMany({
       where: {
         organizationId: ORG_ID,
         deletedAt: null,
         stage: "won",
+        paymentStatus: "confirmed",
         wonDate: {
           gte: from,
           lte: toEndOfDay,
@@ -58,6 +62,7 @@ export async function GET(req: NextRequest) {
         organizationId: ORG_ID,
         deletedAt: null,
         stage: "won",
+        paymentStatus: "confirmed",
         wonDate: {
           gte: todayStart,
           lte: todayEnd,
@@ -77,6 +82,7 @@ export async function GET(req: NextRequest) {
         organizationId: ORG_ID,
         deletedAt: null,
         stage: "won",
+        paymentStatus: "confirmed",
         wonDate: { lt: from },
       },
       select: { value: true },
@@ -134,7 +140,7 @@ export async function GET(req: NextRequest) {
 
     const daily_revenue_chart = Object.entries(dayMap)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, { revenue, count }]) => ({ date, revenue, count }));
+      .map(([date, { revenue, count }]) => ({ date, revenue, deal_count: count }));
 
     // 6. rep_leaderboard
     const repMap: Record<string, { total: number; count: number }> = {};
@@ -146,8 +152,8 @@ export async function GET(req: NextRequest) {
     }
 
     const rep_leaderboard = Object.entries(repMap)
-      .map(([rep, { total, count }]) => ({ rep, total, count }))
-      .sort((a, b) => b.total - a.total);
+      .map(([rep, { total, count }]) => ({ rep, total_revenue: total, deal_count: count }))
+      .sort((a, b) => b.total_revenue - a.total_revenue);
 
     return NextResponse.json({
       period_revenue,

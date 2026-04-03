@@ -170,12 +170,14 @@ export function Btn({
   onClick,
   variant = "primary",
   small,
+  disabled,
   style: sx,
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "danger";
   small?: boolean;
+  disabled?: boolean;
   style?: React.CSSProperties;
 }) {
   const styles: Record<string, React.CSSProperties> = {
@@ -201,15 +203,17 @@ export function Btn({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       style={{
         ...styles[variant],
         padding: small ? "6px 14px" : "10px 20px",
         borderRadius: 10,
         fontSize: 13,
         fontWeight: 700,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         transition: "all 0.2s",
         letterSpacing: 0.3,
+        opacity: disabled ? 0.5 : 1,
         ...sx,
       }}
     >

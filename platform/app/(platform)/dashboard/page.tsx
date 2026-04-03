@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { StatCard, Avatar } from "@/components/ui";
+import { PageLoader } from "@/components/PageLoader";
 import { Z, fmt, AVATAR_COLORS } from "@/lib/constants";
 
 /* ------------------------------------------------------------------ */
@@ -14,24 +15,20 @@ interface DashboardData {
   period_revenue: number;
   today_revenue: number;
   nrr: number;
-  deal_type_breakdown: {
-    new_deals: number;
-    upgrade_deals: number;
-    addon_deals: number;
-  };
+  deal_type_breakdown: { type: string; count: number; revenue: number }[];
   daily_revenue_chart: { date: string; revenue: number; deal_count: number }[];
   rep_leaderboard: { rep: string; total_revenue: number; deal_count: number }[];
 }
 
 interface Deal {
   id: string;
-  contact_name?: string;
-  company_name?: string;
-  amount: number;
-  won_date?: string;
-  deal_type?: string;
-  product_name?: string;
-  rep_name?: string;
+  contactName?: string;
+  company?: string;
+  value: number;
+  wonDate?: string;
+  dealType?: string;
+  product?: { description: string };
+  rep?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,8 +153,6 @@ export default function DashboardPage() {
   useSWR(`/api/products`, fetcher);
   useSWR(`/api/team`, fetcher);
 
-  const loading = !dashboard;
-
   /* ---- Preset click ---- */
   function selectPreset(key: PresetKey) {
     setActivePreset(key);
@@ -182,7 +177,7 @@ export default function DashboardPage() {
     if (!wonDeals) return map;
     const deals = Array.isArray(wonDeals) ? wonDeals : [];
     for (const d of deals) {
-      const day = d.won_date ? d.won_date.slice(0, 10) : null;
+      const day = d.wonDate ? d.wonDate.slice(0, 10) : null;
       if (day) {
         if (!map[day]) map[day] = [];
         map[day].push(d);
@@ -196,7 +191,7 @@ export default function DashboardPage() {
     const allDays = eachDay(rangeFrom, rangeTo);
     return allDays.map((date) => {
       const deals = dealsByDay[date] || [];
-      const realRevenue = deals.reduce((s, d) => s + (d.amount || 0), 0);
+      const realRevenue = deals.reduce((s, d) => s + (d.value || 0), 0);
       const revenue = realRevenue > 0 ? realRevenue : seedRev(date);
       const deal_count = deals.length;
       return { date, revenue, deal_count };
@@ -225,10 +220,12 @@ export default function DashboardPage() {
   }, [dailyChartData]);
 
   /* ---- Deal type breakdown ---- */
-  const dtb = dashboard?.deal_type_breakdown || {
-    new_deals: 0,
-    upgrade_deals: 0,
-    addon_deals: 0,
+  const dtbArr = dashboard?.deal_type_breakdown || [];
+  const dtbLookup = Object.fromEntries(dtbArr.map((d) => [d.type, d]));
+  const dtb = {
+    new_deals: dtbLookup["new"]?.revenue || 0,
+    upgrade_deals: dtbLookup["upgrade"]?.revenue || 0,
+    addon_deals: dtbLookup["add-on"]?.revenue || 0,
   };
   const dtbTotal = dtb.new_deals + dtb.upgrade_deals + dtb.addon_deals || 1;
 
@@ -262,30 +259,10 @@ export default function DashboardPage() {
   const topRepRev = Math.max(...repLeaderboard.map((r) => r.total_revenue), 1);
 
   /* ------------------------------------------------------------------ */
-  /*  Loading state                                                     */
-  /* ------------------------------------------------------------------ */
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "60vh",
-          fontSize: 16,
-          color: Z.textMuted,
-          fontWeight: 600,
-        }}
-      >
-        Loading...
-      </div>
-    );
-  }
-
-  /* ------------------------------------------------------------------ */
   /*  Render                                                            */
   /* ------------------------------------------------------------------ */
+
+  if (!dashboard) return <PageLoader />;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -414,9 +391,9 @@ export default function DashboardPage() {
         />
         <StatCard
           label="NRR"
-          value={`${dashboard.nrr.toFixed(1)}%`}
+          value={`${(dashboard.nrr ?? 0).toFixed(1)}%`}
           sub="Net Revenue Retention"
-          accent={dashboard.nrr >= 100 ? "#10b981" : "#ef4444"}
+          accent={(dashboard.nrr ?? 0) >= 100 ? "#10b981" : "#ef4444"}
         />
       </div>
 
@@ -889,7 +866,7 @@ export default function DashboardPage() {
                               color: Z.textPrimary,
                             }}
                           >
-                            {deal.contact_name || deal.company_name || "Deal"}
+                            {deal.contactName || deal.company || "Deal"}
                           </div>
                           <div
                             style={{
@@ -898,7 +875,7 @@ export default function DashboardPage() {
                               color: Z.ultramarine,
                             }}
                           >
-                            {fmt(deal.amount)}
+                            {fmt(deal.value)}
                           </div>
                         </div>
                       ))}

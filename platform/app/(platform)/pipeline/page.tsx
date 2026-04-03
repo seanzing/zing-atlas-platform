@@ -1,9 +1,18 @@
 "use client";
 
 import { Badge, StatCard, Btn, Modal, FormField, Input, Select, FilterBtn } from "@/components/ui";
-import { Z, fmt, STAGES, PRIORITY_COLORS, PRODUCT_COLORS } from "@/lib/constants";
+import { Z, fmt, STAGES, PRIORITY_COLORS, PRODUCT_COLORS, STRIPE_PRICE_IDS } from "@/lib/constants";
+import { useAuthContext } from "@/lib/auth-context";
+import { PageLoader } from "@/components/PageLoader";
+import { Toast, useToast } from "@/components/Toast";
 import useSWR, { mutate } from "swr";
-import { useState, useMemo, useCallback, DragEvent } from "react";
+import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
+import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -72,14 +81,119 @@ type Designer = any;
 
 const NOTE_SECTIONS = ["Reps", "Designer", "Publishing", "Accounts", "Support"] as const;
 
+/* ── Take Sale sub-component (must be inside <Elements>) ── */
+
+function TakeSaleForm({
+  billingName, setBillingName, billingEmail, setBillingEmail,
+  amount, priceId, dealId, contactId, phone,
+  loading, setLoading, error, setError, onSuccess,
+}: {
+  billingName: string; setBillingName: (v: string) => void;
+  billingEmail: string; setBillingEmail: (v: string) => void;
+  amount: string; priceId: string | null; dealId: string; contactId?: string; phone?: string;
+  loading: boolean; setLoading: (v: boolean) => void;
+  error: string | null; setError: (v: string | null) => void;
+  onSuccess: (msg: string) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const handleCharge = async () => {
+    if (!stripe || !elements) return;
+    if (!priceId) { setError("No Stripe price mapped for this product"); return; }
+    if (!billingEmail) { setError("Billing email is required"); return; }
+
+    setLoading(true);
+    setError(null);
+
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) { setError("Card element not found"); setLoading(false); return; }
+
+    const { error: pmError, paymentMethod } = await stripe.createPaymentMethod({
+      type: "card",
+      card: cardElement,
+      billing_details: { name: billingName, email: billingEmail },
+    });
+
+    if (pmError) { setError(pmError.message || "Card error"); setLoading(false); return; }
+
+    try {
+      const res = await fetch("/api/stripe/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: billingName,
+          email: billingEmail,
+          phone: phone || undefined,
+          priceId,
+          paymentMethodId: paymentMethod.id,
+          dealId,
+          contactId: contactId || undefined,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        onSuccess(`Subscription active — ${fmt(Number(amount))}/month`);
+      } else if (data.requiresAction && data.clientSecret) {
+        const { error: confirmError } = await stripe.confirmCardPayment(data.clientSecret);
+        if (confirmError) {
+          setError(confirmError.message || "3DS authentication failed");
+        } else {
+          onSuccess(`Subscription active — ${fmt(Number(amount))}/month`);
+        }
+      } else {
+        setError(data.error || "Payment failed");
+      }
+    } catch {
+      setError("Network error");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${Z.border}`, borderRadius: 8, background: "#fff" }}>
+        <CardElement options={{ style: { base: { fontSize: "14px", color: Z.textPrimary } } }} />
+      </div>
+      <FormField label="Billing Name">
+        <Input value={billingName} onChange={setBillingName} placeholder="Customer name" />
+      </FormField>
+      <FormField label="Billing Email">
+        <Input value={billingEmail} onChange={setBillingEmail} placeholder="customer@example.com" />
+      </FormField>
+      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{error}</div>}
+      <Btn
+        disabled={loading || !stripe || !priceId}
+        onClick={handleCharge}
+      >
+        {loading ? "Processing..." : `Charge ${amount ? fmt(Number(amount)) : "$0"}/month`}
+      </Btn>
+    </div>
+  );
+}
+
 /* ── main component ── */
 
 export default function PipelinePage() {
+  const { user } = useAuthContext();
   const now = new Date();
   const [dateFrom, setDateFrom] = useState(toYMD(startOfMonth(now)));
   const [dateTo, setDateTo] = useState(toYMD(endOfMonth(now)));
   const [activePreset, setActivePreset] = useState("this-month");
+  // Sales reps default to their own tab; admins see All
+  const myRepName = user?.teamMember
+    ? `${user.teamMember.firstName || ""} ${user.teamMember.lastName || ""}`.trim()
+    : "";
+  const isSalesRep = user?.teamMember?.role?.toLowerCase().includes("sales") || user?.teamMember?.role?.toLowerCase().includes("rep");
   const [activeRep, setActiveRep] = useState("All");
+
+  // Once user loads, default sales reps to their own tab
+  useEffect(() => {
+    if (isSalesRep && myRepName) {
+      setActiveRep(myRepName);
+    }
+  }, [isSalesRep, myRepName]);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [wonModalDeal, setWonModalDeal] = useState<Deal | null>(null);
   const [addWonOpen, setAddWonOpen] = useState(false);
@@ -97,6 +211,17 @@ export default function PipelinePage() {
   const [wonSplitPayments, setWonSplitPayments] = useState(false);
   const [wonSplitCount, setWonSplitCount] = useState("2");
 
+  // Payment step state
+  const [paymentMethod, setPaymentMethod] = useState<"take-sale" | "send-link" | null>(null);
+  const [paymentBillingName, setPaymentBillingName] = useState("");
+  const [paymentBillingEmail, setPaymentBillingEmail] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [sendLinkEmail, setSendLinkEmail] = useState("");
+
   // Add Won modal state
   const [addWonTitle, setAddWonTitle] = useState("");
   const [addWonContactName, setAddWonContactName] = useState("");
@@ -112,6 +237,7 @@ export default function PipelinePage() {
 
   // Notes state for slide-out panel
   const [dealNotes, setDealNotes] = useState<Record<string, string>>({});
+  const { toast, showToast } = useToast();
 
   /* ── data fetching ── */
   const repParam = activeRep !== "All" ? `&rep=${activeRep}` : "";
@@ -126,7 +252,7 @@ export default function PipelinePage() {
   const salesTeam = useMemo(
     () =>
       (teamMembers ?? []).filter(
-        (m: TeamMember) => m.role === "sales" || m.role === "rep" || !m.role
+        (m: TeamMember) => m.role?.toLowerCase().includes("sales") || m.role?.toLowerCase().includes("rep") || !m.role
       ),
     [teamMembers]
   );
@@ -280,6 +406,9 @@ export default function PipelinePage() {
         setWonModalDeal(deal);
         setWonAmount(deal.value ? String(Number(deal.value)) : "");
         setWonProductId(deal.productId || "");
+        setPaymentBillingName(deal.contactName || "");
+        setPaymentBillingEmail(deal.contact?.email || "");
+        setSendLinkEmail(deal.contact?.email || "");
         setDragDealId(null);
         return;
       }
@@ -292,12 +421,12 @@ export default function PipelinePage() {
         });
         mutate(pipelineUrl);
         mutate("/api/deals");
-      } catch (err) {
-        console.error("Failed to update deal stage:", err);
+      } catch {
+        showToast("Failed to update deal stage", false);
       }
       setDragDealId(null);
     },
-    [dragDealId, visibleDeals, pipelineUrl]
+    [dragDealId, visibleDeals, pipelineUrl, showToast]
   );
 
   const handleStageChange = useCallback(
@@ -307,6 +436,9 @@ export default function PipelinePage() {
         setWonModalDeal(deal);
         setWonAmount(deal.value ? String(Number(deal.value)) : "");
         setWonProductId(deal.productId || "");
+        setPaymentBillingName(deal.contactName || "");
+        setPaymentBillingEmail(deal.contact?.email || "");
+        setSendLinkEmail(deal.contact?.email || "");
         return;
       }
       try {
@@ -320,11 +452,11 @@ export default function PipelinePage() {
         if (selectedDeal?.id === deal.id) {
           setSelectedDeal({ ...deal, stage: newStage });
         }
-      } catch (err) {
-        console.error("Failed to update deal stage:", err);
+      } catch {
+        showToast("Failed to update deal stage", false);
       }
     },
-    [pipelineUrl, selectedDeal]
+    [pipelineUrl, selectedDeal, showToast]
   );
 
   const submitWonDeal = useCallback(async () => {
@@ -350,10 +482,10 @@ export default function PipelinePage() {
       mutate("/api/deals");
       setWonModalDeal(null);
       resetWonForm();
-    } catch (err) {
-      console.error("Failed to submit won deal:", err);
+    } catch {
+      showToast("Failed to submit won deal", false);
     }
-  }, [wonModalDeal, wonDealType, wonProductId, wonAmount, wonDeliveryDate, wonDesigner, wonLaunchFee, pipelineUrl]);
+  }, [wonModalDeal, wonDealType, wonProductId, wonAmount, wonDeliveryDate, wonDesigner, wonLaunchFee, pipelineUrl, showToast]);
 
   const submitAddWonDeal = useCallback(async () => {
     try {
@@ -380,10 +512,10 @@ export default function PipelinePage() {
       mutate("/api/deals");
       setAddWonOpen(false);
       resetAddWonForm();
-    } catch (err) {
-      console.error("Failed to create won deal:", err);
+    } catch {
+      showToast("Failed to create deal", false);
     }
-  }, [addWonTitle, addWonContactName, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, pipelineUrl]);
+  }, [addWonTitle, addWonContactName, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, pipelineUrl, showToast]);
 
   const handleSaveNotes = useCallback(
     async (deal: Deal) => {
@@ -399,12 +531,23 @@ export default function PipelinePage() {
         });
         mutate(pipelineUrl);
         mutate("/api/deals");
-      } catch (err) {
-        console.error("Failed to save notes:", err);
+      } catch {
+        showToast("Failed to save notes", false);
       }
     },
-    [dealNotes, pipelineUrl]
+    [dealNotes, pipelineUrl, showToast]
   );
+
+  /** Map a product (by description) to its Stripe price ID */
+  function getStripePriceId(productId: string): string | null {
+    const p = (products ?? []).find((pr: Product) => pr.id === productId);
+    if (!p) return null;
+    const desc = (p.description || "").toUpperCase();
+    if (desc.includes("DISCOVER")) return STRIPE_PRICE_IDS.DISCOVER;
+    if (desc.includes("BOOST")) return STRIPE_PRICE_IDS.BOOST;
+    if (desc.includes("DOMINATE")) return STRIPE_PRICE_IDS.DOMINATE;
+    return null;
+  }
 
   function resetWonForm() {
     setWonDealType("new");
@@ -415,6 +558,15 @@ export default function PipelinePage() {
     setWonLaunchFee("");
     setWonSplitPayments(false);
     setWonSplitCount("2");
+    setPaymentMethod(null);
+    setPaymentBillingName("");
+    setPaymentBillingEmail("");
+    setPaymentLoading(false);
+    setPaymentSuccess(null);
+    setPaymentError(null);
+    setPaymentLinkUrl(null);
+    setLinkCopied(false);
+    setSendLinkEmail("");
   }
 
   function resetAddWonForm() {
@@ -508,6 +660,8 @@ export default function PipelinePage() {
 
   /* ─────────── RENDER ─────────── */
 
+  if (!allDeals) return <PageLoader />;
+
   return (
     <div style={{ padding: "0 8px 32px", maxWidth: "100%", overflow: "hidden" }}>
       {/* ── 1. Page Header ── */}
@@ -553,9 +707,10 @@ export default function PipelinePage() {
                 ? "A"
                 : name
                     .split(" ")
+                    .filter(Boolean)
                     .map((w: string) => w[0])
                     .join("")
-                    .toUpperCase();
+                    .toUpperCase() || "?";
             return (
               <button
                 key={name}
@@ -1173,6 +1328,17 @@ export default function PipelinePage() {
                             {deal.value ? fmt(Number(deal.value)) : "—"}
                           </span>
                         </div>
+                        {deal.stage === "won" && (
+                          <div style={{ marginTop: 4 }}>
+                            {deal.paymentStatus === "confirmed" ? (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: "#16a34a", background: "#dcfce7", padding: "2px 6px", borderRadius: 4 }}>✓ Paid</span>
+                            ) : deal.paymentStatus === "failed" ? (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: "#dc2626", background: "#fef2f2", padding: "2px 6px", borderRadius: 4 }}>✗ Payment Failed</span>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 6px", borderRadius: 4 }}>⏳ Awaiting Payment</span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Quick action buttons */}
                         <div
@@ -1782,7 +1948,7 @@ export default function PipelinePage() {
                         Payment {i + 1}:{" "}
                         <strong>
                           {fmt(
-                            Number(wonLaunchFee) / Number(wonSplitCount)
+                            Number(wonLaunchFee) / (Number(wonSplitCount) || 1)
                           )}
                         </strong>
                       </div>
@@ -1791,12 +1957,155 @@ export default function PipelinePage() {
               </div>
             )}
 
+            {/* ── Process Payment Section ── */}
+            <div style={{ borderTop: `1px solid ${Z.border}`, paddingTop: 16, marginTop: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary, marginBottom: 12 }}>
+                Process Payment
+              </div>
+
+              {/* Payment method toggle buttons */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  onClick={() => { setPaymentMethod("take-sale"); setPaymentError(null); setPaymentSuccess(null); setPaymentLinkUrl(null); }}
+                  style={{
+                    flex: 1, padding: "12px 0", borderRadius: 10,
+                    border: paymentMethod === "take-sale" ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`,
+                    background: paymentMethod === "take-sale" ? `${Z.ultramarine}10` : "transparent",
+                    color: paymentMethod === "take-sale" ? Z.ultramarine : Z.textSecondary,
+                    fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  💳 Take Sale
+                </button>
+                <button
+                  onClick={() => { setPaymentMethod("send-link"); setPaymentError(null); setPaymentSuccess(null); setPaymentLinkUrl(null); }}
+                  style={{
+                    flex: 1, padding: "12px 0", borderRadius: 10,
+                    border: paymentMethod === "send-link" ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`,
+                    background: paymentMethod === "send-link" ? `${Z.ultramarine}10` : "transparent",
+                    color: paymentMethod === "send-link" ? Z.ultramarine : Z.textSecondary,
+                    fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  🔗 Send Link
+                </button>
+              </div>
+
+              {/* Take Sale panel */}
+              {paymentMethod === "take-sale" && (
+                <div>
+                  {!stripePromise ? (
+                    <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: 12, fontSize: 12, color: "#92400e", marginBottom: 12 }}>
+                      Stripe publishable key not configured — contact admin.
+                    </div>
+                  ) : paymentSuccess ? (
+                    <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 8, padding: 16, textAlign: "center", marginBottom: 12 }}>
+                      <span style={{ fontSize: 20 }}>✓</span>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginTop: 4 }}>{paymentSuccess}</div>
+                    </div>
+                  ) : (
+                    <Elements stripe={stripePromise} options={{ appearance: { theme: "stripe" } } as StripeElementsOptions}>
+                      <TakeSaleForm
+                        billingName={paymentBillingName}
+                        setBillingName={setPaymentBillingName}
+                        billingEmail={paymentBillingEmail}
+                        setBillingEmail={setPaymentBillingEmail}
+                        amount={wonAmount}
+                        priceId={getStripePriceId(wonProductId)}
+                        dealId={wonModalDeal.id}
+                        contactId={wonModalDeal.contactId}
+                        phone={wonModalDeal.contact?.phone}
+                        loading={paymentLoading}
+                        setLoading={setPaymentLoading}
+                        error={paymentError}
+                        setError={setPaymentError}
+                        onSuccess={(msg) => setPaymentSuccess(msg)}
+                      />
+                    </Elements>
+                  )}
+                </div>
+              )}
+
+              {/* Send Link panel */}
+              {paymentMethod === "send-link" && (
+                <div>
+                  {paymentLinkUrl ? (
+                    <div>
+                      <div style={{ fontSize: 12, color: Z.textSecondary, marginBottom: 8 }}>
+                        Share this link with {wonModalDeal.contactName || "the customer"} to complete their subscription.
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        <input
+                          readOnly
+                          value={paymentLinkUrl}
+                          style={{
+                            flex: 1, padding: "8px 12px", borderRadius: 8,
+                            border: `1px solid ${Z.border}`, fontSize: 12,
+                            color: Z.textPrimary, background: Z.bg, outline: "none",
+                          }}
+                        />
+                        <Btn
+                          variant="secondary"
+                          onClick={() => { navigator.clipboard.writeText(paymentLinkUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+                        >
+                          {linkCopied ? "Copied!" : "Copy Link"}
+                        </Btn>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <FormField label="Customer Email">
+                        <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" />
+                      </FormField>
+                      {paymentError && (
+                        <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{paymentError}</div>
+                      )}
+                      <Btn
+                        disabled={paymentLoading || !sendLinkEmail || !wonProductId}
+                        onClick={async () => {
+                          setPaymentLoading(true);
+                          setPaymentError(null);
+                          try {
+                            const priceId = getStripePriceId(wonProductId);
+                            if (!priceId) { setPaymentError("No Stripe price mapped for this product"); setPaymentLoading(false); return; }
+                            const p = (products ?? []).find((pr: Product) => pr.id === wonProductId);
+                            const res = await fetch("/api/stripe/payment-link", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                name: wonModalDeal.contactName || "",
+                                email: sendLinkEmail,
+                                priceId,
+                                dealId: wonModalDeal.id,
+                                productName: p?.description || "",
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setPaymentLinkUrl(data.checkoutUrl);
+                            } else {
+                              setPaymentError(data.error || "Failed to generate link");
+                            }
+                          } catch {
+                            setPaymentError("Network error");
+                          }
+                          setPaymentLoading(false);
+                        }}
+                      >
+                        {paymentLoading ? "Generating..." : "Generate Payment Link"}
+                      </Btn>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div
               style={{
                 display: "flex",
                 gap: 8,
                 justifyContent: "flex-end",
-                marginTop: 8,
+                marginTop: 16,
               }}
             >
               <Btn
@@ -1980,7 +2289,7 @@ export default function PipelinePage() {
                     Payment {i + 1}:{" "}
                     <strong>
                       {fmt(
-                        Number(addWonLaunchFee) / Number(addWonSplitCount)
+                        Number(addWonLaunchFee) / (Number(addWonSplitCount) || 1)
                       )}
                     </strong>
                   </div>
@@ -2009,6 +2318,7 @@ export default function PipelinePage() {
           <Btn onClick={submitAddWonDeal}>Create Won Deal</Btn>
         </div>
       </Modal>
+      <Toast toast={toast} />
     </div>
   );
 }

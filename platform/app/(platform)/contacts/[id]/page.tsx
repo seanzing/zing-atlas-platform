@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
+import { PageLoader } from "@/components/PageLoader";
+import { Toast, useToast } from "@/components/Toast";
 import {
   Badge,
   Avatar,
@@ -23,7 +25,7 @@ interface Deal {
   title: string;
   value: number;
   stage: string;
-  created_at: string;
+  createdAt: string;
 }
 
 interface Ticket {
@@ -31,14 +33,14 @@ interface Ticket {
   subject: string;
   status: string;
   priority: string;
-  created_at: string;
+  createdAt: string;
 }
 
 interface OnboardingItem {
   id: string;
-  item_name: string;
+  itemName: string;
   status: string;
-  due_date: string;
+  dueDate: string;
 }
 
 // Campaign data is included inline from the contacts API
@@ -47,15 +49,15 @@ interface ContactDetail {
   id: string;
   name: string;
   email: string;
-  secondary_email: string | null;
+  secondaryEmail: string | null;
   company: string;
   phone: string;
   status: string;
-  last_contact: string;
+  lastContact: string;
   value: number;
   notes: string | null;
-  lead_source: string;
-  campaign_id: string | null;
+  leadSource: string;
+  campaignId: string | null;
   avatar: string | null;
   deals: Deal[];
   tickets: Ticket[];
@@ -63,6 +65,12 @@ interface ContactDetail {
 }
 
 const TABS = ["Customer Info", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  const date = new Date(d);
+  return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 function generateTimeline(
   contact: ContactDetail,
@@ -76,44 +84,28 @@ function generateTimeline(
       contact.deals.forEach((deal) => {
         entries.push({
           channel: "Pipeline",
-          date: new Date(deal.created_at).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
+          date: fmtDate(deal.createdAt),
           note: `Deal "${deal.title}" created - ${fmt(deal.value)} - Stage: ${deal.stage}`,
           color: Z.ultramarine,
         });
       });
     }
     entries.push({
-      channel: contact.lead_source,
-      date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      note: `Initial outreach via ${contact.lead_source.toLowerCase()} campaign`,
-      color: LEAD_SOURCE_COLORS[contact.lead_source] || Z.bluejeans,
+      channel: contact.leadSource || "Unknown",
+      date: fmtDate(contact.lastContact),
+      note: `Initial outreach via ${(contact.leadSource || "unknown").toLowerCase()} campaign`,
+      color: LEAD_SOURCE_COLORS[contact.leadSource] || Z.bluejeans,
     });
     entries.push({
       channel: "System",
-      date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      note: `Contact added as ${contact.status} from ${contact.lead_source} source`,
+      date: fmtDate(contact.lastContact),
+      note: `Contact added as ${contact.status} from ${contact.leadSource || "unknown"} source`,
       color: Z.turquoise,
     });
     if (contact.notes) {
       entries.push({
         channel: "Note",
-        date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        date: fmtDate(contact.lastContact),
         note: contact.notes,
         color: Z.violet,
       });
@@ -124,12 +116,8 @@ function generateTimeline(
       contact.onboarding.forEach((item) => {
         entries.push({
           channel: "Onboarding",
-          date: new Date(item.due_date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-          note: `${item.item_name} - ${item.status}`,
+          date: fmtDate(item.dueDate),
+          note: `${item.itemName} - ${item.status}`,
           color: item.status === "complete" ? "#10b981" : Z.bluejeans,
         });
       });
@@ -138,11 +126,7 @@ function generateTimeline(
       contact.tickets.forEach((ticket) => {
         entries.push({
           channel: "Support",
-          date: new Date(ticket.created_at).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
+          date: fmtDate(ticket.createdAt),
           note: `${ticket.subject} [${ticket.priority}] - ${ticket.status}`,
           color: ticket.status === "resolved" ? "#10b981" : "#ef4444",
         });
@@ -164,32 +148,20 @@ function generateTimeline(
     if (contact.status === "Cancelled") {
       entries.push({
         channel: "System",
-        date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        date: fmtDate(contact.lastContact),
         note: "Customer status changed to Cancelled",
         color: "#ef4444",
       });
       entries.push({
         channel: "Win-Back",
-        date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        date: fmtDate(contact.lastContact),
         note: "Added to win-back campaign queue",
         color: Z.violet,
       });
     } else if (contact.status === "DNC") {
       entries.push({
         channel: "System",
-        date: new Date(contact.last_contact).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        date: fmtDate(contact.lastContact),
         note: "Contact marked as Do Not Contact",
         color: Z.grey,
       });
@@ -229,40 +201,29 @@ export default function ContactDetailPage() {
   const [editSecondaryEmail, setEditSecondaryEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const { toast, showToast } = useToast();
 
-  if (!contact) {
-    return (
-      <div
-        style={{
-          padding: 60,
-          textAlign: "center",
-          color: Z.textMuted,
-          fontSize: 14,
-        }}
-      >
-        Loading...
-      </div>
-    );
-  }
+  if (!contact) return <PageLoader />;
 
   const campaignMap = new Map((campaigns || []).map((c) => [c.id, c]));
-  const campaign = contact.campaign_id
-    ? campaignMap.get(contact.campaign_id)
+  const campaign = contact.campaignId
+    ? campaignMap.get(contact.campaignId)
     : null;
 
   const getInitials = (name: string) =>
     name
       .split(" ")
+      .filter(Boolean)
       .map((w) => w[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || "?";
 
   const startEdit = () => {
     setEditName(contact.name);
     setEditCompany(contact.company);
     setEditEmail(contact.email);
-    setEditSecondaryEmail(contact.secondary_email || "");
+    setEditSecondaryEmail(contact.secondaryEmail || "");
     setEditPhone(contact.phone);
     setEditNotes(contact.notes || "");
     setEditing(true);
@@ -273,20 +234,25 @@ export default function ContactDetailPage() {
   };
 
   const saveEdit = async () => {
-    await fetch(`/api/contacts/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editName,
-        company: editCompany,
-        email: editEmail,
-        secondary_email: editSecondaryEmail || null,
-        phone: editPhone,
-        notes: editNotes,
-      }),
-    });
-    mutate();
-    setEditing(false);
+    try {
+      const res = await fetch(`/api/contacts/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName,
+          company: editCompany,
+          email: editEmail,
+          secondaryEmail: editSecondaryEmail || null,
+          phone: editPhone,
+          notes: editNotes,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      mutate();
+      setEditing(false);
+    } catch {
+      showToast("Failed to save contact", false);
+    }
   };
 
   const preSaleCount =
@@ -484,7 +450,7 @@ export default function ContactDetailPage() {
                   <DetailField label="Primary Email" value={contact.email} />
                   <DetailField
                     label="Secondary Email"
-                    value={contact.secondary_email || "--"}
+                    value={contact.secondaryEmail || "--"}
                   />
                   <DetailField label="Phone" value={contact.phone} />
                   <DetailField label="Company" value={contact.company} />
@@ -494,16 +460,13 @@ export default function ContactDetailPage() {
                   />
                   <DetailField
                     label="Last Contact"
-                    value={new Date(contact.last_contact).toLocaleDateString(
-                      "en-US",
-                      { month: "short", day: "numeric", year: "numeric" }
-                    )}
+                    value={fmtDate(contact.lastContact)}
                   />
                   <DetailField label="Lead Source">
                     <Badge
-                      label={contact.lead_source}
+                      label={contact.leadSource}
                       color={
-                        LEAD_SOURCE_COLORS[contact.lead_source] || Z.grey
+                        LEAD_SOURCE_COLORS[contact.leadSource] || Z.grey
                       }
                     />
                   </DetailField>
@@ -561,7 +524,7 @@ export default function ContactDetailPage() {
                       type="email"
                     />
                   </FormField>
-                  {contact.secondary_email && (
+                  {contact.secondaryEmail && (
                     <button
                       onClick={() => setShowSecondaryEmail(!showSecondaryEmail)}
                       style={{
@@ -703,7 +666,7 @@ export default function ContactDetailPage() {
                       >
                         <Badge label={deal.stage} color={Z.ultramarine} />
                         <span style={{ fontSize: 11, color: Z.textMuted }}>
-                          {new Date(deal.created_at).toLocaleDateString(
+                          {new Date(deal.createdAt).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" }
                           )}
@@ -797,7 +760,7 @@ export default function ContactDetailPage() {
                           color={STATUS_COLORS[ticket.status] || Z.grey}
                         />
                         <span style={{ fontSize: 11, color: Z.textMuted }}>
-                          {new Date(ticket.created_at).toLocaleDateString(
+                          {new Date(ticket.createdAt).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" }
                           )}
@@ -931,6 +894,7 @@ export default function ContactDetailPage() {
           )}
         </div>
       )}
+      <Toast toast={toast} />
     </div>
   );
 }

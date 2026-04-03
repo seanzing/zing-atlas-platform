@@ -205,6 +205,7 @@ async function main() {
         wonDate: wonDate ? new Date(wonDate) : null,
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
         dealType: dealType || "new",
+        paymentStatus: d.stage === "won" ? "confirmed" : "pending",
       },
     });
     dealMap[origId] = created.id;

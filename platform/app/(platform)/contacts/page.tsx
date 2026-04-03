@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
+import { PageLoader } from "@/components/PageLoader";
+import { Toast, useToast } from "@/components/Toast";
 import {
   Badge,
   Avatar,
@@ -21,15 +23,15 @@ interface Contact {
   id: string;
   name: string;
   email: string;
-  secondary_email: string | null;
+  secondaryEmail: string | null;
   company: string;
   phone: string;
   status: string;
-  last_contact: string;
+  lastContact: string;
   value: number;
   notes: string | null;
-  lead_source: string;
-  campaign_id: string | null;
+  leadSource: string;
+  campaignId: string | null;
   avatar: string | null;
 }
 
@@ -38,7 +40,7 @@ interface Campaign {
   name: string;
   type: string;
   status: string;
-  contact_count: number;
+  contactCount: number;
 }
 
 const STATUS_FILTERS = ["All", "Live Customer", "Active Lead", "Cancelled", "DNC"];
@@ -60,6 +62,10 @@ export default function ContactsPage() {
   const [formStatus, setFormStatus] = useState("Active Lead");
   const [formLeadSource, setFormLeadSource] = useState("Email");
   const [formNotes, setFormNotes] = useState("");
+
+  const { toast, showToast } = useToast();
+
+  if (!contacts) return <PageLoader />;
 
   const list = contacts || [];
   const campaignMap = new Map((campaigns || []).map((c) => [c.id, c]));
@@ -104,22 +110,27 @@ export default function ContactsPage() {
 
   const handleCreate = async () => {
     if (!formName || !formEmail) return;
-    await fetch("/api/contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: formName,
-        email: formEmail,
-        company: formCompany,
-        phone: formPhone,
-        status: formStatus,
-        lead_source: formLeadSource,
-        notes: formNotes,
-      }),
-    });
-    mutate();
-    setModalOpen(false);
-    resetForm();
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName,
+          email: formEmail,
+          company: formCompany,
+          phone: formPhone,
+          status: formStatus,
+          leadSource: formLeadSource,
+          notes: formNotes,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      mutate();
+      setModalOpen(false);
+      resetForm();
+    } catch {
+      showToast("Failed to create contact", false);
+    }
   };
 
   return (
@@ -252,7 +263,7 @@ export default function ContactsPage() {
 
         {/* Rows */}
         {filtered.map((c, i) => {
-          const campaign = c.campaign_id ? campaignMap.get(c.campaign_id) : null;
+          const campaign = c.campaignId ? campaignMap.get(c.campaignId) : null;
           return (
             <div
               key={c.id}
@@ -329,8 +340,8 @@ export default function ContactsPage() {
               {/* Lead Source */}
               <div>
                 <Badge
-                  label={c.lead_source}
-                  color={LEAD_SOURCE_COLORS[c.lead_source] || Z.grey}
+                  label={c.leadSource}
+                  color={LEAD_SOURCE_COLORS[c.leadSource] || Z.grey}
                 />
               </div>
 
@@ -473,6 +484,7 @@ export default function ContactsPage() {
           <Btn onClick={handleCreate}>Create Contact</Btn>
         </div>
       </Modal>
+      <Toast toast={toast} />
     </div>
   );
 }

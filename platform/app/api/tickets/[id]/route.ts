@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 
 export async function GET(
@@ -8,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
     const { id } = await params;
 
     const ticket = await prisma.ticket.findFirst({
@@ -31,6 +35,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -42,9 +49,16 @@ export async function PUT(
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
     }
 
+    // Whitelist allowed fields to prevent mass assignment
+    const allowedFields: Record<string, unknown> = {};
+    const whitelist = ["subject", "description", "status", "priority", "category", "assignee", "notes", "contactId", "contactName"];
+    for (const key of whitelist) {
+      if (key in body) allowedFields[key] = body[key];
+    }
+
     const ticket = await prisma.ticket.update({
       where: { id },
-      data: body,
+      data: allowedFields,
       include: { contact: true },
     });
 

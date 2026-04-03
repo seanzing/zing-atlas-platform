@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { ORG_ID, ONBOARDING_ITEMS, addDays } from "@/lib/constants";
+import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { searchParams } = new URL(req.url);
     const stage = searchParams.get("stage");
     const rep = searchParams.get("rep");
@@ -38,6 +41,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const body = await req.json();
 
     if (!body.title) {
@@ -51,19 +56,34 @@ export async function POST(req: NextRequest) {
         ? new Date()
         : undefined;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dealData: any = {
-      ...body,
-      organizationId: ORG_ID,
-    };
+    // Whitelist allowed fields to prevent mass assignment
+    const whitelist = [
+      "title", "stage", "value", "rep", "contactName", "company", "dealType",
+      "productId", "contactId", "lostReason", "notes",
+      "designer", "designerEmail", "launchFeeAmount",
+    ];
+    const dealData: Record<string, unknown> = { organizationId: ORG_ID };
+    for (const key of whitelist) {
+      if (key in body) dealData[key] = body[key];
+    }
+    // Validate numeric fields
+    if (dealData.value !== undefined && dealData.value !== null) {
+      const numVal = Number(dealData.value);
+      if (isNaN(numVal) || numVal < 0) {
+        return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
+      }
+      dealData.value = numVal;
+    }
+    if (dealData.launchFeeAmount !== undefined && dealData.launchFeeAmount !== null) {
+      const numFee = Number(dealData.launchFeeAmount);
+      if (isNaN(numFee) || numFee < 0) {
+        return NextResponse.json({ error: "launchFeeAmount must be a non-negative number" }, { status: 400 });
+      }
+      dealData.launchFeeAmount = numFee;
+    }
     if (wonDate !== undefined) dealData.wonDate = wonDate;
 
-    // Remove undefined keys to avoid Prisma errors
-    Object.keys(dealData).forEach(
-      (k: string) => dealData[k] === undefined && delete dealData[k]
-    );
-
-    const deal = await prisma.deal.create({ data: dealData });
+    const deal = await prisma.deal.create({ data: dealData as Parameters<typeof prisma.deal.create>[0]["data"] });
 
     if (isWon) {
       // Fetch contact if contactId provided
@@ -89,15 +109,58 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await prisma.onboardingItem.createMany({
-        data: ONBOARDING_ITEMS.map((item) => ({
-          onboardingId: onboarding.id,
-          itemName: item.itemName,
-          stage: "pending",
-          owner: null,
-          dueDate: addDays(effectiveWonDate, item.daysOffset),
-        })),
-      });
+      // Try DB-based task templates first, fall back to constants
+      const dbTemplates = deal.productId
+        ? await prisma.productTaskTemplate.findMany({
+            where: { productId: deal.productId, deletedAt: null },
+            orderBy: { taskOrder: "asc" },
+          })
+        : [];
+
+      if (dbTemplates.length > 0) {
+        await prisma.onboardingItem.createMany({
+          data: dbTemplates.map((t, idx) => ({
+            onboardingId: onboarding.id,
+            itemName: t.taskName,
+            taskType: t.taskType,
+            ownerRole: t.ownerRole,
+            stage: "pending",
+            currentStatus: Array.isArray(t.statusOptions) ? (t.statusOptions as Array<{value: string}>)[0]?.value ?? "not_started" : "not_started",
+            statusOptions: t.statusOptions ?? [],
+            isConditional: t.isConditional,
+            isActive: idx === 0,
+            owner: null,
+            dueDate: addDays(effectiveWonDate, t.daysOffset),
+          })),
+        });
+      } else {
+        // Fallback: constants-based templates
+        const product = deal.productId
+          ? await prisma.product.findUnique({ where: { id: deal.productId } })
+          : null;
+        const productDesc = product?.description?.toUpperCase() ?? '';
+        const productKey = Object.keys(PRODUCT_TASK_MAP).find(k => productDesc.includes(k)) ?? 'DISCOVER';
+        const taskTypes = PRODUCT_TASK_MAP[productKey];
+
+        await prisma.onboardingItem.createMany({
+          data: taskTypes.map((taskType, idx) => {
+            const template = ONBOARDING_TASK_TEMPLATES[taskType];
+            return {
+              onboardingId: onboarding.id,
+              itemName: template.itemName,
+              taskType: template.taskType,
+              ownerRole: template.ownerRole,
+              stage: "pending",
+              currentStatus: template.statusOptions[0]?.value ?? "not_started",
+              statusOptions: JSON.parse(JSON.stringify(template.statusOptions)),
+              isConditional: template.isConditional,
+              isActive: idx === 0,
+              owner: null,
+              dueDate: addDays(effectiveWonDate, template.daysOffset),
+            };
+          }),
+        });
+      }
 
       logger.info({ dealId: deal.id, onboardingId: onboarding.id }, "Won deal — onboarding created");
     }

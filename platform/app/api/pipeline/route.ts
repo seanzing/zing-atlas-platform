@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
+import { requireAuth } from "@/lib/api-auth";
 
 function getDefaultRange(): { from: Date; to: Date } {
   const now = new Date();
@@ -12,6 +13,8 @@ function getDefaultRange(): { from: Date; to: Date } {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
     const { searchParams } = req.nextUrl;
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
