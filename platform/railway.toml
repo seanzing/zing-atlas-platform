@@ -1,11 +1,8 @@
 [build]
-builder = "nixpacks"
-buildCommand = "npx prisma generate && npm run build"
+builder = "dockerfile"
 
 [deploy]
 startCommand = "npm run start"
-healthcheckPath = "/login"
-healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
 
