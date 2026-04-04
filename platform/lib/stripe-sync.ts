@@ -151,7 +151,7 @@ export async function syncStripeToAR(): Promise<SyncSummary> {
       // Map Stripe status to our status values
       const statusMap: Record<string, string> = {
         active: "active",
-        past_due: "past_due",
+        past_due: "past-due",
         unpaid: "unpaid",
         canceled: "canceled",
       };
@@ -199,7 +199,7 @@ export async function syncStripeToAR(): Promise<SyncSummary> {
 
       summary.synced++;
       if (arStatus === "active") summary.active++;
-      else if (arStatus === "past_due") summary.pastDue++;
+      else if (arStatus === "past-due") summary.pastDue++;
       else if (arStatus === "unpaid") summary.unpaid++;
       else if (arStatus === "canceled") summary.canceled++;
     } catch (err) {

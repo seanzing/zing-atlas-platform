@@ -130,6 +130,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (!result) {
+      return NextResponse.json({ error: "Failed to retrieve created product" }, { status: 500 });
+    }
+
     logger.info({ productId: product.id, taskCount: taskTemplates.length }, "POST /api/products");
     return NextResponse.json(serialize(result), { status: 201 });
   } catch (error) {

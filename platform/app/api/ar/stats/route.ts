@@ -8,7 +8,7 @@ import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const ACTIVE_STATUSES = ["current", "active"];
-const OWED_STATUSES = ["past-due", "past_due", "unpaid"];
+const OWED_STATUSES = ["past-due", "past_du", "unpaid"];
 
 export async function GET() {
   try {
