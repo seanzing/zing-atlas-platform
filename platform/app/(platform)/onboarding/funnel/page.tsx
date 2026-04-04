@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
+import { PageLoader } from "@/components/PageLoader";
 import { Z } from "@/lib/constants";
 import { useAuthContext } from "@/lib/auth-context";
 
@@ -102,6 +103,8 @@ export default function OnboardingFunnelPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  if (!onboardings) return <PageLoader />;
+
   const allItems = (onboardings ?? [])
     .filter((ob) => ob.status === "active")
     .flatMap((ob) =>
@@ -141,8 +144,12 @@ export default function OnboardingFunnelPage() {
   const unreadCount = (notifications ?? []).length;
 
   async function markRead(id: string) {
-    await fetch(`/api/onboarding/notifications/${id}/read`, { method: "PUT" });
-    mutateNotifs();
+    try {
+      const res = await fetch(`/api/onboarding/notifications/${id}/read`, { method: "PUT" });
+      if (res.ok) mutateNotifs();
+    } catch {
+      // notification mark-read is non-critical, fail silently
+    }
   }
 
   async function updateStatus(itemId: string, status: string) {

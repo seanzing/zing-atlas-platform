@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Badge, SearchBar } from "@/components/ui";
+import { PageLoader } from "@/components/PageLoader";
 import { Z } from "@/lib/constants";
 
 interface TaskItem {
@@ -62,6 +63,8 @@ export default function OnboardingByTaskPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  if (!groups) return <PageLoader />;
+
   const list = groups ?? [];
 
   async function updateStatus(itemId: string, status: string) {
@@ -94,8 +97,16 @@ export default function OnboardingByTaskPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "_keep", ownerName: owner }),
       });
-      if (res.ok) mutate();
-    } catch { /* silent */ }
+      if (res.ok) {
+        mutate();
+      } else {
+        setToast({ msg: "Failed to update owner", type: "error" });
+        setTimeout(() => setToast(null), 2500);
+      }
+    } catch {
+      setToast({ msg: "Network error", type: "error" });
+      setTimeout(() => setToast(null), 2500);
+    }
     setUpdatingId(null);
   }
 

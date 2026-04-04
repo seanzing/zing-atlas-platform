@@ -115,13 +115,16 @@ export default function OnboardingByCustomerPage() {
   async function saveNote(itemId: string, notes: string) {
     setSavingNote(itemId);
     try {
-      await fetch(`/api/onboarding/items/${itemId}/status`, {
+      const res = await fetch(`/api/onboarding/items/${itemId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "note_only", notes }),
       });
-    } catch {
-      // silent
+      if (!res.ok) {
+        console.error("Failed to save note:", res.status);
+      }
+    } catch (err) {
+      console.error("Failed to save note:", err);
     }
     setSavingNote(null);
   }

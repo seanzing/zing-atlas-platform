@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { PageLoader } from "@/components/PageLoader";
 import { Z } from "@/lib/constants";
 
 interface FullItem {
@@ -68,6 +69,8 @@ export default function OnboardingFullPage() {
   const [filterDesigner, setFilterDesigner] = useState("");
   const [filterProduct, setFilterProduct] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+
+  if (!onboardings) return <PageLoader />;
 
   const list = (onboardings ?? []).filter((ob) => {
     if (filterDesigner && ob.designer !== filterDesigner) return false;
