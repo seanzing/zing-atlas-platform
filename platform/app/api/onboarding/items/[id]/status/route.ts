@@ -5,12 +5,13 @@ import { ORG_ID } from "@/lib/constants";
 import type { StatusOption } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
+    const { id } = await params;
     const body = await req.json();
     const { status, ownerName } = body as { status: string; ownerName?: string };
 
@@ -19,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     }
 
     const item = await prisma.onboardingItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         onboarding: { include: { product: true } },
       },
@@ -40,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 
     // Update the item
     const updated = await prisma.onboardingItem.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         currentStatus: status,
         stage: isComplete ? "complete" : "in_progress",
@@ -98,7 +99,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    logger.info({ itemId: params.id, status }, "PUT /api/onboarding/items/[id]/status");
+    logger.info({ itemId: id, status }, "PUT /api/onboarding/items/[id]/status");
     return NextResponse.json(updated);
   } catch (error) {
     logger.error({ err: error }, "PUT /api/onboarding/items/[id]/status failed");

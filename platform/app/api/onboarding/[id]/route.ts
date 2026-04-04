@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 export async function GET(
   _request: NextRequest,
@@ -31,7 +32,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(onboarding);
+    return NextResponse.json(serialize(onboarding));
   } catch (error) {
     logger.error({ err: error }, "GET /api/onboarding/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -73,7 +74,7 @@ export async function PUT(
       data: allowedFields,
     });
 
-    return NextResponse.json(onboarding);
+    return NextResponse.json(serialize(onboarding));
   } catch (error) {
     logger.error({ err: error }, "PUT /api/onboarding/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

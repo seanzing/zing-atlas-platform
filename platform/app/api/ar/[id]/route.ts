@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,7 +35,7 @@ export async function GET(
       return NextResponse.json({ error: "AR account not found" }, { status: 404 });
     }
 
-    return NextResponse.json(account);
+    return NextResponse.json(serialize(account));
   } catch (error) {
     logger.error({ err: error }, "GET /api/ar/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -83,7 +84,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(serialize(updated));
   } catch (error) {
     logger.error({ err: error }, "PUT /api/ar/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

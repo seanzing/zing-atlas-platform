@@ -3,15 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
+    const { id } = await params;
     const deal = await prisma.deal.findFirst({
-      where: { id: params.id, organizationId: ORG_ID, deletedAt: null },
+      where: { id, organizationId: ORG_ID, deletedAt: null },
       include: {
         contact: true,
         product: true,
@@ -27,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     }
 
     logger.info({ dealId: deal.id }, "GET /api/deals/[id]");
-    return NextResponse.json(deal);
+    return NextResponse.json(serialize(deal));
   } catch (error) {
     logger.error({ err: error }, "GET /api/deals/[id] failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -38,8 +40,9 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
+    const { id } = await params;
     const existing = await prisma.deal.findFirst({
-      where: { id: params.id, organizationId: ORG_ID, deletedAt: null },
+      where: { id, organizationId: ORG_ID, deletedAt: null },
     });
 
     if (!existing) {
@@ -55,7 +58,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       "stage", "value", "rep", "contactName", "company", "dealType",
       "productId", "contactId", "wonDate", "lostReason", "notes",
       "paymentStatus", "stripeSubscriptionId", "stripeCustomerId",
-      "designer", "designerEmail",
+      "designer", "designerEmail", "launchFeeAmount",
     ];
     for (const key of whitelist) {
       if (key in body) updateData[key] = body[key];
@@ -69,6 +72,14 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       updateData.value = numVal;
     }
 
+    if (updateData.launchFeeAmount !== undefined && updateData.launchFeeAmount !== null) {
+      const numFee = Number(updateData.launchFeeAmount);
+      if (isNaN(numFee) || numFee < 0) {
+        return NextResponse.json({ error: "launchFeeAmount must be a non-negative number" }, { status: 400 });
+      }
+      updateData.launchFeeAmount = numFee;
+    }
+
     if (stagingWon && !updateData.wonDate) {
       updateData.wonDate = new Date();
     } else if (updateData.wonDate) {
@@ -76,7 +87,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     }
 
     const deal = await prisma.deal.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData as Parameters<typeof prisma.deal.update>[0]["data"],
     });
 
@@ -167,7 +178,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     }
 
     logger.info({ dealId: deal.id }, "PUT /api/deals/[id]");
-    return NextResponse.json(deal);
+    return NextResponse.json(serialize(deal));
   } catch (error) {
     logger.error({ err: error }, "PUT /api/deals/[id] failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -178,8 +189,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
+    const { id } = await params;
     const existing = await prisma.deal.findFirst({
-      where: { id: params.id, organizationId: ORG_ID, deletedAt: null },
+      where: { id, organizationId: ORG_ID, deletedAt: null },
     });
 
     if (!existing) {
@@ -190,7 +202,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
     // Soft-delete related onboarding records and their items
     const onboardings = await prisma.onboarding.findMany({
-      where: { dealId: params.id, deletedAt: null },
+      where: { dealId: id, deletedAt: null },
       select: { id: true },
     });
     const onboardingIds = onboardings.map((o) => o.id);
@@ -212,12 +224,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
         : []),
       // Soft-delete the deal
       prisma.deal.update({
-        where: { id: params.id },
+        where: { id },
         data: { deletedAt: now },
       }),
     ]);
 
-    logger.info({ dealId: params.id, onboardingIds }, "DELETE /api/deals/[id] — soft deleted with cascade");
+    logger.info({ dealId: id, onboardingIds }, "DELETE /api/deals/[id] — soft deleted with cascade");
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error({ err: error }, "DELETE /api/deals/[id] failed");

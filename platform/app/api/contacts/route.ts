@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(contacts, { status: 200 });
+    return NextResponse.json(serialize(contacts), { status: 200 });
   } catch (error) {
     logger.error({ err: error }, "GET /api/contacts error");
     return NextResponse.json(
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(contact, { status: 201 });
+    return NextResponse.json(serialize(contact), { status: 201 });
   } catch (error) {
     logger.error({ err: error }, "POST /api/contacts error");
     return NextResponse.json(

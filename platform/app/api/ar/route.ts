@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(accounts);
+    return NextResponse.json(serialize(accounts));
   } catch (error) {
     logger.error({ err: error }, "GET /api/ar error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 function getDefaultRange(): { from: Date; to: Date } {
   const now = new Date();
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(deals);
+    return NextResponse.json(serialize(deals));
   } catch (err) {
     logger.error({ err }, "GET /api/pipeline error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

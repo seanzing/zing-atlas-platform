@@ -3,14 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
-    const { id } = params;
+    const { id } = await params;
 
     const contact = await prisma.contact.findFirst({
       where: {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       (Array.isArray(deal.onboarding) ? deal.onboarding : deal.onboarding ? [deal.onboarding] : []).flatMap((ob: any) => (ob as any).items ?? [])
     );
 
-    return NextResponse.json({ ...contact, onboarding: onboardingItems }, { status: 200 });
+    return NextResponse.json(serialize({ ...contact, onboarding: onboardingItems }), { status: 200 });
   } catch (error) {
     logger.error({ err: error }, "GET /api/contacts/[id] error");
     return NextResponse.json(
@@ -61,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
-    const { id } = params;
+    const { id } = await params;
 
     const existing = await prisma.contact.findFirst({
       where: {
@@ -79,7 +80,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     // Whitelist allowed fields to prevent mass assignment
     const allowedFields: Record<string, unknown> = {};
-    const whitelist = ["name", "email", "phone", "company", "status", "source", "notes", "campaignId"];
+    const whitelist = ["name", "email", "phone", "company", "status", "leadSource", "notes", "campaignId"];
     for (const key of whitelist) {
       if (key in body) allowedFields[key] = body[key];
     }
@@ -89,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       data: allowedFields,
     });
 
-    return NextResponse.json(contact, { status: 200 });
+    return NextResponse.json(serialize(contact), { status: 200 });
   } catch (error) {
     logger.error({ err: error }, "PUT /api/contacts/[id] error");
     return NextResponse.json(
@@ -103,7 +104,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
-    const { id } = params;
+    const { id } = await params;
 
     // 1. Find the contact
     const contact = await prisma.contact.findFirst({

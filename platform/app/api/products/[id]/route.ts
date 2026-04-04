@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
+import { serialize } from "@/lib/serialize";
 
 export async function GET(
   _request: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    return NextResponse.json(product);
+    return NextResponse.json(serialize(product));
   } catch (error) {
     logger.error({ err: error }, "GET /api/products/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -80,7 +81,7 @@ export async function PUT(
       data: allowedFields,
     });
 
-    return NextResponse.json(product);
+    return NextResponse.json(serialize(product));
   } catch (error) {
     logger.error({ err: error }, "PUT /api/products/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -110,7 +111,7 @@ export async function DELETE(
       data: { deletedAt: new Date() },
     });
 
-    return NextResponse.json(product);
+    return NextResponse.json(serialize(product));
   } catch (error) {
     logger.error({ err: error }, "DELETE /api/products/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

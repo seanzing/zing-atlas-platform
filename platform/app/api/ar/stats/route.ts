@@ -81,7 +81,7 @@ export async function GET() {
         ...(chargeAfter ? { starting_after: chargeAfter } : {}),
       });
       for (const c of charges.data) {
-        if (c.status === "succeeded" && !c.invoice) {
+        if (c.status === "succeeded" && !(c as unknown as Record<string, unknown>).invoice) {
           monthlyOneTime += c.amount;
         }
       }

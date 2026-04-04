@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
+import { serialize } from "@/lib/serialize";
 
 export async function PUT(
   request: NextRequest,
@@ -35,7 +36,7 @@ export async function PUT(
       data: allowedFields,
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(serialize(updated));
   } catch (error) {
     logger.error({ err: error }, "PUT /api/team/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

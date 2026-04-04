@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { serialize } from "@/lib/serialize";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     });
 
     logger.info({ count: deals.length }, "GET /api/deals");
-    return NextResponse.json(deals);
+    return NextResponse.json(serialize(deals));
   } catch (error) {
     logger.error({ err: error }, "GET /api/deals failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest) {
     }
 
     logger.info({ dealId: deal.id }, "POST /api/deals");
-    return NextResponse.json(deal, { status: 201 });
+    return NextResponse.json(serialize(deal), { status: 201 });
   } catch (error) {
     logger.error({ err: error }, "POST /api/deals failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
