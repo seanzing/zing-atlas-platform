@@ -53,6 +53,19 @@ interface SyncResult {
   lastSyncTime: string;
 }
 
+interface ArStats {
+  totalCustomers: number;
+  totalSubscriptions: number;
+  activeCount: number;
+  pastDueCount: number;
+  unpaidCount: number;
+  totalMRR: number;
+  monthlyRecurring: number;
+  monthlyOneTime: number;
+  totalMonthlyRevenue: number;
+  month: string;
+}
+
 // ── Constants ──────────────────────────────────────────────────────
 const FILTERS = ["All", "active", "past_due", "unpaid", "canceled"];
 const FILTER_LABELS: Record<string, string> = {
@@ -112,6 +125,7 @@ const timeAgo = (iso: string | null) => {
 export default function ARPage() {
   const { isAdmin } = useAuthContext();
   const { data: accounts, mutate } = useSWR<ArAccount[]>("/api/ar");
+  const { data: stats } = useSWR<ArStats>("/api/ar/stats");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -302,28 +316,28 @@ export default function ARPage() {
           }}
         >
           <StatCard
-            label="Active Subscriptions"
-            value={activeAccounts.length}
-            sub={`${fmt(activeMRR)} MRR`}
+            label="Unique Customers"
+            value={stats?.totalCustomers?.toLocaleString() ?? "--"}
+            sub={`${(stats?.activeCount ?? 0).toLocaleString()} active`}
             accent={Z.turquoise}
           />
           <StatCard
-            label="Past Due"
-            value={pastDueAccounts.length}
-            sub={`${fmt(pastDueTotal)} outstanding`}
-            accent="#F59E0B"
-          />
-          <StatCard
-            label="Unpaid"
-            value={unpaidAccounts.length}
-            sub={`${fmt(unpaidTotal)} outstanding`}
-            accent="#EF4444"
-          />
-          <StatCard
-            label="Collected This Month"
-            value={fmt(collectedThisMonth)}
-            sub="payments received"
+            label="Total Subscriptions"
+            value={stats?.totalSubscriptions?.toLocaleString() ?? "--"}
+            sub={`${(stats?.pastDueCount ?? 0)} past due · ${(stats?.unpaidCount ?? 0)} unpaid`}
             accent={Z.ultramarine}
+          />
+          <StatCard
+            label="Total MRR"
+            value={stats ? fmt(stats.totalMRR) : "--"}
+            sub="recurring subscriptions"
+            accent={Z.violet}
+          />
+          <StatCard
+            label={`${stats?.month ?? "This Month"} Revenue`}
+            value={stats ? fmt(stats.totalMonthlyRevenue) : "--"}
+            sub={stats ? `${fmt(stats.monthlyRecurring)} subscriptions · ${fmt(stats.monthlyOneTime)} one-time` : "loading..."}
+            accent="#10b981"
           />
         </div>
 
