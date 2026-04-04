@@ -1,7 +1,7 @@
 # Build v5 - 2026-04-03
 FROM node:24-alpine
 
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl ca-certificates && update-ca-certificates
 
 WORKDIR /app
 
