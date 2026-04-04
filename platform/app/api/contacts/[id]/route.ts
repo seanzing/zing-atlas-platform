@@ -43,7 +43,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     // Flatten onboarding items for frontend consumption
     const onboardingItems = contact.deals.flatMap((deal) =>
-      deal.onboarding.flatMap((ob) => ob.items)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (Array.isArray(deal.onboarding) ? deal.onboarding : deal.onboarding ? [deal.onboarding] : []).flatMap((ob: any) => (ob as any).items ?? [])
     );
 
     return NextResponse.json({ ...contact, onboarding: onboardingItems }, { status: 200 });
