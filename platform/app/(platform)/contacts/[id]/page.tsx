@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 import {
@@ -185,7 +186,7 @@ function generateTimeline(
 export default function ContactDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: contact, mutate } = useSWR<ContactDetail>(`/api/contacts/${id}`);
+  const { data: contact, error: contactError, mutate } = useSWR<ContactDetail>(`/api/contacts/${id}`, fetcher);
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
@@ -202,6 +203,29 @@ export default function ContactDetailPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const { toast, showToast } = useToast();
+
+  if (contactError) return (
+    <div style={{ textAlign: "center", padding: "80px 20px" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>404</div>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: Z.textPrimary, margin: "0 0 8px" }}>
+        Contact not found
+      </h2>
+      <p style={{ fontSize: 14, color: Z.textMuted, margin: "0 0 24px" }}>
+        This contact may have been deleted or the link is incorrect.
+      </p>
+      <Link
+        href="/contacts"
+        style={{
+          color: Z.ultramarine,
+          fontSize: 14,
+          fontWeight: 600,
+          textDecoration: "none",
+        }}
+      >
+        ← Back to Contacts
+      </Link>
+    </div>
+  );
 
   if (!contact) return <PageLoader />;
 

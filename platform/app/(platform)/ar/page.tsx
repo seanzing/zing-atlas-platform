@@ -74,6 +74,7 @@ const FILTER_LABELS: Record<string, string> = {
   current: "Active",
   past_due: "Past Due",
   "past-due": "Past Due",
+  past_du: "Past Due",
   unpaid: "Unpaid",
   canceled: "Cancelled",
   trialing: "Trialing",
@@ -85,6 +86,7 @@ const STATUS_COLORS: Record<string, string> = {
   current: Z.turquoise,
   past_due: "#F59E0B",
   "past-due": "#F59E0B",
+  past_du: "#F59E0B",
   unpaid: "#EF4444",
   canceled: Z.textMuted,
   trialing: Z.bluejeans,
@@ -132,8 +134,8 @@ const timeAgo = (iso: string | null) => {
 // ── Component ──────────────────────────────────────────────────────
 export default function ARPage() {
   const { isAdmin } = useAuthContext();
-  const { data: accounts, mutate } = useSWR<ArAccount[]>("/api/ar");
-  const { data: stats } = useSWR<ArStats>("/api/ar/stats");
+  const { data: accounts, error: accountsError, mutate } = useSWR<ArAccount[]>("/api/ar");
+  const { data: stats, error: statsError } = useSWR<ArStats>("/api/ar/stats");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -203,32 +205,34 @@ export default function ARPage() {
   };
 
   // ── Data ──────────────────────────────────────────────────────
+  if (accountsError) return (
+    <div style={{ textAlign: "center", padding: "80px 20px" }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: Z.textPrimary, margin: "0 0 8px" }}>
+        Failed to load accounts
+      </h2>
+      <p style={{ fontSize: 14, color: Z.textMuted, margin: "0 0 24px" }}>
+        There was an error loading AR data. Please try refreshing the page.
+      </p>
+      <Btn onClick={() => mutate()}>Retry</Btn>
+    </div>
+  );
   if (!accounts) return <PageLoader />;
 
   const list = accounts || [];
 
-  const activeAccounts = list.filter((a) => a.status === "active");
-  const pastDueAccounts = list.filter((a) => a.status === "past_due");
-  const unpaidAccounts = list.filter((a) => a.status === "unpaid");
-
-  const activeMRR = activeAccounts.reduce((s, a) => s + num(a.mrr), 0);
-  const pastDueTotal = pastDueAccounts.reduce((s, a) => s + num(a.amountDue), 0);
-  const unpaidTotal = unpaidAccounts.reduce((s, a) => s + num(a.amountDue), 0);
-
-  // Collected this month: sum of amountPaid where paidDate >= start of current month
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const collectedThisMonth = list
-    .filter((a) => a.paidDate && new Date(a.paidDate) >= monthStart)
-    .reduce((s, a) => s + num(a.amountPaid), 0);
-
-  // Normalize status for filtering: group "current" with "active", "past-due" with "past_due"
+  // Normalize status for filtering: group "current" with "active", "past-due"/"past_du" with "past_due"
   const normalizeStatus = (s: string | null): string => {
     if (s === "current") return "active";
-    if (s === "past-due") return "past_due";
+    if (s === "past-due" || s === "past_du") return "past_due";
     return s || "";
   };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const activeAccounts = list.filter((a) => normalizeStatus(a.status) === "active");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const pastDueAccounts = list.filter((a) => normalizeStatus(a.status) === "past_due");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const unpaidAccounts = list.filter((a) => a.status === "unpaid");
 
   // Filter + search
   const filtered = list.filter((a) => {
@@ -322,6 +326,11 @@ export default function ARPage() {
         </div>
 
         {/* Stat cards */}
+        {statsError && (
+          <div style={{ padding: "8px 16px", marginBottom: 12, borderRadius: 8, background: "#fef2f2", color: "#dc2626", fontSize: 13, fontWeight: 600 }}>
+            Failed to load stats. Showing cached data where available.
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -545,7 +554,7 @@ export default function ARPage() {
                 style={{ display: "flex", gap: 6 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {isAdmin && (a.status === "past_due" || a.status === "unpaid") && (
+                {isAdmin && (normalizeStatus(a.status) === "past_due" || a.status === "unpaid") && (
                   <Btn
                     small
                     variant="danger"
@@ -610,7 +619,9 @@ export default function ARPage() {
                 fontSize: 14,
               }}
             >
-              No accounts found
+              {search || filter !== "All"
+                ? "No accounts match your search or filter. Try adjusting your criteria."
+                : "No accounts yet. Sync from Stripe to import your subscriptions."}
             </div>
           )}
         </div>
@@ -904,7 +915,7 @@ export default function ARPage() {
 
           {/* Retry Payment button — admin only */}
           {isAdmin &&
-            (selected.status === "past_due" ||
+            (normalizeStatus(selected.status) === "past_due" ||
               selected.status === "unpaid") && (
               <Btn
                 variant="danger"

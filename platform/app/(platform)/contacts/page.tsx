@@ -376,7 +376,9 @@ export default function ContactsPage() {
               fontSize: 14,
             }}
           >
-            No contacts found
+            {search || statusFilter !== "All"
+              ? "No contacts match your search or filter. Try adjusting your criteria."
+              : "No contacts yet. Click \"+ Add Contact\" to create your first one."}
           </div>
         )}
       </div>

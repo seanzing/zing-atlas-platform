@@ -1,7 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import { SUPABASE_CA_CERT } from "./supabase-ca";
+// CA cert import available for future SSL pinning
+// import { SUPABASE_CA_CERT } from "./supabase-ca";
 
 function createPrismaClient() {
   const pool = new Pool({
