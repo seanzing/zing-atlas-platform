@@ -318,13 +318,13 @@ export default function ARPage() {
           <StatCard
             label="Unique Customers"
             value={stats?.totalCustomers?.toLocaleString() ?? "--"}
-            sub={`${(stats?.activeCount ?? 0).toLocaleString()} active`}
+            sub="all time"
             accent={Z.turquoise}
           />
           <StatCard
-            label="Total Subscriptions"
-            value={stats?.totalSubscriptions?.toLocaleString() ?? "--"}
-            sub={`${(stats?.pastDueCount ?? 0)} past due · ${(stats?.unpaidCount ?? 0)} unpaid`}
+            label="Active Subscriptions"
+            value={stats?.activeCount?.toLocaleString() ?? "--"}
+            sub={`of ${(stats?.totalSubscriptions ?? 0).toLocaleString()} total`}
             accent={Z.ultramarine}
           />
           <StatCard
@@ -334,9 +334,15 @@ export default function ARPage() {
             accent={Z.violet}
           />
           <StatCard
+            label="Past Due / Unpaid"
+            value={`${(stats?.pastDueCount ?? 0) + (stats?.unpaidCount ?? 0)}`}
+            sub={`${stats?.pastDueCount ?? 0} past due · ${stats?.unpaidCount ?? 0} unpaid`}
+            accent="#F59E0B"
+          />
+          <StatCard
             label={`${stats?.month ?? "This Month"} Revenue`}
             value={stats ? fmt(stats.totalMonthlyRevenue) : "--"}
-            sub={stats ? `${fmt(stats.monthlyRecurring)} subscriptions · ${fmt(stats.monthlyOneTime)} one-time` : "loading..."}
+            sub={stats ? `${fmt(stats.monthlyRecurring)} recurring · ${fmt(stats.monthlyOneTime)} one-time` : "loading..."}
             accent="#10b981"
           />
         </div>
