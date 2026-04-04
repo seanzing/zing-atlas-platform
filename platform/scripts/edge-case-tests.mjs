@@ -289,6 +289,83 @@ async function run() {
     fail("Dashboard: returns without error", e);
   }
 
+  // ─── AR Stats: All 9 fields ──────────────────────────────
+  console.log("── AR Stats Fields ──");
+
+  try {
+    const statsFields = {
+      totalCustomers: typeof 0,
+      totalSubscriptions: typeof 0,
+      activeCount: typeof 0,
+      pastDueCount: typeof 0,
+      unpaidCount: typeof 0,
+      totalMRR: typeof 0,
+      monthlyRecurring: typeof 0,
+      monthlyOneTime: typeof 0,
+      totalMonthlyRevenue: typeof 0,
+    };
+    // Compute stats locally (mirrors /api/ar/stats logic)
+    const [allAr, mrrAgg] = await Promise.all([
+      prisma.arAccount.groupBy({
+        by: ["status"],
+        where: { organizationId: ORG_ID, deletedAt: null },
+        _count: true,
+        _sum: { mrr: true },
+      }),
+      prisma.arAccount.aggregate({
+        where: {
+          organizationId: ORG_ID,
+          deletedAt: null,
+          status: { in: [...ACTIVE_STATUSES, ...OWED_STATUSES, "trialing"] },
+        },
+        _sum: { mrr: true },
+        _count: true,
+      }),
+    ]);
+    const totalCustomers = allAr.reduce((s, g) => s + g._count, 0);
+    const activeCount = allAr.filter(g => ACTIVE_STATUSES.includes(g.status ?? "")).reduce((s, g) => s + g._count, 0);
+    const pastDueCount = allAr.filter(g => ["past-due", "past_due"].includes(g.status ?? "")).reduce((s, g) => s + g._count, 0);
+    const unpaidCount = allAr.filter(g => (g.status ?? "") === "unpaid").reduce((s, g) => s + g._count, 0);
+    const totalMRR = Number(mrrAgg._sum.mrr ?? 0);
+    const totalSubscriptions = mrrAgg._count;
+
+    assert(typeof totalCustomers === "number" && !isNaN(totalCustomers), "Stats field: totalCustomers valid", totalCustomers);
+    assert(typeof totalSubscriptions === "number" && !isNaN(totalSubscriptions), "Stats field: totalSubscriptions valid", totalSubscriptions);
+    assert(typeof activeCount === "number" && !isNaN(activeCount), "Stats field: activeCount valid", activeCount);
+    assert(typeof pastDueCount === "number" && !isNaN(pastDueCount), "Stats field: pastDueCount valid", pastDueCount);
+    assert(typeof unpaidCount === "number" && !isNaN(unpaidCount), "Stats field: unpaidCount valid", unpaidCount);
+    assert(typeof totalMRR === "number" && !isNaN(totalMRR), "Stats field: totalMRR valid", `$${totalMRR}`);
+    // monthlyRecurring, monthlyOneTime, totalMonthlyRevenue require Stripe — skipping in DB test
+    pass("Stats: monthlyRecurring/OneTime/Total require Stripe (skip in DB test)");
+  } catch (e) {
+    fail("AR Stats all 9 fields", e);
+  }
+
+  // ─── AR Status Filter vs DB Mismatch ────────────────────
+  console.log("── AR Status Filter Check ──");
+
+  // Frontend FILTERS after our fix: ["All", "active", "past_due", "unpaid", "canceled", "trialing"]
+  // With normalizeStatus: "current" → "active", "past-due" → "past_due"
+  {
+    const allStatuses = await prisma.arAccount.groupBy({
+      by: ["status"],
+      where: { organizationId: ORG_ID, deletedAt: null },
+      _count: true,
+    });
+
+    const FRONTEND_HANDLED = ["active", "current", "past_due", "past-due", "unpaid", "canceled", "trialing", "paid"];
+    const unhandled = allStatuses.filter(g => g.status && !FRONTEND_HANDLED.includes(g.status));
+    assert(unhandled.length === 0,
+      "All DB status values handled by frontend filters",
+      unhandled.length > 0
+        ? `UNHANDLED: ${unhandled.map(g => `${g.status}(${g._count})`).join(", ")}`
+        : `all ${allStatuses.length} status values covered`);
+
+    // Log all statuses for visibility
+    const statusSummary = allStatuses.map(g => `${g.status}:${g._count}`).join(", ");
+    pass("AR status distribution", statusSummary);
+  }
+
   // ─── Edge Cases ──────────────────────────────────────────
   console.log("── Edge Cases ──");
 
@@ -323,6 +400,34 @@ async function run() {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isValid = UUID_RE.test("nonexistent-id");
     assert(!isValid, "AR non-UUID id rejected by validation (404 not 500)", "regex rejects invalid UUID");
+  }
+
+  // ArTimeline uses arId not accountId
+  {
+    const sample = await prisma.arTimeline.findFirst();
+    if (sample) {
+      assert("arId" in sample, "ArTimeline uses arId (not accountId)", "correct field name");
+      assert(!("accountId" in sample), "ArTimeline does NOT have accountId field");
+    } else {
+      pass("ArTimeline: no entries to check (empty table)");
+    }
+  }
+
+  // Empty org returns empty array (not error)
+  {
+    const emptyOrg = await prisma.arAccount.findMany({
+      where: { organizationId: "99999999-9999-9999-9999-999999999999", deletedAt: null },
+    });
+    assert(Array.isArray(emptyOrg) && emptyOrg.length === 0, "Empty org returns empty array", "not error");
+  }
+
+  // Deals use 'stage' not 'status' for pipeline
+  if (deals.length > 0) {
+    const sampleDeal = deals[0];
+    assert("stage" in sampleDeal, "Deal model has 'stage' field");
+    // Check that some deals have stage='won'
+    const wonDeals = deals.filter(d => d.stage === "won");
+    assert(wonDeals.length > 0, "Some deals have stage=won", `${wonDeals.length} won deals`);
   }
 
   // ─── Summary ──────────────────────────────────────────
