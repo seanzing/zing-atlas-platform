@@ -1,11 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { SUPABASE_CA_CERT } from "./supabase-ca";
 
 function createPrismaClient() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: {
+      rejectUnauthorized: true,
+      ca: SUPABASE_CA_CERT,
+    },
     max: 10,
   });
   const adapter = new PrismaPg(pool);
