@@ -85,7 +85,7 @@ function generateTimeline(
         entries.push({
           channel: "Pipeline",
           date: fmtDate(deal.createdAt),
-          note: `Deal "${deal.title}" created - ${fmt(deal.value)} - Stage: ${deal.stage}`,
+          note: `Deal "${deal.title}" created - ${fmt(Number(deal.value) || 0)} - Stage: ${deal.stage}`,
           color: Z.ultramarine,
         });
       });
@@ -456,7 +456,7 @@ export default function ContactDetailPage() {
                   <DetailField label="Company" value={contact.company} />
                   <DetailField
                     label="Pipeline Value"
-                    value={fmt(contact.value)}
+                    value={fmt(Number(contact.value) || 0)}
                   />
                   <DetailField
                     label="Last Contact"
@@ -654,7 +654,7 @@ export default function ContactDetailPage() {
                             color: Z.textPrimary,
                           }}
                         >
-                          {fmt(deal.value)}
+                          {fmt(Number(deal.value) || 0)}
                         </span>
                       </div>
                       <div

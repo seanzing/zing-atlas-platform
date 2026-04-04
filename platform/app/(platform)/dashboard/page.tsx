@@ -426,7 +426,7 @@ export default function DashboardPage() {
             amount={dtb.new_deals}
             total={dtbTotal}
             color="#10b981"
-            count={dashboard.daily_revenue_chart?.length || 0}
+            count={dtbLookup["new"]?.count || 0}
           />
           {/* Upgrade */}
           <DealTypeCard
@@ -434,7 +434,7 @@ export default function DashboardPage() {
             amount={dtb.upgrade_deals}
             total={dtbTotal}
             color={Z.violet}
-            count={0}
+            count={dtbLookup["upgrade"]?.count || 0}
           />
           {/* Add-on */}
           <DealTypeCard
@@ -442,7 +442,7 @@ export default function DashboardPage() {
             amount={dtb.addon_deals}
             total={dtbTotal}
             color={Z.bluejeans}
-            count={0}
+            count={dtbLookup["add-on"]?.count || 0}
           />
         </div>
         {/* Combined stacked bar */}

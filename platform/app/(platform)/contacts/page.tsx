@@ -82,9 +82,9 @@ export default function ContactsPage() {
     if (search) {
       const q = search.toLowerCase();
       return (
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.company.toLowerCase().includes(q)
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.email || "").toLowerCase().includes(q) ||
+        (c.company || "").toLowerCase().includes(q)
       );
     }
     return true;
@@ -361,7 +361,7 @@ export default function ContactsPage() {
                   color: Z.textPrimary,
                 }}
               >
-                {fmt(c.value)}
+                {fmt(Number(c.value) || 0)}
               </div>
             </div>
           );

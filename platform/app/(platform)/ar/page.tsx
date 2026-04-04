@@ -67,20 +67,28 @@ interface ArStats {
 }
 
 // ── Constants ──────────────────────────────────────────────────────
-const FILTERS = ["All", "active", "past_due", "unpaid", "canceled"];
+const FILTERS = ["All", "active", "past_due", "unpaid", "canceled", "trialing"];
 const FILTER_LABELS: Record<string, string> = {
   All: "All",
   active: "Active",
+  current: "Active",
   past_due: "Past Due",
+  "past-due": "Past Due",
   unpaid: "Unpaid",
   canceled: "Cancelled",
+  trialing: "Trialing",
+  paid: "Paid",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   active: Z.turquoise,
+  current: Z.turquoise,
   past_due: "#F59E0B",
+  "past-due": "#F59E0B",
   unpaid: "#EF4444",
   canceled: Z.textMuted,
+  trialing: Z.bluejeans,
+  paid: "#10b981",
 };
 
 const TIMELINE_TYPE_COLORS: Record<string, string> = {
@@ -215,9 +223,16 @@ export default function ARPage() {
     .filter((a) => a.paidDate && new Date(a.paidDate) >= monthStart)
     .reduce((s, a) => s + num(a.amountPaid), 0);
 
+  // Normalize status for filtering: group "current" with "active", "past-due" with "past_due"
+  const normalizeStatus = (s: string | null): string => {
+    if (s === "current") return "active";
+    if (s === "past-due") return "past_due";
+    return s || "";
+  };
+
   // Filter + search
   const filtered = list.filter((a) => {
-    if (filter !== "All" && a.status !== filter) return false;
+    if (filter !== "All" && normalizeStatus(a.status) !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
