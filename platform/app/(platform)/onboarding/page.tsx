@@ -3,9 +3,12 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Badge, StatCard, SearchBar } from "@/components/ui";
+import { Badge, StatCard, SearchBar, Btn } from "@/components/ui";
 import { PageLoader } from "@/components/PageLoader";
+import { Toast, useToast } from "@/components/Toast";
+import { NewSaleModal } from "@/components/NewSaleModal";
 import { Z } from "@/lib/constants";
+import { mutate } from "swr";
 
 interface OnboardingItem {
   id: string;
@@ -66,6 +69,9 @@ export default function OnboardingByCustomerPage() {
   const [selectedOb, setSelectedOb] = useState<Onboarding | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [, setSavingNote] = useState<string | null>(null);
+  const [newSaleOpen, setNewSaleOpen] = useState(false);
+  const [creatingPixelSite, setCreatingPixelSite] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   if (!onboardings) return <PageLoader />;
 
@@ -129,6 +135,114 @@ export default function OnboardingByCustomerPage() {
     setSavingNote(null);
   }
 
+  async function updateItemStatus(itemId: string, status: string) {
+    try {
+      const res = await fetch(`/api/onboarding/items/${itemId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        showToast("Failed to update status", false);
+        return;
+      }
+      mutate("/api/onboarding?status=active");
+      // Update selectedOb in place for immediate UI feedback
+      if (selectedOb) {
+        const updated = {
+          ...selectedOb,
+          items: selectedOb.items.map((i) =>
+            i.id === itemId
+              ? {
+                  ...i,
+                  currentStatus: status,
+                  stage: status.includes("completed") || status.includes("published") ? "complete" : "in_progress",
+                  completedAt: status.includes("completed") || status.includes("published") ? new Date().toISOString() : null,
+                }
+              : i
+          ),
+        };
+        setSelectedOb(updated);
+      }
+    } catch {
+      showToast("Failed to update status", false);
+    }
+  }
+
+  async function markComplete(itemId: string) {
+    try {
+      const res = await fetch(`/api/onboarding/items/${itemId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      });
+      if (!res.ok) {
+        showToast("Failed to mark complete", false);
+        return;
+      }
+      mutate("/api/onboarding?status=active");
+      if (selectedOb) {
+        const updated = {
+          ...selectedOb,
+          items: selectedOb.items.map((i) =>
+            i.id === itemId
+              ? { ...i, currentStatus: "completed", stage: "complete", completedAt: new Date().toISOString() }
+              : i
+          ),
+        };
+        setSelectedOb(updated);
+      }
+      showToast("Task marked complete", true);
+    } catch {
+      showToast("Failed to mark complete", false);
+    }
+  }
+
+  async function handleCreatePixelSite(obId: string) {
+    setCreatingPixelSite(obId);
+    try {
+      const res = await fetch(`/api/onboarding/${obId}/create-pixel-site`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || "Could not create site in Pixel. Try again or create manually.", false);
+        return;
+      }
+      const data = await res.json();
+      mutate("/api/onboarding?status=active");
+      // Update selectedOb
+      if (selectedOb) {
+        const updated = {
+          ...selectedOb,
+          items: selectedOb.items.map((i) =>
+            i.taskType === "website"
+              ? { ...i, currentStatus: "in_progress", stage: "in_progress", notes: JSON.stringify({ pixelSiteId: data.siteId }) }
+              : i
+          ),
+        };
+        setSelectedOb(updated);
+      }
+      showToast("Site created in Pixel", true);
+    } catch {
+      showToast("Could not create site in Pixel. Try again or create manually.", false);
+    } finally {
+      setCreatingPixelSite(null);
+    }
+  }
+
+  function getPixelSiteId(ob: Onboarding): string | null {
+    const websiteItem = ob.items.find((i) => i.taskType === "website");
+    if (!websiteItem?.notes) return null;
+    try {
+      const parsed = JSON.parse(websiteItem.notes);
+      return parsed.pixelSiteId ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   return (
     <div>
       {/* Tab Nav */}
@@ -153,7 +267,10 @@ export default function OnboardingByCustomerPage() {
         ))}
       </div>
 
-      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>Onboarding</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Onboarding</h1>
+        <Btn onClick={() => setNewSaleOpen(true)}>+ New Sale</Btn>
+      </div>
 
       {/* Stat Cards */}
       <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
@@ -234,6 +351,16 @@ export default function OnboardingByCustomerPage() {
       </div>
 
       {/* Slide-out Panel */}
+      <NewSaleModal
+        open={newSaleOpen}
+        onClose={() => setNewSaleOpen(false)}
+        onSuccess={(biz) => {
+          setNewSaleOpen(false);
+          showToast(`Onboarding created for ${biz}`, true);
+          mutate("/api/onboarding?status=active");
+        }}
+      />
+
       {panelOpen && selectedOb && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }}>
           <div
@@ -273,6 +400,7 @@ export default function OnboardingByCustomerPage() {
               const isOverdue = item.dueDate && new Date(item.dueDate) < now && item.stage !== "complete";
               const isComplete = item.stage === "complete";
               const statusColor = isComplete ? "#10b981" : isOverdue ? "#ef4444" : Z.bluejeans;
+              const pixelSiteId = getPixelSiteId(selectedOb);
 
               return (
                 <div
@@ -292,13 +420,149 @@ export default function OnboardingByCustomerPage() {
                         <Badge label={item.ownerRole.replace("_", " ")} color={ROLE_COLORS[item.ownerRole] ?? Z.grey} />
                       )}
                     </div>
-                    <Badge label={statusLabel} color={statusColor} />
+                    {/* Status dropdown — saves immediately on change */}
+                    {item.statusOptions && item.statusOptions.length > 0 ? (
+                      <select
+                        value={item.currentStatus ?? ""}
+                        onChange={(e) => updateItemStatus(item.id, e.target.value)}
+                        style={{
+                          padding: "3px 8px",
+                          borderRadius: 6,
+                          border: `1px solid ${statusColor}40`,
+                          background: `${statusColor}12`,
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        {item.statusOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Badge label={statusLabel} color={statusColor} />
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 16, fontSize: 11, color: Z.textMuted }}>
                     <span>Due: {fmtDate(item.dueDate)}</span>
                     {item.owner && <span>Owner: {item.owner}</span>}
                     {item.completedAt && <span>Completed: {fmtDate(item.completedAt)}</span>}
                   </div>
+
+                  {/* Task 2: Website → Pixel integration */}
+                  {item.taskType === "website" && (
+                    <div style={{ marginTop: 8 }}>
+                      {item.currentStatus === "not_started" || item.currentStatus === "pending" || !item.currentStatus ? (
+                        <button
+                          onClick={() => handleCreatePixelSite(selectedOb.id)}
+                          disabled={creatingPixelSite === selectedOb.id}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+                            color: "#fff",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: creatingPixelSite === selectedOb.id ? "not-allowed" : "pointer",
+                            opacity: creatingPixelSite === selectedOb.id ? 0.6 : 1,
+                          }}
+                        >
+                          {creatingPixelSite === selectedOb.id ? "Creating..." : "Create Site in Pixel \u2192"}
+                        </button>
+                      ) : (
+                        <a
+                          href={
+                            pixelSiteId
+                              ? `https://pixel.yourwebsiteexample.com/dashboard/sites/${pixelSiteId}`
+                              : "https://pixel.yourwebsiteexample.com"
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-block",
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            background: `${Z.ultramarine}12`,
+                            color: Z.ultramarine,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Open in Pixel {"\u2192"}
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Task 3: Landing pages → Pixel location generator */}
+                  {item.taskType === "landing_pages" && (
+                    <div style={{ marginTop: 8 }}>
+                      {pixelSiteId ? (
+                        <a
+                          href={`https://pixel.yourwebsiteexample.com/dashboard/sites/${pixelSiteId}/locations`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-block",
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            background: `${Z.turquoise}12`,
+                            color: Z.turquoise,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Generate Location Pages {"\u2192"}
+                        </a>
+                      ) : (
+                        <span
+                          title="Build website first"
+                          style={{
+                            display: "inline-block",
+                            padding: "6px 14px",
+                            borderRadius: 8,
+                            background: Z.bg,
+                            color: Z.textMuted,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "not-allowed",
+                            opacity: 0.5,
+                          }}
+                        >
+                          Generate Location Pages {"\u2192"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Task 4: Mark Complete button */}
+                  {item.stage !== "complete" && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        onClick={() => markComplete(item.id)}
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 6,
+                          border: `1px solid #10b98140`,
+                          background: "#10b98112",
+                          color: "#10b981",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Mark Complete
+                      </button>
+                    </div>
+                  )}
+
                   {/* Notes textarea */}
                   <textarea
                     defaultValue={item.notes ?? ""}
@@ -329,6 +593,7 @@ export default function OnboardingByCustomerPage() {
           </div>
         </div>
       )}
+      <Toast toast={toast} />
     </div>
   );
 }

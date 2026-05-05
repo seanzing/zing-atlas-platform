@@ -163,6 +163,14 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Set existingUrl on onboarding if provided
+      if (body.existingUrl) {
+        await prisma.onboarding.update({
+          where: { id: onboarding.id },
+          data: { existingUrl: body.existingUrl },
+        });
+      }
+
       logger.info({ dealId: deal.id, onboardingId: onboarding.id }, "Won deal — onboarding created");
     }
 

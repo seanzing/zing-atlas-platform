@@ -9,6 +9,7 @@ import useSWR, { mutate } from "swr";
 import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
 import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { NewSaleModal } from "@/components/NewSaleModal";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -197,6 +198,7 @@ export default function PipelinePage() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [wonModalDeal, setWonModalDeal] = useState<Deal | null>(null);
   const [addWonOpen, setAddWonOpen] = useState(false);
+  const [newSaleOpen, setNewSaleOpen] = useState(false);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"sms" | "email" | "calendar">("sms");
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
@@ -683,7 +685,10 @@ export default function PipelinePage() {
               Track and manage your deals
             </p>
           </div>
-          <Btn onClick={() => setAddWonOpen(true)}>+ Add Won Deal</Btn>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn onClick={() => setNewSaleOpen(true)}>+ New Sale</Btn>
+            <Btn variant="secondary" onClick={() => setAddWonOpen(true)}>+ Add Won Deal</Btn>
+          </div>
         </div>
       </div>
 
@@ -2318,6 +2323,14 @@ export default function PipelinePage() {
           <Btn onClick={submitAddWonDeal}>Create Won Deal</Btn>
         </div>
       </Modal>
+      <NewSaleModal
+        open={newSaleOpen}
+        onClose={() => setNewSaleOpen(false)}
+        onSuccess={(biz) => {
+          setNewSaleOpen(false);
+          showToast(`Onboarding created for ${biz}`, true);
+        }}
+      />
       <Toast toast={toast} />
     </div>
   );
