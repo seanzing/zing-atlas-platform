@@ -5,7 +5,7 @@ import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+export const dynamic = "force-dynamic";
 
 const ACTIVE_STATUSES = ["current", "active"];
 const OWED_STATUSES = ["past-due", "past_du", "unpaid"];
@@ -14,6 +14,8 @@ export async function GET() {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
     // Pull all AR account counts and MRR from DB
     const [allAccounts, mrrResult] = await Promise.all([
