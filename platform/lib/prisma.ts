@@ -1,21 +1,22 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool, type PoolConfig } from "pg";
-// CA cert import available for future SSL pinning
-// import { SUPABASE_CA_CERT } from "./supabase-ca";
+import { Pool } from "pg";
+import dns from "dns";
+
+// Force Node.js to prefer IPv4 when resolving hostnames.
+// Railway cannot reach Supabase's Postgres host via IPv6 (only AAAA record exists).
+// This ensures pg connects via IPv4 even when the host has both A and AAAA records,
+// and prevents ENETUNREACH errors when only IPv4 is reachable.
+dns.setDefaultResultOrder("ipv4first");
 
 function createPrismaClient() {
-  const poolConfig: PoolConfig & { family?: number } = {
+  const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
       rejectUnauthorized: false,
     },
     max: 10,
-    // Force IPv4 — Railway outbound IPv6 cannot reach Supabase's direct Postgres host
-    // which only resolves to an IPv6 address (2600:1f14::/32 range).
-    family: 4,
-  };
-  const pool = new Pool(poolConfig as PoolConfig);
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
