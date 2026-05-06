@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import useSWR from "swr";
 import { Z } from "@/lib/constants";
+
+interface ApiTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+}
 
 interface ActivityEntry {
   id: string;
@@ -81,6 +89,21 @@ export default function FloatingEmailCompose({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  const { data: templateData } = useSWR<{ templates: ApiTemplate[] }>(
+    "/api/email-templates",
+    (url: string) => fetch(url).then((r) => r.json())
+  );
+
+  const apiTemplates = templateData?.templates ?? [];
+  const effectiveTemplates: ApiTemplate[] = apiTemplates.length > 0
+    ? apiTemplates
+    : TEMPLATES.map((t, i) => ({
+        id: String(i),
+        name: t.label,
+        subject: t.subject,
+        body: t.body(contactName.split(" ")[0] || contactName),
+      }));
+
   const loadHistory = useCallback(() => {
     setHistoryLoading(true);
     fetch(historyEndpoint)
@@ -115,12 +138,17 @@ export default function FloatingEmailCompose({
     };
   }, [dragging]);
 
-  const applyTemplate = (label: string) => {
-    const tmpl = TEMPLATES.find((t) => t.label === label);
+  const applyTemplate = (id: string) => {
+    const tmpl = effectiveTemplates.find((t) => t.id === id);
     if (!tmpl) return;
-    setTemplate(label);
+    setTemplate(id);
     setSubject(tmpl.subject);
-    setBody(tmpl.body(contactName.split(" ")[0] || contactName));
+    const firstName = contactName.split(" ")[0] || contactName;
+    setBody(
+      tmpl.body
+        .replace(/\{\{name\}\}/g, firstName)
+        .replace(/\{\{sender\}\}/g, "")
+    );
   };
 
   const handleSend = async () => {
@@ -264,8 +292,8 @@ export default function FloatingEmailCompose({
               style={{ ...inputStyle, marginBottom: 10, color: template ? "#ffffffcc" : "#ffffff55" }}
             >
               <option value="">Use a template...</option>
-              {TEMPLATES.map((t) => (
-                <option key={t.label} value={t.label}>{t.label}</option>
+              {effectiveTemplates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
 

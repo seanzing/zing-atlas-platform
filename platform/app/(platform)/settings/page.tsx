@@ -79,6 +79,13 @@ interface Campaign {
   _count?: { contacts: number };
 }
 
+interface ApiTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+}
+
 interface TaskTemplateRow {
   id?: string;
   taskType: string;
@@ -391,6 +398,10 @@ export default function SettingsPage() {
   const { data: campaigns, mutate: mutateCampaigns } =
     useSWR<Campaign[]>("/api/campaigns");
   const { data: commissions } = useSWR<CommissionEntry[]>("/api/team/commissions");
+  const { data: templateData, mutate: mutateTemplates } = useSWR<{ templates: ApiTemplate[] }>(
+    "/api/email-templates"
+  );
+  const templates = templateData?.templates ?? [];
 
   const [activeTab, setActiveTab] = useState<Tab>("Team Members");
 
@@ -447,6 +458,14 @@ export default function SettingsPage() {
   const [showCustomTasks, setShowCustomTasks] = useState(false);
   const [customTasks, setCustomTasks] = useState<TaskTemplateRow[]>([]);
 
+  // Email template editing
+  const [editingTemplate, setEditingTemplate] = useState<ApiTemplate | null>(null);
+  const [newTemplate, setNewTemplate] = useState(false);
+  const [tmplName, setTmplName] = useState("");
+  const [tmplSubject, setTmplSubject] = useState("");
+  const [tmplBody, setTmplBody] = useState("");
+  const [savingTmpl, setSavingTmpl] = useState(false);
+
   // Toast
   const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -455,6 +474,48 @@ export default function SettingsPage() {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }, []);
+
+  const saveTemplate = async () => {
+    setSavingTmpl(true);
+    if (editingTemplate) {
+      await fetch(`/api/email-templates/${editingTemplate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tmplName, subject: tmplSubject, body: tmplBody }),
+      });
+    } else {
+      await fetch("/api/email-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tmplName, subject: tmplSubject, body: tmplBody }),
+      });
+    }
+    await mutateTemplates();
+    setEditingTemplate(null);
+    setNewTemplate(false);
+    setTmplName(""); setTmplSubject(""); setTmplBody("");
+    setSavingTmpl(false);
+  };
+
+  const deleteTemplate = async (id: string) => {
+    if (!confirm("Delete this template?")) return;
+    await fetch(`/api/email-templates/${id}`, { method: "DELETE" });
+    mutateTemplates();
+  };
+
+  const startEditTemplate = (t: ApiTemplate) => {
+    setEditingTemplate(t);
+    setNewTemplate(false);
+    setTmplName(t.name);
+    setTmplSubject(t.subject);
+    setTmplBody(t.body);
+  };
+
+  const startNewTemplate = () => {
+    setEditingTemplate(null);
+    setNewTemplate(true);
+    setTmplName(""); setTmplSubject(""); setTmplBody("");
+  };
 
   const openEditProduct = (p: Product) => {
     setEditingProduct(p);
@@ -1446,6 +1507,91 @@ export default function SettingsPage() {
       {/* Import Tab */}
       {activeTab === "Import" && <ImportTab />}
 
+      {/* Email Templates — always visible below tabs */}
+      <div style={{ marginTop: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Email Templates</div>
+            <div style={{ fontSize: 13, color: Z.textMuted, marginTop: 2 }}>
+              Reusable templates for customer emails. Use {"{{name}}"} and {"{{sender}}"} as merge fields.
+            </div>
+          </div>
+          <button
+            onClick={startNewTemplate}
+            style={{
+              padding: "8px 16px",
+              background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+              border: "none",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            + New Template
+          </button>
+        </div>
+
+        <div style={{ background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 14, overflow: "hidden" }}>
+          {templates.length === 0 && !newTemplate ? (
+            <div style={{ padding: "32px 24px", textAlign: "center", color: Z.textMuted, fontSize: 13 }}>
+              No templates yet. Click &quot;New Template&quot; to create one.
+            </div>
+          ) : (
+            templates.map((t, i) => (
+              <div key={t.id}>
+                {editingTemplate?.id === t.id ? (
+                  <div style={{ padding: 20, background: `${Z.ultramarine}06` }}>
+                    <TemplateForm
+                      name={tmplName} subject={tmplSubject} body={tmplBody}
+                      onName={setTmplName} onSubject={setTmplSubject} onBody={setTmplBody}
+                      onSave={saveTemplate} onCancel={() => setEditingTemplate(null)}
+                      saving={savingTmpl}
+                    />
+                  </div>
+                ) : (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 16,
+                    padding: "14px 20px",
+                    borderBottom: i < templates.length - 1 ? `1px solid ${Z.borderLight}` : "none",
+                    alignItems: "center",
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>{t.name}</div>
+                      <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 2 }}>{t.subject}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => startEditTemplate(t)}
+                        style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${Z.border}`, background: "transparent", color: Z.textSecondary, fontSize: 12, cursor: "pointer" }}>
+                        Edit
+                      </button>
+                      <button onClick={() => deleteTemplate(t.id)}
+                        style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444440", background: "transparent", color: "#ef4444", fontSize: 12, cursor: "pointer" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+
+          {newTemplate && (
+            <div style={{ padding: 20, borderTop: templates.length > 0 ? `1px solid ${Z.border}` : "none" }}>
+              <TemplateForm
+                name={tmplName} subject={tmplSubject} body={tmplBody}
+                onName={setTmplName} onSubject={setTmplSubject} onBody={setTmplBody}
+                onSave={saveTemplate} onCancel={() => setNewTemplate(false)}
+                saving={savingTmpl}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Team Member Modal */}
       <Modal
         open={teamModalOpen}
@@ -2154,6 +2300,37 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TemplateForm({
+  name, subject, body,
+  onName, onSubject, onBody,
+  onSave, onCancel, saving,
+}: {
+  name: string; subject: string; body: string;
+  onName: (v: string) => void; onSubject: (v: string) => void; onBody: (v: string) => void;
+  onSave: () => void; onCancel: () => void; saving: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <input value={name} onChange={(e) => onName(e.target.value)} placeholder="Template name (e.g. Website Draft Ready)"
+        style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${Z.border}`, background: Z.bg, color: Z.textPrimary, fontSize: 13, outline: "none" }} />
+      <input value={subject} onChange={(e) => onSubject(e.target.value)} placeholder="Email subject"
+        style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${Z.border}`, background: Z.bg, color: Z.textPrimary, fontSize: 13, outline: "none" }} />
+      <textarea value={body} onChange={(e) => onBody(e.target.value)} placeholder={"Email body. Use {{name}} for customer name, {{sender}} for sender name."} rows={6}
+        style={{ padding: "8px 12px", borderRadius: 6, border: `1px solid ${Z.border}`, background: Z.bg, color: Z.textPrimary, fontSize: 13, resize: "vertical", fontFamily: "inherit", outline: "none" }} />
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onSave} disabled={saving || !name || !subject || !body}
+          style={{ padding: "7px 18px", borderRadius: 6, border: "none", background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          {saving ? "Saving..." : "Save Template"}
+        </button>
+        <button onClick={onCancel}
+          style={{ padding: "7px 18px", borderRadius: 6, border: `1px solid ${Z.border}`, background: "transparent", color: Z.textSecondary, fontSize: 13, cursor: "pointer" }}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
