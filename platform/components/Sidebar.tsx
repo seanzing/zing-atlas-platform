@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Z, NAV_ITEMS } from "@/lib/constants";
 import { useAuthContext } from "@/lib/auth-context";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -192,6 +193,11 @@ export default function Sidebar() {
           <span>Search</span>
           <kbd style={{ fontSize: 10, background: "#ffffff12", padding: "2px 6px", borderRadius: 4 }}>⌘K</kbd>
         </button>
+      </div>
+
+      {/* Notifications */}
+      <div style={{ padding: "0 8px 4px", display: "flex", justifyContent: "center" }}>
+        <NotificationBell />
       </div>
 
       {/* User */}

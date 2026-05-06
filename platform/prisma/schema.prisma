@@ -141,6 +141,8 @@ model TeamMember {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
+  notifications   Notification[]
+
   @@map("team_members")
 }
 
@@ -200,6 +202,7 @@ model ActivityLog {
   toEmail         String?   @map("to_email")
   fromEmail       String?   @map("from_email")
   previewUrl      String?   @map("preview_url")
+  gmailThreadId   String?   @map("gmail_thread_id")
   metadata        Json?
   createdAt       DateTime  @default(now()) @map("created_at")
 
@@ -337,4 +340,33 @@ model ProductTaskTemplate {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   @@map("product_task_templates")
+}
+
+model Notification {
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @map("organization_id") @db.Uuid
+  teamMemberId   String      @map("team_member_id") @db.Uuid
+  type           String      // status_change | email_sent | task_complete | site_deployed
+  title          String
+  message        String?
+  link           String?
+  read           Boolean     @default(false)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  teamMember     TeamMember  @relation(fields: [teamMemberId], references: [id])
+
+  @@map("notifications")
+}
+
+model EmailTemplate {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  subject        String
+  body           String    @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@map("email_templates")
 }

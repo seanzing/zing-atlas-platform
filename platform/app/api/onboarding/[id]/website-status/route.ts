@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
+import { notifyByPosition } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,37 @@ export async function POST(
         teamMemberId: teamMember?.id ?? null,
       },
     });
+
+    // ── Notifications ──
+    const businessName = onboarding.businessName || onboarding.customerName || "a customer";
+    const link = `/onboarding/${id}`;
+
+    if (status === "customer_approved") {
+      await notifyByPosition("publishing", {
+        type: "status_change",
+        title: "Website approved — ready for publishing",
+        message: `${businessName} has approved their website. Ready for QA and go-live.`,
+        link,
+      }).catch(() => {});
+    }
+
+    if (status === "in_revision") {
+      await notifyByPosition("designer", {
+        type: "status_change",
+        title: "Revision requested",
+        message: `${businessName} has requested revisions on their website.`,
+        link,
+      }).catch(() => {});
+    }
+
+    if (status === "published") {
+      await notifyByPosition("admin", {
+        type: "site_deployed",
+        title: "Website published",
+        message: `${businessName}'s website is now live.`,
+        link,
+      }).catch(() => {});
+    }
 
     logger.info({ id, from: oldStatus, to: status }, "Website status updated");
     return NextResponse.json(updated);

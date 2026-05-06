@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui";
 import { useToast, Toast } from "@/components/Toast";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 import Link from "next/link";
+import { useAuthContext } from "@/lib/auth-context";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -43,6 +44,7 @@ interface OnboardingRow {
     itemName: string | null;
     dueDate: string | null;
     stage: string | null;
+    owner: string | null;
   }[];
 }
 
@@ -63,17 +65,29 @@ function isOverdue(row: OnboardingRow): boolean {
 
 export default function WorkQueuePage() {
   const [tab, setTab] = useState<QueueTab>("all");
+  const [myOnly, setMyOnly] = useState(false);
   const [compose, setCompose] = useState<ComposeTarget | null>(null);
   const { toast, showToast } = useToast();
+  const { user } = useAuthContext();
 
   const { data: rows, mutate } = useSWR<OnboardingRow[]>("/api/onboarding/full", fetcher);
 
+  const myName = [user?.teamMember?.firstName, user?.teamMember?.lastName]
+    .filter(Boolean)
+    .join(" ");
+
   const filtered = (rows ?? []).filter((r) => {
     const ws = r.websiteStatus || "not_started";
-    if (tab === "design") return DESIGN_STATUSES.includes(ws);
-    if (tab === "publish") return PUBLISH_STATUSES.includes(ws);
-    if (tab === "overdue") return isOverdue(r);
-    return ws !== "published"; // "all" hides published by default
+    if (tab === "design") if (!DESIGN_STATUSES.includes(ws)) return false;
+    if (tab === "publish") if (!PUBLISH_STATUSES.includes(ws)) return false;
+    if (tab === "overdue") if (!isOverdue(r)) return false;
+    if (tab === "all" && ws === "published") return false;
+    if (myOnly && myName) {
+      const isMyCustomer = r.designer === myName ||
+        r.items.some((i) => i.owner === myName);
+      if (!isMyCustomer) return false;
+    }
+    return true;
   });
 
   const updateStatus = useCallback(async (id: string, status: string) => {
@@ -123,39 +137,57 @@ export default function WorkQueuePage() {
       </div>
 
       {/* Queue tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {([
-          { key: "all" as QueueTab, label: "All Active" },
-          { key: "design" as QueueTab, label: "Design Queue" },
-          { key: "publish" as QueueTab, label: "Publishing Queue" },
-          { key: "overdue" as QueueTab, label: "⚠ Overdue" },
-        ]).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 20,
-              border: tab === t.key ? "none" : `1px solid ${Z.border}`,
-              background: tab === t.key
-                ? t.key === "overdue"
-                  ? "linear-gradient(135deg, #ef4444, #dc2626)"
-                  : `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`
-                : "transparent",
-              color: tab === t.key ? "#fff" : Z.textSecondary,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {t.label}
-            {tab === t.key && (
-              <span style={{ marginLeft: 8, background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>
-                {filtered.length}
-              </span>
-            )}
-          </button>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {([
+            { key: "all" as QueueTab, label: "All Active" },
+            { key: "design" as QueueTab, label: "Design Queue" },
+            { key: "publish" as QueueTab, label: "Publishing Queue" },
+            { key: "overdue" as QueueTab, label: "⚠ Overdue" },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "8px 20px",
+                borderRadius: 20,
+                border: tab === t.key ? "none" : `1px solid ${Z.border}`,
+                background: tab === t.key
+                  ? t.key === "overdue"
+                    ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                    : `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`
+                  : "transparent",
+                color: tab === t.key ? "#fff" : Z.textSecondary,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+              {tab === t.key && (
+                <span style={{ marginLeft: 8, background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>
+                  {filtered.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setMyOnly(!myOnly)}
+          style={{
+            padding: "7px 16px",
+            borderRadius: 20,
+            border: myOnly ? "none" : `1px solid ${Z.border}`,
+            background: myOnly ? `linear-gradient(135deg, ${Z.violet}, ${Z.ultramarine})` : "transparent",
+            color: myOnly ? "#fff" : Z.textSecondary,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          My Customers
+        </button>
       </div>
 
       {/* Table */}
