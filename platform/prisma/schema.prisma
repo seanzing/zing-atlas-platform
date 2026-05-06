@@ -135,6 +135,7 @@ model TeamMember {
   position           String?
   supabaseUserId     String?  @unique @map("supabase_user_id")
   googleRefreshToken String?  @map("google_refresh_token")
+  gmailHistoryId    String?  @map("gmail_history_id")
   active          Boolean   @default(true)
 
   deletedAt       DateTime?  @map("deleted_at")

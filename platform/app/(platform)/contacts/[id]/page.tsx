@@ -96,6 +96,12 @@ interface EmailMessage {
   fromEmail: string | null;
   toEmail: string | null;
   createdAt: string;
+  metadata: {
+    bodyHtml?: string;
+    hasHtml?: boolean;
+    attachments?: Array<{ name: string; size: number; mimeType: string }>;
+    gmailMessageId?: string;
+  } | null;
 }
 
 interface EmailThread {
@@ -141,6 +147,19 @@ const EMAIL_TEMPLATES = [
     body: "Hi NAME,\n\nExciting news: your website is now live! Thank you for choosing ZING. We are here if you need anything!\n\nBest,\nSENDER",
   },
 ];
+
+function formatRelative(dateStr: string) {
+  const d = new Date(dateStr);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -261,21 +280,21 @@ function generateTimeline(
 export default function ContactDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const [activeTab, setActiveTab] = useState("Customer Info");
   const { data: contact, error: contactError, mutate } = useSWR<ContactDetail>(`/api/contacts/${id}`, fetcher);
   const { data: activityData, mutate: mutateActivity } = useSWR<{
     threads: EmailThread[];
     standalone: StandaloneEntry[];
   }>(
     `/api/contacts/${id}/activity`,
-    fetcher
+    fetcher,
+    { refreshInterval: activeTab === "Activity" ? 60000 : 0 }
   );
   const threads = activityData?.threads ?? [];
-  // standalone entries available via activityData?.standalone
+  const standalone = activityData?.standalone ?? [];
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
-
-  const [activeTab, setActiveTab] = useState("Customer Info");
   const [composeOpen, setComposeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showSecondaryEmail, setShowSecondaryEmail] = useState(false);
@@ -294,27 +313,25 @@ export default function ContactDetailPage() {
   const [emailActivity, setEmailActivity] = useState<ActivityEntry[]>([]);
   const [emailActivityLoading, setEmailActivityLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [checkingReplies, setCheckingReplies] = useState(false);
-  const [replyCheck, setReplyCheck] = useState<string | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const { toast, showToast } = useToast();
 
-  const checkReplies = async () => {
-    setCheckingReplies(true);
-    setReplyCheck(null);
-    const res = await fetch(`/api/contacts/${id}/check-replies`, { method: "POST" });
-    const data = await res.json();
-    if (res.ok) {
-      if (data.newReplies > 0) {
-        setReplyCheck(`${data.newReplies} new ${data.newReplies === 1 ? "reply" : "replies"} found`);
-        mutateActivity();
-      } else {
-        setReplyCheck("No new replies");
-      }
-    } else {
-      setReplyCheck(data.error || "Failed to check");
+  // Silent background reply check when Activity tab is opened
+  useEffect(() => {
+    if (activeTab === "Activity") {
+      fetch(`/api/contacts/${id}/check-replies`, { method: "POST" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.newReplies > 0) mutateActivity();
+        })
+        .catch(() => {});
     }
-    setCheckingReplies(false);
-  };
+  }, [activeTab, id, mutateActivity]);
+
+  // Update lastChecked when activity data changes
+  useEffect(() => {
+    if (activityData) setLastChecked(new Date());
+  }, [activityData]);
 
   useEffect(() => {
     if (activeTab === "Email" && contact) {
@@ -1171,27 +1188,11 @@ export default function ContactDetailPage() {
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                onClick={checkReplies}
-                disabled={checkingReplies}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #ffffff18",
-                  background: "transparent",
-                  color: "#ffffff55",
-                  fontSize: 12,
-                  cursor: checkingReplies ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                {checkingReplies ? "Checking..." : "\u21BB Check for replies"}
-              </button>
-              {replyCheck && (
-                <span style={{ fontSize: 12, color: "#ffffff40" }}>{replyCheck}</span>
-              )}
-            </div>
+            {lastChecked && (
+              <span style={{ fontSize: 11, color: "#ffffff25" }}>
+                Updated {formatRelative(lastChecked.toISOString())}
+              </span>
+            )}
           </div>
 
           {/* Thread list */}
@@ -1212,8 +1213,38 @@ export default function ContactDetailPage() {
                 key={thread.gmailThreadId}
                 thread={thread}
                 defaultExpanded={i === 0}
+                contactId={id}
+                onReply={() => mutateActivity()}
               />
             ))
+          )}
+
+          {/* Earlier standalone emails */}
+          {standalone.filter((e) => e.type === "email_sent" || e.type === "email_received").length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 11, color: "#ffffff25", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+                Earlier emails (no thread tracking)
+              </div>
+              {standalone
+                .filter((e) => e.type === "email_sent" || e.type === "email_received")
+                .map((e) => (
+                  <div key={e.id} style={{
+                    padding: "10px 14px",
+                    background: "#ffffff04",
+                    border: "1px solid #ffffff08",
+                    borderRadius: 8,
+                    marginBottom: 6,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#ffffff60" }}>{e.subject || "(no subject)"}</span>
+                      <span style={{ fontSize: 11, color: "#ffffff25" }}>{formatRelative(e.createdAt)}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#ffffff35" }}>
+                      {e.type === "email_sent" ? "Sent" : "Received"} &middot; {e.fromEmail} &rarr; {e.toEmail}
+                    </div>
+                  </div>
+                ))}
+            </div>
           )}
         </div>
       )}

@@ -10,7 +10,8 @@ export async function sendGmailAs(
   to: string,
   subject: string,
   bodyHtml: string,
-  refreshToken: string
+  refreshToken: string,
+  options?: { threadId?: string; inReplyTo?: string }
 ): Promise<{ threadId: string | null }> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -24,19 +25,23 @@ export async function sendGmailAs(
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-  // bodyHtml is expected to already be safe HTML — callers are responsible for
-  // converting plain text (escape entities + \n→<br>) before calling this function.
-  const message = [
+  const headers = [
     `From: ${fromEmail}`,
     `To: ${to}`,
     `Subject: ${subject}`,
-    `Content-Type: text/html; charset=utf-8`,
     `MIME-Version: 1.0`,
-    ``,
-    `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${bodyHtml}</div>`,
-  ].join("\r\n");
+    `Content-Type: text/html; charset=utf-8`,
+  ];
 
-  const encoded = Buffer.from(message)
+  if (options?.inReplyTo) {
+    headers.push(`In-Reply-To: ${options.inReplyTo}`);
+    headers.push(`References: ${options.inReplyTo}`);
+  }
+
+  const raw = headers.join("\r\n") + "\r\n\r\n" +
+    `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${bodyHtml}</div>`;
+
+  const encoded = Buffer.from(raw)
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -44,7 +49,10 @@ export async function sendGmailAs(
 
   const response = await gmail.users.messages.send({
     userId: "me",
-    requestBody: { raw: encoded },
+    requestBody: {
+      raw: encoded,
+      ...(options?.threadId ? { threadId: options.threadId } : {}),
+    },
   });
 
   return { threadId: response.data.threadId ?? null };

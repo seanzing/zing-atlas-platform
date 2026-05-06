@@ -87,11 +87,16 @@ export async function POST(
               teamMemberId: teamMember.id,
               type: "email_received",
               subject: reply.subject || `Re: ${sent.subject}`,
-              body: reply.body || reply.snippet,
+              body: reply.bodyText || reply.snippet,
               fromEmail: reply.from,
-              toEmail: auth.user.email ?? "",
+              toEmail: reply.to || (auth.user.email ?? ""),
               gmailThreadId: sent.gmailThreadId,
-              metadata: { gmailMessageId: reply.id },
+              metadata: JSON.parse(JSON.stringify({
+                gmailMessageId: reply.id,
+                bodyHtml: reply.bodyHtml,
+                hasHtml: reply.hasHtml,
+                attachments: reply.attachments,
+              })),
             },
           });
           knownMessageIds.add(reply.id);
