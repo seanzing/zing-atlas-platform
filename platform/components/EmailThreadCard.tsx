@@ -47,7 +47,10 @@ function formatRelative(dateStr: string) {
 
 function senderLabel(email: string | null): string {
   if (!email) return "Unknown";
-  // Show just the local part before @, capitalized — e.g. sean@zing-work.com → Sean
+  // Handle "Display Name <addr@example.com>" format
+  const nameMatch = email.match(/^([^<]+)<[^>]+>/);
+  if (nameMatch) return nameMatch[1].trim();
+  // Fall back to local part before @, capitalized
   const local = email.split("@")[0].replace(/[._-]/g, " ");
   return local.replace(/\b\w/g, (c) => c.toUpperCase());
 }
