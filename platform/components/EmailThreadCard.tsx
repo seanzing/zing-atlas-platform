@@ -21,6 +21,25 @@ interface EmailThread {
   messages: EmailMessage[];
 }
 
+/** Strip quoted reply chains — everything from "On [date] ... wrote:" onwards */
+function stripQuotedText(body: string | null): string {
+  if (!body) return "";
+  // Remove \r\n artifacts
+  const clean = body.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  // Cut at common quoted-text markers
+  const markers = [
+    /\nOn [\s\S]+?wrote:\n/,
+    /\n_{3,}/,
+    /\n-{3,} ?Original Message ?-{3,}/i,
+    /\nFrom: .+\nSent:/i,
+  ];
+  for (const marker of markers) {
+    const idx = clean.search(marker);
+    if (idx > 0) return clean.slice(0, idx).trim();
+  }
+  return clean;
+}
+
 function formatFull(dateStr: string) {
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
@@ -33,8 +52,7 @@ function formatFull(dateStr: string) {
 
 function formatRelative(dateStr: string) {
   const d = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
+  const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -45,77 +63,104 @@ function formatRelative(dateStr: string) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function senderLabel(email: string | null): string {
-  if (!email) return "Unknown";
-  // Handle "Display Name <addr@example.com>" format
-  const nameMatch = email.match(/^([^<]+)<[^>]+>/);
-  if (nameMatch) return nameMatch[1].trim();
-  // Fall back to local part before @, capitalized
-  const local = email.split("@")[0].replace(/[._-]/g, " ");
-  return local.replace(/\b\w/g, (c) => c.toUpperCase());
+function parseSender(raw: string | null): { name: string; initials: string } {
+  if (!raw) return { name: "Unknown", initials: "?" };
+  // "Display Name <addr@example.com>"
+  const nameMatch = raw.match(/^([^<]+)<[^>]+>/);
+  if (nameMatch) {
+    const name = nameMatch[1].trim();
+    const parts = name.split(" ").filter(Boolean);
+    const initials = parts.length >= 2
+      ? parts[0][0] + parts[parts.length - 1][0]
+      : parts[0]?.[0] ?? "?";
+    return { name, initials: initials.toUpperCase() };
+  }
+  // plain email
+  const local = raw.split("@")[0].replace(/[._-]/g, " ");
+  const name = local.replace(/\b\w/g, (c) => c.toUpperCase());
+  return { name, initials: name[0]?.toUpperCase() ?? "?" };
 }
 
 function MessageRow({ msg, isLast }: { msg: EmailMessage; isLast: boolean }) {
   const isSent = msg.type === "email_sent";
+  const body = stripQuotedText(msg.body);
+  const sender = isSent
+    ? { name: "You", initials: "Y" }
+    : parseSender(msg.fromEmail);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 0,
-    }}>
-      {/* Message card */}
+    <div>
       <div style={{
-        borderLeft: `3px solid ${isSent ? "#3a5aff" : "#ffffff18"}`,
-        paddingLeft: 16,
-        paddingTop: 2,
-        paddingBottom: 2,
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
       }}>
-        {/* Sender row */}
+        {/* Avatar */}
         <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          background: isSent
+            ? "linear-gradient(135deg, #3a5aff, #7c3aed)"
+            : "linear-gradient(135deg, #1e4d3a, #1a6b4a)",
           display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: 6,
-          gap: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 13,
+          fontWeight: 800,
+          color: "#fff",
+          flexShrink: 0,
+          letterSpacing: "-0.5px",
         }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-            <span style={{
-              fontSize: 13,
-              fontWeight: 800,
-              color: isSent ? "#a5b4fc" : "#ffffffcc",
-              flexShrink: 0,
-            }}>
-              {isSent ? "You" : senderLabel(msg.fromEmail)}
-            </span>
-            <span style={{ fontSize: 11, color: "#ffffff35", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              to {msg.toEmail}
-            </span>
-          </div>
-          <span style={{ fontSize: 11, color: "#ffffff35", flexShrink: 0, whiteSpace: "nowrap" }}>
-            {formatFull(msg.createdAt)}
-          </span>
+          {sender.initials}
         </div>
 
-        {/* Body */}
-        <div style={{
-          fontSize: 13,
-          color: "#ffffffbb",
-          lineHeight: 1.65,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}>
-          {msg.body || "(no content)"}
+        {/* Bubble */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Sender + timestamp */}
+          <div style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            marginBottom: 8,
+            gap: 8,
+          }}>
+            <span style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: isSent ? "#a5b4fc" : "#4ade80",
+            }}>
+              {sender.name}
+            </span>
+            <span style={{ fontSize: 11, color: "#ffffff35", whiteSpace: "nowrap" }}>
+              {formatFull(msg.createdAt)}
+            </span>
+          </div>
+
+          {/* Message body card */}
+          <div style={{
+            background: isSent ? "#1e2a5e" : "#0f2d1e",
+            border: `1px solid ${isSent ? "#3a5aff40" : "#22c55e25"}`,
+            borderRadius: isSent ? "4px 16px 16px 16px" : "4px 16px 16px 16px",
+            padding: "12px 16px",
+            fontSize: 13,
+            color: "#ffffffcc",
+            lineHeight: 1.7,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}>
+            {body || "(no content)"}
+          </div>
+
+          {/* To address — small, below bubble */}
+          <div style={{ fontSize: 11, color: "#ffffff25", marginTop: 5, paddingLeft: 2 }}>
+            {isSent ? `to ${msg.toEmail}` : `to ${msg.toEmail}`}
+          </div>
         </div>
       </div>
 
-      {/* Divider between messages */}
       {!isLast && (
-        <div style={{
-          height: 1,
-          background: "linear-gradient(to right, #ffffff08, #ffffff04, transparent)",
-          margin: "16px 0",
-        }} />
+        <div style={{ margin: "16px 0 16px 48px", height: 1, background: "#ffffff08" }} />
       )}
     </div>
   );
@@ -132,37 +177,33 @@ export default function EmailThreadCard({
 
   const hasReplies = thread.messageCount > 1;
   const lastMsg = thread.messages[thread.messages.length - 1];
-  const lastSender = lastMsg
-    ? lastMsg.type === "email_sent"
-      ? "You"
-      : senderLabel(lastMsg.fromEmail)
-    : "";
-  const preview = lastMsg?.body?.replace(/\n/g, " ").slice(0, 90) ?? "";
+  const lastSender = lastMsg?.type === "email_sent"
+    ? "You"
+    : parseSender(lastMsg?.fromEmail ?? null).name;
+  const preview = stripQuotedText(lastMsg?.body ?? null).replace(/\n/g, " ").slice(0, 80);
 
   return (
-    <div
-      style={{
-        background: "#0d0d2e",
-        border: `1px solid ${expanded ? "#3a5aff44" : "#ffffff10"}`,
-        borderRadius: 12,
-        overflow: "hidden",
-        transition: "border-color 0.2s",
-      }}
+    <div style={{
+      background: "#0a0a20",
+      border: `1px solid ${expanded ? "#3a5aff55" : "#ffffff0f"}`,
+      borderRadius: 14,
+      overflow: "hidden",
+      transition: "border-color 0.2s, box-shadow 0.2s",
+      boxShadow: expanded ? "0 0 0 1px #3a5aff22" : "none",
+    }}
       onMouseEnter={(e) => {
-        if (!expanded)
-          (e.currentTarget as HTMLElement).style.borderColor = "#ffffff22";
+        if (!expanded) (e.currentTarget as HTMLElement).style.borderColor = "#ffffff22";
       }}
       onMouseLeave={(e) => {
-        if (!expanded)
-          (e.currentTarget as HTMLElement).style.borderColor = "#ffffff10";
+        if (!expanded) (e.currentTarget as HTMLElement).style.borderColor = "#ffffff0f";
       }}
     >
-      {/* Collapsed header — click to expand */}
+      {/* Header */}
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
           display: "grid",
-          gridTemplateColumns: "auto 1fr auto",
+          gridTemplateColumns: "36px 1fr auto",
           gap: 12,
           padding: "14px 18px",
           cursor: "pointer",
@@ -170,20 +211,19 @@ export default function EmailThreadCard({
           alignItems: "center",
         }}
       >
-        {/* Message count bubble */}
+        {/* Count bubble */}
         <div style={{
-          width: 32,
-          height: 32,
+          width: 36,
+          height: 36,
           borderRadius: "50%",
-          background: hasReplies ? "#3a5aff22" : "#ffffff0a",
-          border: `1px solid ${hasReplies ? "#3a5aff55" : "#ffffff15"}`,
+          background: hasReplies ? "#1e2a5e" : "#1a1a35",
+          border: `1px solid ${hasReplies ? "#3a5aff55" : "#ffffff12"}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 800,
-          color: hasReplies ? "#7aa0ff" : "#ffffff55",
-          flexShrink: 0,
+          color: hasReplies ? "#7aa0ff" : "#ffffff40",
         }}>
           {thread.messageCount}
         </div>
@@ -203,12 +243,12 @@ export default function EmailThreadCard({
           </div>
           <div style={{
             fontSize: 11,
-            color: "#ffffff40",
+            color: "#ffffff38",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
           }}>
-            {lastSender && <span style={{ fontWeight: 600, color: "#ffffff55" }}>{lastSender}:</span>}
+            <span style={{ fontWeight: 600, color: "#ffffff50" }}>{lastSender}:</span>
             {" "}{preview || "No content"}
           </div>
         </div>
@@ -218,23 +258,25 @@ export default function EmailThreadCard({
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 4,
+          gap: 5,
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: 11, color: "#ffffff40" }}>
+          <span style={{ fontSize: 11, color: "#ffffff38" }}>
             {formatRelative(thread.lastMessageAt)}
           </span>
-          <span style={{ fontSize: 10, color: "#ffffff25" }}>
+          <span style={{ fontSize: 10, color: "#ffffff20" }}>
             {expanded ? "▲" : "▼"}
           </span>
         </div>
       </div>
 
-      {/* Expanded message list */}
+      {/* Messages */}
       {expanded && (
         <div style={{
-          borderTop: "1px solid #ffffff0a",
-          padding: "20px 20px 20px 20px",
+          borderTop: "1px solid #ffffff08",
+          padding: "20px 18px 24px",
+          display: "flex",
+          flexDirection: "column",
         }}>
           {thread.messages.map((msg, i) => (
             <MessageRow
