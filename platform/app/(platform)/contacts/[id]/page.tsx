@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
@@ -76,7 +77,7 @@ interface ActivityEntry {
   createdAt: string;
 }
 
-const TABS = ["Customer Info", "Email", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+const TABS = ["Customer Info", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
 
 const EMAIL_TEMPLATES = [
   {
@@ -226,6 +227,7 @@ export default function ContactDetailPage() {
   );
 
   const [activeTab, setActiveTab] = useState("Customer Info");
+  const [composeOpen, setComposeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showSecondaryEmail, setShowSecondaryEmail] = useState(false);
 
@@ -459,6 +461,32 @@ export default function ContactDetailPage() {
           color={STATUS_COLORS[contact.status] || Z.grey}
         />
       </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button
+          onClick={() => setComposeOpen(true)}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "7px 14px",
+            background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+            color: "#fff", border: "none", borderRadius: 6,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}
+        >
+          ✉ Email
+        </button>
+      </div>
+
+      {/* Floating compose window */}
+      {composeOpen && (
+        <FloatingEmailCompose
+          contactId={id}
+          contactName={contact.name}
+          contactEmail={contact.email || ""}
+          onClose={() => setComposeOpen(false)}
+        />
+      )}
 
       {/* Tabs */}
       <div
