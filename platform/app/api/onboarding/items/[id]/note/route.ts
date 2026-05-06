@@ -13,17 +13,22 @@ export async function PATCH(
     if (auth.error) return auth.error;
 
     const { id } = await params;
-    const { note } = await request.json();
+    const body = await request.json();
 
     const item = await prisma.onboardingItem.findUnique({ where: { id } });
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Merge into existing notes JSON, preserving pixelSiteId etc.
+    // Merge into existing notes JSON, preserving all fields
     let existing: Record<string, unknown> = {};
     if (item.notes) {
       try { existing = JSON.parse(item.notes); } catch { /* ignore */ }
     }
-    const merged = JSON.stringify({ ...existing, userNote: note });
+    // Support legacy { note } field as userNote
+    const toMerge = "note" in body && !("userNote" in body)
+      ? { ...body, userNote: body.note }
+      : body;
+    delete toMerge.note;
+    const merged = JSON.stringify({ ...existing, ...toMerge });
     const updated = await prisma.onboardingItem.update({
       where: { id },
       data: { notes: merged },

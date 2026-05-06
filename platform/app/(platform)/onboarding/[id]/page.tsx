@@ -110,6 +110,9 @@ export default function OnboardingDetailPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [savingDesigner, setSavingDesigner] = useState(false);
+  const [linkSiteId, setLinkSiteId] = useState("");
+  const [linkingSite, setLinkingSite] = useState(false);
+  const [creatingPixelSite, setCreatingPixelSite] = useState(false);
   const { toast, showToast } = useToast();
 
   if (!ob) return <PageLoader />;
@@ -166,6 +169,54 @@ export default function OnboardingDetailPage() {
     });
     mutate();
     setSavingDesigner(false);
+  };
+
+  const createPixelSite = async () => {
+    setCreatingPixelSite(true);
+    const websiteItem = ob.items.find((i) => i.taskType === "website");
+    if (!websiteItem) { setCreatingPixelSite(false); return; }
+    const res = await fetch(`/api/onboarding/${id}/create-pixel-site`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId: websiteItem.id }),
+    });
+    if (res.ok) {
+      mutate();
+      showToast("Pixel site created", true);
+    } else {
+      showToast("Failed to create Pixel site", false);
+    }
+    setCreatingPixelSite(false);
+  };
+
+  const linkExistingSite = async () => {
+    if (!linkSiteId.trim()) return;
+    setLinkingSite(true);
+    const websiteItem = ob.items.find((i) => i.taskType === "website");
+    if (!websiteItem) { setLinkingSite(false); return; }
+
+    // Store pixelSiteId in the website task item's notes
+    const existingNotes = (websiteItem.notes as Record<string, unknown>) ?? {};
+    await fetch(`/api/onboarding/items/${websiteItem.id}/note`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...existingNotes, pixelSiteId: linkSiteId.trim() }),
+    });
+
+    // Also update Pixel to store atlasOnboardingId (best effort)
+    const pixelUrl = process.env.NEXT_PUBLIC_PIXEL_URL || "https://pixel.yourwebsiteexample.com";
+    try {
+      await fetch(`${pixelUrl}/api/sites/${linkSiteId.trim()}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atlasOnboardingId: id }),
+      });
+    } catch { /* non-fatal */ }
+
+    mutate();
+    setLinkSiteId("");
+    showToast("Site linked", true);
+    setLinkingSite(false);
   };
 
   return (
@@ -359,28 +410,82 @@ export default function OnboardingDetailPage() {
                   const websiteItem = ob.items.find((i) => i.taskType === "website");
                   const notes = websiteItem?.notes as Record<string, unknown> | null;
                   const pixelSiteId = notes?.pixelSiteId as string | undefined;
-                  if (!pixelSiteId) return null;
+                  if (pixelSiteId) {
+                    return (
+                      <a
+                        href={`https://pixel.yourwebsiteexample.com/dashboard?site=${pixelSiteId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 8,
+                          border: `1px solid ${Z.violet}40`,
+                          background: `${Z.violet}12`,
+                          color: Z.violet,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textDecoration: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
+                        ✏️ Open in Pixel Editor
+                      </a>
+                    );
+                  }
                   return (
-                    <a
-                      href={`https://pixel.yourwebsiteexample.com/dashboard?site=${pixelSiteId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: 8,
-                        border: `1px solid ${Z.violet}40`,
-                        background: `${Z.violet}12`,
-                        color: Z.violet,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                      }}
-                    >
-                      ✏️ Open in Pixel Editor
-                    </a>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <button
+                        onClick={createPixelSite}
+                        disabled={creatingPixelSite}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+                          color: "#fff",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {creatingPixelSite ? "Creating..." : "＋ Create in Pixel"}
+                      </button>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input
+                          value={linkSiteId}
+                          onChange={(e) => setLinkSiteId(e.target.value)}
+                          placeholder="Or paste existing site ID..."
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            border: `1px solid ${Z.border}`,
+                            background: Z.bg,
+                            color: Z.textPrimary,
+                            fontSize: 11,
+                            width: 200,
+                            outline: "none",
+                          }}
+                        />
+                        <button
+                          onClick={linkExistingSite}
+                          disabled={!linkSiteId.trim() || linkingSite}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            border: `1px solid ${Z.border}`,
+                            background: "transparent",
+                            color: Z.textSecondary,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {linkingSite ? "Linking..." : "Link"}
+                        </button>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>

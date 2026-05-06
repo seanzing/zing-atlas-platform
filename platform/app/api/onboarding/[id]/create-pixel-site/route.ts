@@ -48,6 +48,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       owner_email: onboarding.email ?? "",
       owner_phone: onboarding.phone ?? "",
       existing_url: onboarding.existingUrl ?? "",
+      atlasOnboardingId: id,
     };
 
     const pixelRes = await fetch(PIXEL_API_URL, {
