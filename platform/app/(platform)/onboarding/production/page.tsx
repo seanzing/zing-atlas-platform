@@ -24,7 +24,7 @@ const STATUS_MAP = Object.fromEntries(WEBSITE_STATUSES.map((s) => [s.value, s]))
 const DESIGN_STATUSES = ["not_started", "building", "draft_sent", "in_revision"];
 const PUBLISH_STATUSES = ["customer_approved", "in_qa"];
 
-type QueueTab = "all" | "design" | "publish";
+type QueueTab = "all" | "design" | "publish" | "overdue";
 
 interface OnboardingRow {
   onboardingId: string;
@@ -41,6 +41,8 @@ interface OnboardingRow {
     taskType: string | null;
     currentStatus: string | null;
     itemName: string | null;
+    dueDate: string | null;
+    stage: string | null;
   }[];
 }
 
@@ -49,6 +51,14 @@ interface ComposeTarget {
   contactId: string | null;
   name: string;
   email: string;
+}
+
+function isOverdue(row: OnboardingRow): boolean {
+  const ws = row.websiteStatus || "not_started";
+  if (ws === "published") return false;
+  return row.items.some(
+    (i) => i.dueDate && new Date(i.dueDate) < new Date() && i.stage !== "complete"
+  );
 }
 
 export default function WorkQueuePage() {
@@ -62,6 +72,7 @@ export default function WorkQueuePage() {
     const ws = r.websiteStatus || "not_started";
     if (tab === "design") return DESIGN_STATUSES.includes(ws);
     if (tab === "publish") return PUBLISH_STATUSES.includes(ws);
+    if (tab === "overdue") return isOverdue(r);
     return ws !== "published"; // "all" hides published by default
   });
 
@@ -117,6 +128,7 @@ export default function WorkQueuePage() {
           { key: "all" as QueueTab, label: "All Active" },
           { key: "design" as QueueTab, label: "Design Queue" },
           { key: "publish" as QueueTab, label: "Publishing Queue" },
+          { key: "overdue" as QueueTab, label: "⚠ Overdue" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -125,7 +137,11 @@ export default function WorkQueuePage() {
               padding: "8px 20px",
               borderRadius: 20,
               border: tab === t.key ? "none" : `1px solid ${Z.border}`,
-              background: tab === t.key ? `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})` : "transparent",
+              background: tab === t.key
+                ? t.key === "overdue"
+                  ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                  : `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`
+                : "transparent",
               color: tab === t.key ? "#fff" : Z.textSecondary,
               fontSize: 13,
               fontWeight: 700,

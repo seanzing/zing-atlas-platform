@@ -48,7 +48,7 @@ interface OnboardingItem {
   dueDate: string | null;
   completedAt: string | null;
   isActive: boolean;
-  notes: string | null;
+  notes: Record<string, unknown> | null;
 }
 
 interface OnboardingDetail {
@@ -99,8 +99,17 @@ export default function OnboardingDetailPage() {
   );
   const activity = activityData?.activity ?? [];
 
+  const { data: teamData } = useSWR<{ members: { id: string; firstName: string | null; lastName: string | null; position: string | null }[] }>(
+    "/api/team",
+    fetcher
+  );
+  const designers = (teamData?.members ?? []).filter(
+    (m) => m.position?.startsWith("designer")
+  );
+
   const [composeOpen, setComposeOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [savingDesigner, setSavingDesigner] = useState(false);
   const { toast, showToast } = useToast();
 
   if (!ob) return <PageLoader />;
@@ -146,6 +155,17 @@ export default function OnboardingDetailPage() {
       body: JSON.stringify({ status: "completed", stage: "complete" }),
     });
     mutate();
+  };
+
+  const saveDesigner = async (name: string) => {
+    setSavingDesigner(true);
+    await fetch(`/api/onboarding/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offshoreDesigner: name }),
+    });
+    mutate();
+    setSavingDesigner(false);
   };
 
   return (
@@ -263,6 +283,30 @@ export default function OnboardingDetailPage() {
               <a href={ob.newUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: Z.turquoise, textDecoration: "none" }}>{ob.newUrl}</a>
             </div>
           )}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Designer</div>
+            <select
+              value={ob.offshoreDesigner || ob.usDesigner || ""}
+              onChange={(e) => saveDesigner(e.target.value)}
+              disabled={savingDesigner}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${Z.border}`,
+                background: Z.bg,
+                color: ob.offshoreDesigner || ob.usDesigner ? Z.textPrimary : Z.textMuted,
+                fontSize: 12,
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value="">Unassigned</option>
+              {designers.map((d) => {
+                const name = [d.firstName, d.lastName].filter(Boolean).join(" ");
+                return <option key={d.id} value={name}>{name}</option>;
+              })}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -290,26 +334,56 @@ export default function OnboardingDetailPage() {
                 <div style={{ width: 3, height: 18, borderRadius: 2, background: TRACK_COLORS.website }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: Z.textPrimary }}>Website</span>
               </div>
-              <select
-                value={ws}
-                disabled={updatingStatus}
-                onChange={(e) => updateWebsiteStatus(e.target.value)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${wsInfo.color}40`,
-                  background: `${wsInfo.color}15`,
-                  color: wsInfo.color,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-              >
-                {WEBSITE_STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <select
+                  value={ws}
+                  disabled={updatingStatus}
+                  onChange={(e) => updateWebsiteStatus(e.target.value)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${wsInfo.color}40`,
+                    background: `${wsInfo.color}15`,
+                    color: wsInfo.color,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  {WEBSITE_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                {(() => {
+                  const websiteItem = ob.items.find((i) => i.taskType === "website");
+                  const notes = websiteItem?.notes as Record<string, unknown> | null;
+                  const pixelSiteId = notes?.pixelSiteId as string | undefined;
+                  if (!pixelSiteId) return null;
+                  return (
+                    <a
+                      href={`https://pixel.yourwebsiteexample.com/dashboard?site=${pixelSiteId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: 8,
+                        border: `1px solid ${Z.violet}40`,
+                        background: `${Z.violet}12`,
+                        color: Z.violet,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                      }}
+                    >
+                      ✏️ Open in Pixel Editor
+                    </a>
+                  );
+                })()}
+              </div>
             </div>
             {/* Website task items */}
             {itemsByTrack.website.length > 0 ? (
@@ -452,84 +526,166 @@ function TaskItemRow({
   onComplete: (id: string) => void;
 }) {
   const isComplete = item.stage === "complete" || item.completedAt != null;
+  const [note, setNote] = useState(() => {
+    const n = item.notes as Record<string, unknown> | null;
+    return (n?.userNote as string) ?? "";
+  });
+  const [savingNote, setSavingNote] = useState(false);
+  const [showNote, setShowNote] = useState(false);
 
   return (
     <div style={{
-      display: "grid",
-      gridTemplateColumns: "1fr auto auto",
-      gap: 12,
-      alignItems: "center",
+      display: "flex",
+      flexDirection: "column",
       padding: "12px 20px",
       borderBottom: `1px solid ${Z.borderLight}`,
       opacity: isComplete ? 0.6 : 1,
     }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: Z.textPrimary, textDecoration: isComplete ? "line-through" : "none" }}>
-          {item.itemName || item.taskType || "\u2014"}
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 3 }}>
-          {item.owner && (
-            <span style={{ fontSize: 11, color: Z.textMuted }}>{item.owner}</span>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto auto auto",
+        gap: 12,
+        alignItems: "center",
+      }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: Z.textPrimary, textDecoration: isComplete ? "line-through" : "none" }}>
+            {item.itemName || item.taskType || "\u2014"}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 3 }}>
+            {item.owner && (
+              <span style={{ fontSize: 11, color: Z.textMuted }}>{item.owner}</span>
+            )}
+            {item.dueDate && (
+              <span style={{ fontSize: 11, color: new Date(item.dueDate) < new Date() && !isComplete ? "#ef4444" : Z.textMuted }}>
+                Due {new Date(item.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
+            )}
+          </div>
+          {!showNote && note && (
+            <div style={{ fontSize: 11, color: Z.textMuted, fontStyle: "italic", marginTop: 2 }}>
+              {note}
+            </div>
           )}
-          {item.dueDate && (
-            <span style={{ fontSize: 11, color: new Date(item.dueDate) < new Date() && !isComplete ? "#ef4444" : Z.textMuted }}>
-              Due {new Date(item.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </span>
-          )}
         </div>
-      </div>
 
-      {/* Status dropdown if options exist and not website taskType (website uses parent websiteStatus) */}
-      {item.statusOptions && item.statusOptions.length > 0 && item.taskType !== "website" && !isComplete && (
-        <select
-          value={item.currentStatus ?? ""}
-          onChange={(e) => onStatusChange(item.id, e.target.value)}
+        {/* Status dropdown if options exist and not website taskType (website uses parent websiteStatus) */}
+        {item.statusOptions && item.statusOptions.length > 0 && item.taskType !== "website" && !isComplete && (
+          <select
+            value={item.currentStatus ?? ""}
+            onChange={(e) => onStatusChange(item.id, e.target.value)}
+            style={{
+              padding: "4px 8px",
+              borderRadius: 6,
+              border: `1px solid ${Z.border}`,
+              background: Z.bg,
+              color: Z.textSecondary,
+              fontSize: 11,
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            {item.statusOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Note toggle */}
+        <button
+          onClick={() => setShowNote(!showNote)}
+          title="Add note"
           style={{
             padding: "4px 8px",
             borderRadius: 6,
             border: `1px solid ${Z.border}`,
-            background: Z.bg,
-            color: Z.textSecondary,
-            fontSize: 11,
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          {item.statusOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      )}
-
-      {/* Complete button */}
-      {!isComplete && (
-        <button
-          onClick={() => onComplete(item.id)}
-          style={{
-            padding: "4px 10px",
-            borderRadius: 6,
-            border: `1px solid ${Z.border}`,
             background: "transparent",
-            color: Z.textMuted,
+            color: showNote ? Z.violet : Z.textMuted,
             fontSize: 11,
-            fontWeight: 600,
             cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "#10b981";
-            e.currentTarget.style.color = "#10b981";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = Z.border;
-            e.currentTarget.style.color = Z.textMuted;
           }}
         >
-          Done
+          📝
         </button>
-      )}
-      {isComplete && (
-        <span style={{ fontSize: 11, color: "#10b981", fontWeight: 700 }}>Complete</span>
+
+        {/* Complete button */}
+        {!isComplete && (
+          <button
+            onClick={() => onComplete(item.id)}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 6,
+              border: `1px solid ${Z.border}`,
+              background: "transparent",
+              color: Z.textMuted,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#10b981";
+              e.currentTarget.style.color = "#10b981";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = Z.border;
+              e.currentTarget.style.color = Z.textMuted;
+            }}
+          >
+            Done
+          </button>
+        )}
+        {isComplete && (
+          <span style={{ fontSize: 11, color: "#10b981", fontWeight: 700 }}>Complete</span>
+        )}
+      </div>
+
+      {showNote && (
+        <div style={{ paddingTop: 8 }}>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Add a note for this task..."
+            rows={2}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              background: Z.bg,
+              border: `1px solid ${Z.border}`,
+              borderRadius: 6,
+              color: Z.textPrimary,
+              fontSize: 12,
+              resize: "none",
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            onClick={async () => {
+              setSavingNote(true);
+              await fetch(`/api/onboarding/items/${item.id}/note`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ note }),
+              });
+              setSavingNote(false);
+            }}
+            disabled={savingNote}
+            style={{
+              marginTop: 4,
+              padding: "4px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: Z.ultramarine,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {savingNote ? "Saving..." : "Save Note"}
+          </button>
+        </div>
       )}
     </div>
   );

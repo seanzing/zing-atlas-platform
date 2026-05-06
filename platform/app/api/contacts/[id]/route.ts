@@ -50,7 +50,27 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       (Array.isArray(deal.onboarding) ? deal.onboarding : deal.onboarding ? [deal.onboarding] : []).flatMap((ob: any) => (ob as any).items ?? [])
     );
 
-    return NextResponse.json(serialize({ ...contact, onboarding: onboardingItems }), { status: 200 });
+    const onboardingRecords = contact.deals.flatMap((deal) => {
+      const obs = Array.isArray(deal.onboarding)
+        ? deal.onboarding
+        : deal.onboarding
+        ? [deal.onboarding]
+        : [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return obs.map((ob: any) => ({
+        id: ob.id,
+        businessName: ob.businessName,
+        customerName: ob.customerName,
+        websiteStatus: ob.websiteStatus ?? "not_started",
+        status: ob.status,
+        wonDate: ob.wonDate,
+      }));
+    });
+
+    return NextResponse.json(
+      serialize({ ...contact, onboarding: onboardingItems, onboardingRecords }),
+      { status: 200 }
+    );
   } catch (error) {
     logger.error({ err: error }, "GET /api/contacts/[id] error");
     return NextResponse.json(

@@ -45,6 +45,15 @@ interface OnboardingItem {
   dueDate: string;
 }
 
+interface OnboardingRecord {
+  id: string;
+  businessName: string | null;
+  customerName: string | null;
+  websiteStatus: string | null;
+  status: string | null;
+  wonDate: string | null;
+}
+
 // Campaign data is included inline from the contacts API
 
 interface ContactDetail {
@@ -64,6 +73,7 @@ interface ContactDetail {
   deals: Deal[];
   tickets: Ticket[];
   onboarding: OnboardingItem[];
+  onboardingRecords?: OnboardingRecord[];
 }
 
 interface ActivityEntry {
@@ -1065,6 +1075,75 @@ export default function ContactDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Active Onboarding */}
+          {contact.onboardingRecords && contact.onboardingRecords.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+                Active Onboarding
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {contact.onboardingRecords.map((ob) => {
+                  const WS_COLORS: Record<string, string> = {
+                    not_started: "#6b7280",
+                    building: Z.ultramarine,
+                    draft_sent: "#f59e0b",
+                    in_revision: "#f97316",
+                    customer_approved: "#22c55e",
+                    in_qa: Z.violet,
+                    published: Z.turquoise,
+                  };
+                  const ws = ob.websiteStatus || "not_started";
+                  const wsColor = WS_COLORS[ws] || "#6b7280";
+                  const wsLabel = ws.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                  return (
+                    <Link
+                      key={ob.id}
+                      href={`/onboarding/${ob.id}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 16px",
+                        background: Z.bg,
+                        border: `1px solid ${Z.border}`,
+                        borderRadius: 10,
+                        textDecoration: "none",
+                        transition: "border-color 0.15s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = Z.ultramarine; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = Z.border; }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>
+                          {ob.businessName || ob.customerName || "Onboarding"}
+                        </div>
+                        {ob.wonDate && (
+                          <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 2 }}>
+                            Won {new Date(ob.wonDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: `${wsColor}18`,
+                          color: wsColor,
+                          border: `1px solid ${wsColor}35`,
+                        }}>
+                          {wsLabel}
+                        </span>
+                        <span style={{ color: Z.textMuted, fontSize: 14 }}>→</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
