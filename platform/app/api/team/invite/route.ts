@@ -8,13 +8,13 @@ import { serialize } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
 export async function POST(request: NextRequest) {
+  // Admin client created inside handler — SUPABASE_SERVICE_ROLE_KEY not available at build time
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
