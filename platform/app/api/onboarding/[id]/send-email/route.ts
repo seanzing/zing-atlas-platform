@@ -61,7 +61,7 @@ export async function POST(
       );
     }
 
-    await sendGmailAs(fromEmail, to, subject, body, teamMember.googleRefreshToken);
+    const { threadId } = await sendGmailAs(fromEmail, to, subject, body, teamMember.googleRefreshToken);
 
     await prisma.activityLog.create({
       data: {
@@ -75,6 +75,7 @@ export async function POST(
         fromEmail,
         previewUrl: previewUrl ?? null,
         teamMemberId: teamMember.id,
+        gmailThreadId: threadId,
       },
     });
 

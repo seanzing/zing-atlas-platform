@@ -118,6 +118,8 @@ function ActivityEmailCard({ entry }: { entry: ActivityEntry }) {
   const dateStr = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const timeStr = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
+  const isReceived = entry.type === "email_received";
+
   return (
     <div
       style={{
@@ -135,9 +137,13 @@ function ActivityEmailCard({ entry }: { entry: ActivityEntry }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
-                background: "rgba(58, 90, 255, 0.2)",
-                border: "1px solid rgba(58, 90, 255, 0.4)",
-                color: "#7aa0ff",
+                background: isReceived
+                  ? "rgba(34, 197, 94, 0.2)"
+                  : "rgba(58, 90, 255, 0.2)",
+                border: isReceived
+                  ? "1px solid rgba(34, 197, 94, 0.4)"
+                  : "1px solid rgba(58, 90, 255, 0.4)",
+                color: isReceived ? "#4ade80" : "#7aa0ff",
                 fontSize: 10,
                 fontWeight: 700,
                 padding: "2px 8px",
@@ -146,7 +152,7 @@ function ActivityEmailCard({ entry }: { entry: ActivityEntry }) {
                 letterSpacing: 0.8,
               }}
             >
-              ✉ Email Sent
+              {isReceived ? "↩ Reply Received" : "✉ Email Sent"}
             </span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
@@ -386,7 +392,27 @@ export default function ContactDetailPage() {
   const [emailActivity, setEmailActivity] = useState<ActivityEntry[]>([]);
   const [emailActivityLoading, setEmailActivityLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [checkingReplies, setCheckingReplies] = useState(false);
+  const [replyCheck, setReplyCheck] = useState<string | null>(null);
   const { toast, showToast } = useToast();
+
+  const checkReplies = async () => {
+    setCheckingReplies(true);
+    setReplyCheck(null);
+    const res = await fetch(`/api/contacts/${id}/check-replies`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      if (data.newReplies > 0) {
+        setReplyCheck(`${data.newReplies} new ${data.newReplies === 1 ? "reply" : "replies"} found`);
+        mutateActivity();
+      } else {
+        setReplyCheck("No new replies");
+      }
+    } else {
+      setReplyCheck(data.error || "Failed to check");
+    }
+    setCheckingReplies(false);
+  };
 
   useEffect(() => {
     if (activeTab === "Email" && contact) {
@@ -1215,8 +1241,27 @@ export default function ContactDetailPage() {
             <div style={{ color: Z.textPrimary, fontSize: 15, fontWeight: 700 }}>
               Email History
             </div>
-            <div style={{ color: Z.textMuted, fontSize: 12 }}>
-              {activity.length} {activity.length === 1 ? "email" : "emails"} sent
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                onClick={checkReplies}
+                disabled={checkingReplies}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: `1px solid ${Z.border}`,
+                  background: "transparent",
+                  color: Z.textSecondary,
+                  fontSize: 12,
+                  cursor: checkingReplies ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {checkingReplies ? "Checking..." : "↻ Check for replies"}
+              </button>
+              {replyCheck && <span style={{ fontSize: 12, color: Z.textMuted }}>{replyCheck}</span>}
+              <span style={{ color: Z.textMuted, fontSize: 12 }}>
+                {activity.length} {activity.length === 1 ? "email" : "emails"}
+              </span>
             </div>
           </div>
 

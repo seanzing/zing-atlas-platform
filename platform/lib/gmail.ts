@@ -11,7 +11,7 @@ export async function sendGmailAs(
   subject: string,
   bodyHtml: string,
   refreshToken: string
-): Promise<void> {
+): Promise<{ threadId: string | null }> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -42,10 +42,12 @@ export async function sendGmailAs(
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
-  await gmail.users.messages.send({
+  const response = await gmail.users.messages.send({
     userId: "me",
     requestBody: { raw: encoded },
   });
+
+  return { threadId: response.data.threadId ?? null };
 }
 
 /**
