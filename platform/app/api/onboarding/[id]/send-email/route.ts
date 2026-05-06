@@ -33,6 +33,16 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Get contactId via deal linkage for cross-reference in activity log
+    let contactId: string | null = null;
+    if (onboarding.dealId) {
+      const deal = await prisma.deal.findFirst({
+        where: { id: onboarding.dealId },
+        select: { contactId: true },
+      });
+      contactId = deal?.contactId ?? null;
+    }
+
     const fromEmail = auth.user.email;
     if (!fromEmail) {
       return NextResponse.json({ error: "No email on auth user" }, { status: 400 });
@@ -57,6 +67,7 @@ export async function POST(
       data: {
         organizationId: ORG_ID,
         onboardingId: id,
+        contactId,
         type: "email_sent",
         subject,
         body,

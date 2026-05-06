@@ -31,10 +31,21 @@ interface Onboarding {
   businessName: string | null;
   rep: string | null;
   wonDate: string | null;
+  websiteStatus: string | null;
   status: string | null;
   items: OnboardingItem[];
   product?: { description: string } | null;
 }
+
+const WEBSITE_STATUSES = [
+  { value: "not_started", label: "Not Started" },
+  { value: "building", label: "Building" },
+  { value: "draft_sent", label: "Draft Sent" },
+  { value: "in_revision", label: "In Revision" },
+  { value: "customer_approved", label: "Customer Approved" },
+  { value: "in_qa", label: "In QA" },
+  { value: "published", label: "Published" },
+];
 
 const ROLE_COLORS: Record<string, string> = {
   designer: Z.violet,
@@ -163,6 +174,26 @@ export default function OnboardingByCustomerPage() {
           ),
         };
         setSelectedOb(updated);
+      }
+    } catch {
+      showToast("Failed to update status", false);
+    }
+  }
+
+  async function updateWebsiteStatus(obId: string, status: string) {
+    try {
+      const res = await fetch(`/api/onboarding/${obId}/website-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        showToast("Failed to update status", false);
+        return;
+      }
+      mutate("/api/onboarding?status=active");
+      if (selectedOb) {
+        setSelectedOb({ ...selectedOb, websiteStatus: status });
       }
     } catch {
       showToast("Failed to update status", false);
@@ -421,7 +452,29 @@ export default function OnboardingByCustomerPage() {
                       )}
                     </div>
                     {/* Status dropdown — saves immediately on change */}
-                    {item.statusOptions && item.statusOptions.length > 0 ? (
+                    {item.taskType === "website" ? (
+                      <select
+                        value={selectedOb.websiteStatus ?? "not_started"}
+                        onChange={(e) => updateWebsiteStatus(selectedOb.id, e.target.value)}
+                        style={{
+                          padding: "3px 8px",
+                          borderRadius: 6,
+                          border: `1px solid ${statusColor}40`,
+                          background: `${statusColor}12`,
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        {WEBSITE_STATUSES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : item.statusOptions && item.statusOptions.length > 0 ? (
                       <select
                         value={item.currentStatus ?? ""}
                         onChange={(e) => updateItemStatus(item.id, e.target.value)}

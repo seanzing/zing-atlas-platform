@@ -13,7 +13,9 @@ interface ActivityEntry {
 }
 
 interface FloatingEmailComposeProps {
-  contactId: string;
+  // Provide EITHER contactId OR onboardingId (not both required)
+  contactId?: string;
+  onboardingId?: string;
   contactName: string;
   contactEmail: string;
   onClose: () => void;
@@ -49,11 +51,19 @@ const TEMPLATES = [
 
 export default function FloatingEmailCompose({
   contactId,
+  onboardingId,
   contactName,
   contactEmail,
   onClose,
   onEmailSent,
 }: FloatingEmailComposeProps) {
+  const sendEndpoint = onboardingId
+    ? `/api/onboarding/${onboardingId}/send-email`
+    : `/api/contacts/${contactId}/send-email`;
+
+  const historyEndpoint = onboardingId
+    ? `/api/onboarding/${onboardingId}/activity`
+    : `/api/contacts/${contactId}/activity`;
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 }); // offset from default bottom-right
   const [dragging, setDragging] = useState(false);
@@ -73,12 +83,12 @@ export default function FloatingEmailCompose({
 
   const loadHistory = useCallback(() => {
     setHistoryLoading(true);
-    fetch(`/api/contacts/${contactId}/activity`)
+    fetch(historyEndpoint)
       .then((r) => r.json())
       .then((d) => setHistory(d.activity || []))
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
-  }, [contactId]);
+  }, [historyEndpoint]);
 
   // Drag logic
   const onMouseDown = (e: React.MouseEvent) => {
@@ -121,7 +131,7 @@ export default function FloatingEmailCompose({
     setSending(true);
     setError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/send-email`, {
+      const res = await fetch(sendEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, body }),

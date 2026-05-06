@@ -136,7 +136,7 @@ export default function Sidebar() {
                     { label: "By Task", href: "/onboarding/by-task" },
                     { label: "Full View", href: "/onboarding/full" },
                     { label: "Work Funnel", href: "/onboarding/funnel" },
-                    { label: "Production", href: "/onboarding/production" },
+                    { label: "Work Queue", href: "/onboarding/production" },
                   ].map((sub) => {
                     const subActive = pathname === sub.href;
                     return (

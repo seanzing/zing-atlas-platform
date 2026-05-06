@@ -18,6 +18,7 @@ export async function GET() {
       include: {
         items: true,
         product: { select: { description: true } },
+        deal: { select: { contactId: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -29,6 +30,7 @@ export async function GET() {
         customerName: ob.customerName,
         businessName: ob.businessName,
         email: ob.email,
+        contactId: ob.deal?.contactId ?? null,
         websiteStatus: ob.websiteStatus ?? "not_started",
         designer: websiteItem?.owner ?? ob.offshoreDesigner ?? ob.usDesigner ?? null,
         product: ob.product?.description ?? null,

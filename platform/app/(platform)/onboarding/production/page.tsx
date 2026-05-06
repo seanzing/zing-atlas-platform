@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { Z } from "@/lib/constants";
-import { Badge, Btn, Modal, FormField, Input } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { useToast, Toast } from "@/components/Toast";
-import { useAuthContext } from "@/lib/auth-context";
+import FloatingEmailCompose from "@/components/FloatingEmailCompose";
+import Link from "next/link";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const WEBSITE_STATUSES = [
-  { value: "not_started", label: "Not Started", color: "#666" },
+  { value: "not_started", label: "Not Started", color: "#6b7280" },
   { value: "building", label: "Building", color: Z.ultramarine },
   { value: "draft_sent", label: "Draft Sent", color: "#f59e0b" },
   { value: "in_revision", label: "In Revision", color: "#f97316" },
@@ -20,105 +21,103 @@ const WEBSITE_STATUSES = [
 ];
 
 const STATUS_MAP = Object.fromEntries(WEBSITE_STATUSES.map((s) => [s.value, s]));
+const DESIGN_STATUSES = ["not_started", "building", "draft_sent", "in_revision"];
+const PUBLISH_STATUSES = ["customer_approved", "in_qa"];
 
-const DESIGN_QUEUE = ["not_started", "building", "draft_sent", "in_revision"];
-const PUBLISH_QUEUE = ["customer_approved", "in_qa"];
-
-type Tab = "all" | "design" | "publish";
-
-interface OnboardingItem {
-  id: string;
-  taskType: string | null;
-  currentStatus: string | null;
-}
+type QueueTab = "all" | "design" | "publish";
 
 interface OnboardingRow {
   onboardingId: string;
   customerName: string | null;
   businessName: string | null;
-  email?: string | null;
-  websiteStatus?: string | null;
-  items: OnboardingItem[];
+  email: string | null;
+  contactId: string | null;
+  websiteStatus: string | null;
+  designer: string | null;
+  wonDate: string | null;
+  product: string | null;
+  items: {
+    id: string;
+    taskType: string | null;
+    currentStatus: string | null;
+    itemName: string | null;
+  }[];
 }
 
-interface ActivityEntry {
-  id: string;
-  type: string;
-  subject: string | null;
-  body: string | null;
-  toEmail: string | null;
-  fromEmail: string | null;
-  metadata: Record<string, string> | null;
-  createdAt: string;
-  teamMember: { firstName: string | null; lastName: string | null } | null;
+interface ComposeTarget {
+  onboardingId: string;
+  contactId: string | null;
+  name: string;
+  email: string;
 }
 
-export default function ProductionPage() {
-  const [tab, setTab] = useState<Tab>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [emailModal, setEmailModal] = useState<OnboardingRow | null>(null);
+export default function WorkQueuePage() {
+  const [tab, setTab] = useState<QueueTab>("all");
+  const [compose, setCompose] = useState<ComposeTarget | null>(null);
   const { toast, showToast } = useToast();
-  const { user } = useAuthContext();
 
-  const { data: rows } = useSWR<OnboardingRow[]>("/api/onboarding/full", fetcher);
-  const { data: activity } = useSWR<ActivityEntry[]>(
-    selectedId ? `/api/onboarding/${selectedId}/activity` : null,
-    fetcher
-  );
+  const { data: rows, mutate } = useSWR<OnboardingRow[]>("/api/onboarding/full", fetcher);
 
-  const filtered = rows?.filter((r) => {
+  const filtered = (rows ?? []).filter((r) => {
     const ws = r.websiteStatus || "not_started";
-    if (tab === "design") return DESIGN_QUEUE.includes(ws);
-    if (tab === "publish") return PUBLISH_QUEUE.includes(ws);
-    return true;
+    if (tab === "design") return DESIGN_STATUSES.includes(ws);
+    if (tab === "publish") return PUBLISH_STATUSES.includes(ws);
+    return ws !== "published"; // "all" hides published by default
   });
 
-  const updateStatus = useCallback(
-    async (id: string, status: string) => {
-      const res = await fetch(`/api/onboarding/${id}/website-status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        mutate("/api/onboarding/full");
-        showToast("Status updated", true);
-      } else {
-        showToast("Failed to update status", false);
-      }
-    },
-    [showToast]
-  );
-
-  const getItemStatus = (items: OnboardingItem[], taskType: string) => {
-    const item = items.find((i) => i.taskType === taskType);
-    return item?.currentStatus || null;
-  };
-
-  if (!rows) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: Z.textMuted }}>
-        Loading...
-      </div>
+  const updateStatus = useCallback(async (id: string, status: string) => {
+    // Optimistic update
+    mutate(
+      (prev) => prev?.map((r) => r.onboardingId === id ? { ...r, websiteStatus: status } : r),
+      false
     );
+    const res = await fetch(`/api/onboarding/${id}/website-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      showToast("Failed to update status", false);
+      mutate(); // revert
+    }
+  }, [mutate, showToast]);
+
+  function getTrackStatus(items: OnboardingRow["items"], taskType: string) {
+    return items.find((i) => i.taskType === taskType)?.currentStatus ?? null;
   }
+
+  function fmtDate(d: string | null) {
+    if (!d) return "\u2014";
+    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  const TRACK_BADGE_COLORS: Record<string, string> = {
+    landing_pages: Z.bluejeans,
+    blogs: Z.violet,
+    ai_chat: Z.turquoise,
+  };
 
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, color: Z.textPrimary, marginBottom: 4 }}>
-        Production
-      </h1>
-      <p style={{ fontSize: 14, color: Z.textSecondary, marginBottom: 24 }}>
-        Website build workflow and email communication
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: Z.textPrimary, margin: 0 }}>Work Queue</h1>
+          <p style={{ fontSize: 14, color: Z.textSecondary, margin: "4px 0 0" }}>
+            Active customer deliverables across all tracks
+          </p>
+        </div>
+        <div style={{ color: Z.textMuted, fontSize: 13 }}>
+          {filtered.length} {filtered.length === 1 ? "customer" : "customers"}
+        </div>
+      </div>
 
-      {/* Tabs */}
+      {/* Queue tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {([
-          { key: "all", label: "All" },
-          { key: "design", label: "Design Queue" },
-          { key: "publish", label: "Publishing Queue" },
-        ] as const).map((t) => (
+          { key: "all" as QueueTab, label: "All Active" },
+          { key: "design" as QueueTab, label: "Design Queue" },
+          { key: "publish" as QueueTab, label: "Publishing Queue" },
+        ]).map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -126,94 +125,87 @@ export default function ProductionPage() {
               padding: "8px 20px",
               borderRadius: 20,
               border: tab === t.key ? "none" : `1px solid ${Z.border}`,
-              background:
-                tab === t.key
-                  ? `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`
-                  : "transparent",
+              background: tab === t.key ? `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})` : "transparent",
               color: tab === t.key ? "#fff" : Z.textSecondary,
               fontSize: 13,
               fontWeight: 700,
               cursor: "pointer",
-              transition: "all 0.2s",
             }}
           >
             {t.label}
+            {tab === t.key && (
+              <span style={{ marginLeft: 8, background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>
+                {filtered.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {/* Table */}
-      <div
-        style={{
-          background: Z.card,
-          border: `1px solid ${Z.border}`,
-          borderRadius: 16,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 16, overflow: "hidden" }}>
         {/* Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr 80px",
-            padding: "12px 20px",
-            background: Z.bg,
-            fontSize: 11,
-            fontWeight: 700,
-            color: Z.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: 0.8,
-            borderBottom: `1px solid ${Z.border}`,
-          }}
-        >
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1.8fr 1fr 1fr 1fr 1fr 100px",
+          padding: "10px 20px",
+          background: Z.bg,
+          fontSize: 10,
+          fontWeight: 700,
+          color: Z.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: 0.8,
+          borderBottom: `1px solid ${Z.border}`,
+        }}>
           <div>Customer</div>
           <div>Website Status</div>
           <div>Landing Pages</div>
-          <div>Blog</div>
-          <div>AI Chatbot</div>
+          <div>Blogs</div>
+          <div>AI Chat</div>
+          <div>Won Date</div>
           <div>Actions</div>
         </div>
 
-        {/* Rows */}
-        {filtered && filtered.length > 0 ? (
+        {!rows ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: Z.textMuted, fontSize: 13 }}>Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: Z.textMuted, fontSize: 13 }}>
+            No customers in this queue
+          </div>
+        ) : (
           filtered.map((row) => {
             const ws = row.websiteStatus || "not_started";
             const wsInfo = STATUS_MAP[ws] || STATUS_MAP.not_started;
-            const isSelected = selectedId === row.onboardingId;
-            const lpStatus = getItemStatus(row.items, "landing_pages");
-            const blogStatus =
-              getItemStatus(row.items, "blogs") || getItemStatus(row.items, "seo");
-            const chatStatus = getItemStatus(row.items, "ai_chat");
+            const lpStatus = getTrackStatus(row.items, "landing_pages");
+            const blogStatus = getTrackStatus(row.items, "blogs") || getTrackStatus(row.items, "seo");
+            const chatStatus = getTrackStatus(row.items, "ai_chat");
 
             return (
               <div
                 key={row.onboardingId}
-                onClick={() => setSelectedId(isSelected ? null : row.onboardingId)}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr 80px",
+                  gridTemplateColumns: "2fr 1.8fr 1fr 1fr 1fr 1fr 100px",
                   padding: "14px 20px",
                   borderBottom: `1px solid ${Z.borderLight}`,
-                  cursor: "pointer",
-                  background: isSelected ? `${Z.ultramarine}08` : "transparent",
+                  alignItems: "center",
                   transition: "background 0.15s",
                 }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) e.currentTarget.style.background = Z.bg;
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected)
-                    e.currentTarget.style.background = "transparent";
-                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = Z.bg; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
+                {/* Customer */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>
-                    {row.businessName || "—"}
+                    {row.businessName || row.customerName || "\u2014"}
                   </div>
-                  <div style={{ fontSize: 11, color: Z.textMuted }}>
-                    {row.customerName || "—"}
+                  <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 2 }}>
+                    {row.customerName && row.businessName ? row.customerName : ""}
+                    {row.product && <span style={{ marginLeft: 6, color: Z.violet, fontWeight: 600 }}>{row.product}</span>}
                   </div>
                 </div>
+
+                {/* Website status dropdown */}
                 <div onClick={(e) => e.stopPropagation()}>
                   <select
                     value={ws}
@@ -221,8 +213,8 @@ export default function ProductionPage() {
                     style={{
                       padding: "5px 10px",
                       borderRadius: 8,
-                      border: `1px solid ${Z.border}`,
-                      background: `${wsInfo.color}12`,
+                      border: `1px solid ${wsInfo.color}40`,
+                      background: `${wsInfo.color}15`,
                       color: wsInfo.color,
                       fontSize: 12,
                       fontWeight: 700,
@@ -231,37 +223,42 @@ export default function ProductionPage() {
                     }}
                   >
                     {WEBSITE_STATUSES.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
+                      <option key={s.value} value={s.value}>{s.label}</option>
                     ))}
                   </select>
                 </div>
+
+                {/* Other tracks — read-only status pills */}
                 <div>
-                  {lpStatus ? (
-                    <Badge label={lpStatus} color={Z.bluejeans} />
-                  ) : (
-                    <span style={{ color: Z.textMuted, fontSize: 12 }}>—</span>
-                  )}
+                  {lpStatus
+                    ? <Badge label={lpStatus} color={TRACK_BADGE_COLORS.landing_pages} />
+                    : <span style={{ color: Z.textMuted, fontSize: 12 }}>\u2014</span>}
                 </div>
                 <div>
-                  {blogStatus ? (
-                    <Badge label={blogStatus} color={Z.violet} />
-                  ) : (
-                    <span style={{ color: Z.textMuted, fontSize: 12 }}>—</span>
-                  )}
+                  {blogStatus
+                    ? <Badge label={blogStatus} color={TRACK_BADGE_COLORS.blogs} />
+                    : <span style={{ color: Z.textMuted, fontSize: 12 }}>\u2014</span>}
                 </div>
                 <div>
-                  {chatStatus ? (
-                    <Badge label={chatStatus} color={Z.turquoise} />
-                  ) : (
-                    <span style={{ color: Z.textMuted, fontSize: 12 }}>—</span>
-                  )}
+                  {chatStatus
+                    ? <Badge label={chatStatus} color={TRACK_BADGE_COLORS.ai_chat} />
+                    : <span style={{ color: Z.textMuted, fontSize: 12 }}>\u2014</span>}
                 </div>
-                <div onClick={(e) => e.stopPropagation()}>
+
+                {/* Won date */}
+                <div style={{ fontSize: 12, color: Z.textSecondary }}>{fmtDate(row.wonDate)}</div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                  {/* Email button */}
                   <button
-                    onClick={() => setEmailModal(row)}
-                    title="Send Email"
+                    onClick={() => setCompose({
+                      onboardingId: row.onboardingId,
+                      contactId: row.contactId,
+                      name: row.businessName || row.customerName || "Customer",
+                      email: row.email || "",
+                    })}
+                    title="Send email"
                     style={{
                       width: 32,
                       height: 32,
@@ -273,7 +270,6 @@ export default function ProductionPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       color: Z.textSecondary,
-                      transition: "all 0.15s",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = Z.ultramarine;
@@ -284,209 +280,62 @@ export default function ProductionPage() {
                       e.currentTarget.style.color = Z.textSecondary;
                     }}
                   >
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                       <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </button>
+
+                  {/* View full record */}
+                  <Link
+                    href={`/onboarding?highlight=${row.onboardingId}`}
+                    title="View full record"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      border: `1px solid ${Z.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: Z.textSecondary,
+                      textDecoration: "none",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = Z.violet;
+                      (e.currentTarget as HTMLElement).style.color = Z.violet;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = Z.border;
+                      (e.currentTarget as HTMLElement).style.color = Z.textSecondary;
+                    }}
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </Link>
                 </div>
               </div>
             );
           })
-        ) : (
-          <div style={{ padding: 40, textAlign: "center", color: Z.textMuted, fontSize: 13 }}>
-            No items in this queue
-          </div>
         )}
       </div>
 
-      {/* Activity Feed Panel */}
-      {selectedId && (
-        <div
-          style={{
-            marginTop: 24,
-            background: Z.card,
-            border: `1px solid ${Z.border}`,
-            borderRadius: 16,
-            padding: "20px 24px",
-          }}
-        >
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: Z.textPrimary, marginBottom: 16 }}>
-            Activity
-          </h3>
-          {!activity ? (
-            <div style={{ color: Z.textMuted, fontSize: 13 }}>Loading...</div>
-          ) : activity.length === 0 ? (
-            <div style={{ color: Z.textMuted, fontSize: 13 }}>No activity yet</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {activity.map((a) => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    alignItems: "flex-start",
-                    padding: "10px 0",
-                    borderBottom: `1px solid ${Z.borderLight}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background:
-                        a.type === "email_sent"
-                          ? `${Z.bluejeans}18`
-                          : `${Z.violet}18`,
-                      color: a.type === "email_sent" ? Z.bluejeans : Z.violet,
-                      fontSize: 12,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {a.type === "email_sent" ? (
-                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: Z.textPrimary }}>
-                      {a.type === "email_sent"
-                        ? `Email sent to ${a.toEmail}`
-                        : a.metadata
-                        ? `${(a.metadata as Record<string, string>).field}: ${(a.metadata as Record<string, string>).from} → ${(a.metadata as Record<string, string>).to}`
-                        : a.subject || "Activity"}
-                    </div>
-                    <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 2 }}>
-                      {a.teamMember
-                        ? `${a.teamMember.firstName || ""} ${a.teamMember.lastName || ""}`.trim()
-                        : "System"}{" "}
-                      · {new Date(a.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Send Email Modal */}
-      {emailModal && (
-        <SendEmailModal
-          row={emailModal}
-          userName={user?.teamMember?.firstName || ""}
-          onClose={() => setEmailModal(null)}
-          onSuccess={() => {
+      {/* Floating email compose */}
+      {compose && (
+        <FloatingEmailCompose
+          onboardingId={compose.onboardingId}
+          contactId={compose.contactId ?? undefined}
+          contactName={compose.name}
+          contactEmail={compose.email}
+          onClose={() => setCompose(null)}
+          onEmailSent={() => {
             showToast("Email sent", true);
-            setEmailModal(null);
-            if (selectedId) mutate(`/api/onboarding/${selectedId}/activity`);
-          }}
-          onNotConfigured={() => {
-            setEmailModal(null);
-            window.location.href = "/account?googlePrompt=1";
+            setCompose(null);
           }}
         />
       )}
 
       <Toast toast={toast} />
     </div>
-  );
-}
-
-function SendEmailModal({
-  row,
-  userName,
-  onClose,
-  onSuccess,
-  onNotConfigured,
-}: {
-  row: OnboardingRow;
-  userName: string;
-  onClose: () => void;
-  onSuccess: () => void;
-  onNotConfigured: () => void;
-}) {
-  const [to, setTo] = useState(row.email || "");
-  const [subject, setSubject] = useState(
-    `Your website draft is ready for review - ${row.businessName || ""}`
-  );
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [body, setBody] = useState(
-    `Hi ${row.customerName || ""},<br><br>We have completed the first draft of your website. You can preview it here:<br><br><a href="[PREVIEW_URL]">[PREVIEW_URL]</a><br><br>Please take a look and let us know any changes you would like to make.<br><br>Best,<br>${userName}`
-  );
-  const [sending, setSending] = useState(false);
-
-  const handleSend = async () => {
-    setSending(true);
-    const finalBody = previewUrl
-      ? body.replace(/\[PREVIEW_URL\]/g, previewUrl)
-      : body;
-    const res = await fetch(`/api/onboarding/${row.onboardingId}/send-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, subject, body: finalBody, previewUrl }),
-    });
-    setSending(false);
-
-    if (res.status === 503) {
-      onNotConfigured();
-    } else if (res.ok) {
-      onSuccess();
-    }
-  };
-
-  return (
-    <Modal open onClose={onClose} title="Send Email">
-      <FormField label="To">
-        <Input value={to} onChange={setTo} placeholder="email@example.com" />
-      </FormField>
-      <FormField label="Subject">
-        <Input value={subject} onChange={setSubject} />
-      </FormField>
-      <FormField label="Preview URL">
-        <Input
-          value={previewUrl}
-          onChange={setPreviewUrl}
-          placeholder="https://preview.example.com/..."
-        />
-      </FormField>
-      <FormField label="Body (HTML)">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={8}
-          style={{
-            width: "100%",
-            padding: "10px 14px",
-            background: Z.bg,
-            border: `1px solid ${Z.border}`,
-            borderRadius: 8,
-            color: Z.textPrimary,
-            fontSize: 13,
-            outline: "none",
-            boxSizing: "border-box",
-            fontFamily: "inherit",
-            resize: "vertical",
-          }}
-        />
-      </FormField>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
-        <Btn variant="secondary" onClick={onClose}>
-          Cancel
-        </Btn>
-        <Btn onClick={handleSend} disabled={sending || !to || !subject}>
-          {sending ? "Sending..." : "Send Email"}
-        </Btn>
-      </div>
-    </Modal>
   );
 }

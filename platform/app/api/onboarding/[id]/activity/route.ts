@@ -55,7 +55,7 @@ export async function GET(
     });
 
     logger.info({ onboardingId: id, count: result.length }, "GET activity log");
-    return NextResponse.json(result);
+    return NextResponse.json({ activity: result });
   } catch (error) {
     logger.error({ err: error }, "GET /api/onboarding/[id]/activity failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
