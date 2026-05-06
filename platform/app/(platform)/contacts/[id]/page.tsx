@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
@@ -65,7 +65,41 @@ interface ContactDetail {
   onboarding: OnboardingItem[];
 }
 
-const TABS = ["Customer Info", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+interface ActivityEntry {
+  id: string;
+  type: string;
+  subject: string | null;
+  body: string | null;
+  toEmail: string | null;
+  fromEmail: string | null;
+  teamMemberId: string | null;
+  createdAt: string;
+}
+
+const TABS = ["Customer Info", "Email", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+
+const EMAIL_TEMPLATES = [
+  {
+    label: "Website Draft Ready",
+    subject: "Your website draft is ready for review",
+    body: "Hi NAME,\n\nWe have completed the first draft of your website and would love to get your feedback.\n\nPlease take a look and let us know what changes you would like to make.\n\nBest,\nSENDER",
+  },
+  {
+    label: "Following Up",
+    subject: "Following up on your website",
+    body: "Hi NAME,\n\nJust checking in to see if you had a chance to review your website draft. We want to make sure everything looks exactly right for you.\n\nLet us know if you have any questions!\n\nBest,\nSENDER",
+  },
+  {
+    label: "Revisions Complete",
+    subject: "Your revisions are ready",
+    body: "Hi NAME,\n\nWe have made the changes you requested to your website. Please take another look and let us know if everything looks good!\n\nBest,\nSENDER",
+  },
+  {
+    label: "Website Live",
+    subject: "Your website is live!",
+    body: "Hi NAME,\n\nExciting news: your website is now live! Thank you for choosing ZING. We are here if you need anything!\n\nBest,\nSENDER",
+  },
+];
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -202,7 +236,70 @@ export default function ContactDetailPage() {
   const [editSecondaryEmail, setEditSecondaryEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailActivity, setEmailActivity] = useState<ActivityEntry[]>([]);
+  const [emailActivityLoading, setEmailActivityLoading] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const { toast, showToast } = useToast();
+
+  useEffect(() => {
+    if (activeTab === "Email" && contact) {
+      if (!emailTo) setEmailTo(contact.email || "");
+      setEmailActivityLoading(true);
+      fetch(`/api/contacts/${id}/activity`)
+        .then((r) => r.json())
+        .then((d) => setEmailActivity(d.activity || []))
+        .catch(() => setEmailActivity([]))
+        .finally(() => setEmailActivityLoading(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, contact, id]);
+
+  const applyTemplate = (label: string) => {
+    const tmpl = EMAIL_TEMPLATES.find((t) => t.label === label);
+    if (!tmpl || !contact) return;
+    setSelectedTemplate(label);
+    setEmailSubject(tmpl.subject);
+    setEmailBody(
+      tmpl.body
+        .replace(/NAME/g, contact.name || "")
+        .replace(/SENDER/g, "")
+    );
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailTo || !emailSubject || !emailBody) {
+      showToast("To, subject, and body are required", false);
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const res = await fetch(`/api/contacts/${id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: emailTo, subject: emailSubject, body: emailBody }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Failed to send email", false);
+        return;
+      }
+      showToast("Email sent", true);
+      setEmailSubject("");
+      setEmailBody("");
+      setSelectedTemplate("");
+      const actRes = await fetch(`/api/contacts/${id}/activity`);
+      const actData = await actRes.json();
+      setEmailActivity(actData.activity || []);
+    } catch {
+      showToast("Failed to send email", false);
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   if (contactError) return (
     <div style={{ textAlign: "center", padding: "80px 20px" }}>
@@ -287,6 +384,7 @@ export default function ContactDetailPage() {
 
   const tabCounts: Record<string, number | null> = {
     "Customer Info": null,
+    Email: null,
     "Pre Sale Comms": preSaleCount,
     "Post Sale Comms": postSaleCount || null,
     Cancelled: null,
@@ -806,6 +904,66 @@ export default function ContactDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "Email" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Compose */}
+          <div style={{ background: "#ffffff08", border: "1px solid #ffffff15", borderRadius: 10, padding: 20 }}>
+            <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>Compose Email</div>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => applyTemplate(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: selectedTemplate ? "#ffffffcc" : "#ffffff55", fontSize: 12, cursor: "pointer", marginBottom: 12 }}
+            >
+              <option value="">Use a template...</option>
+              {EMAIL_TEMPLATES.map((t) => (
+                <option key={t.label} value={t.label}>{t.label}</option>
+              ))}
+            </select>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>TO</div>
+              <input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="customer@email.com"
+                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>SUBJECT</div>
+              <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Subject"
+                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>MESSAGE</div>
+              <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Write your message..." rows={8}
+                style={{ width: "100%", padding: 10, background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} />
+            </div>
+            <button onClick={handleSendEmail} disabled={emailSending}
+              style={{ padding: "9px 20px", background: emailSending ? "#ffffff20" : "linear-gradient(135deg, #3A5AFF, #9600FF)", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: emailSending ? "not-allowed" : "pointer" }}>
+              {emailSending ? "Sending..." : "Send Email"}
+            </button>
+          </div>
+          {/* History */}
+          <div>
+            <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Email History</div>
+            {emailActivityLoading ? (
+              <div style={{ color: "#ffffff45", fontSize: 13 }}>Loading...</div>
+            ) : emailActivity.length === 0 ? (
+              <div style={{ color: "#ffffff35", fontSize: 13 }}>No emails sent yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {emailActivity.map((entry) => (
+                  <div key={entry.id} style={{ background: "#ffffff08", border: "1px solid #ffffff12", borderRadius: 8, padding: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                      <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 600 }}>{entry.subject || "(no subject)"}</div>
+                      <div style={{ color: "#ffffff45", fontSize: 11 }}>{new Date(entry.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div style={{ color: "#ffffff65", fontSize: 11, marginBottom: 6 }}>From: {entry.fromEmail || "unknown"} to {entry.toEmail || "unknown"}</div>
+                    <div style={{ color: "#ffffff80", fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 80, overflow: "hidden" }}>{entry.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
