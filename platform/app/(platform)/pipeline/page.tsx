@@ -254,7 +254,7 @@ export default function PipelinePage() {
   const salesTeam = useMemo(
     () =>
       (teamMembers ?? []).filter(
-        (m: TeamMember) => m.role?.toLowerCase().includes("sales") || m.role?.toLowerCase().includes("rep") || !m.role
+        (m: TeamMember) => m.position === "sales_rep" || !m.position || m.role?.toLowerCase().includes("sales") || m.role?.toLowerCase().includes("rep")
       ),
     [teamMembers]
   );

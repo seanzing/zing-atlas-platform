@@ -24,7 +24,26 @@ interface TeamMember {
   email: string | null;
   monthlyTarget: number;
   role: string;
+  position: string | null;
+  supabaseUserId: string | null;
   active: boolean;
+}
+
+const POSITION_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "sales_rep", label: "Sales Rep" },
+  { value: "designer_offshore", label: "Designer (Offshore)" },
+  { value: "designer_us", label: "Designer (US)" },
+  { value: "publishing", label: "Publishing" },
+  { value: "onboarding_specialist", label: "Onboarding Specialist" },
+  { value: "marketing", label: "Marketing" },
+  { value: "admin", label: "Admin" },
+];
+
+function positionLabel(value: string | null): string {
+  if (!value) return "";
+  const opt = POSITION_OPTIONS.find((o) => o.value === value);
+  return opt?.label ?? value;
 }
 
 interface Product {
@@ -375,7 +394,7 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>("Team Members");
 
-  // Team member modal
+  // Team member modal (edit)
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [tmFirstName, setTmFirstName] = useState("");
@@ -384,6 +403,15 @@ export default function SettingsPage() {
   const [tmPhone, setTmPhone] = useState("");
   const [tmRole, setTmRole] = useState("Sales Rep");
   const [tmTarget, setTmTarget] = useState("");
+  const [tmPosition, setTmPosition] = useState("");
+
+  // Invite modal
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [invFirstName, setInvFirstName] = useState("");
+  const [invLastName, setInvLastName] = useState("");
+  const [invEmail, setInvEmail] = useState("");
+  const [invPosition, setInvPosition] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   // Campaign modal
   const [campModalOpen, setCampModalOpen] = useState(false);
@@ -728,6 +756,7 @@ export default function SettingsPage() {
     setTmPhone("");
     setTmRole("Sales Rep");
     setTmTarget("");
+    setTmPosition("");
     setEditingMember(null);
   };
 
@@ -739,18 +768,20 @@ export default function SettingsPage() {
     setTmPhone(m.phone || "");
     setTmRole(m.role);
     setTmTarget(String(m.monthlyTarget));
+    setTmPosition(m.position || "");
     setTeamModalOpen(true);
   };
 
   const handleSaveMember = async () => {
     if (!tmFirstName || !tmLastName) return;
-    const body = {
+    const body: Record<string, unknown> = {
       firstName: tmFirstName,
       lastName: tmLastName,
       email: tmEmail || undefined,
       phone: tmPhone || undefined,
       role: tmRole,
       monthlyTarget: tmTarget ? parseFloat(tmTarget) : 0,
+      position: tmPosition || null,
     };
 
     try {
@@ -771,6 +802,40 @@ export default function SettingsPage() {
       resetTeamForm();
     } catch {
       showToast("Failed to save team member");
+    }
+  };
+
+  const handleInviteUser = async () => {
+    if (!invFirstName || !invLastName || !invEmail) return;
+    setInviting(true);
+    try {
+      const res = await fetch("/api/team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: invFirstName,
+          lastName: invLastName,
+          email: invEmail,
+          position: invPosition || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || "Failed to send invite");
+        setInviting(false);
+        return;
+      }
+      mutateTeam();
+      setInviteModalOpen(false);
+      setInvFirstName("");
+      setInvLastName("");
+      setInvEmail("");
+      setInvPosition("");
+      showToast(`Invite sent to ${invEmail}`);
+    } catch {
+      showToast("Failed to send invite");
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -918,13 +983,8 @@ export default function SettingsPage() {
             <div style={{ fontSize: 14, color: Z.textSecondary }}>
               {(team || []).length} active team members
             </div>
-            <Btn
-              onClick={() => {
-                resetTeamForm();
-                setTeamModalOpen(true);
-              }}
-            >
-              + Add Member
+            <Btn onClick={() => setInviteModalOpen(true)}>
+              + Invite User
             </Btn>
           </div>
 
@@ -939,13 +999,13 @@ export default function SettingsPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 100px",
+                gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 1fr 100px",
                 padding: "14px 24px",
                 borderBottom: `1px solid ${Z.border}`,
                 background: Z.bg,
               }}
             >
-              {["Name", "Email", "Role", "Phone", "Monthly Target", "MTD Commission", "Actions"].map(
+              {["Name", "Email", "Role", "Position", "Phone", "Monthly Target", "MTD Commission", "Actions"].map(
                 (h) => (
                   <div
                     key={h}
@@ -971,7 +1031,7 @@ export default function SettingsPage() {
                   key={m.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 100px",
+                    gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 1fr 100px",
                     padding: "14px 24px",
                     alignItems: "center",
                     borderBottom: `1px solid ${Z.borderLight}`,
@@ -999,6 +1059,9 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <Badge label={m.role} color={Z.ultramarine} />
+                  </div>
+                  <div style={{ fontSize: 12, color: Z.textSecondary }}>
+                    {positionLabel(m.position) || "--"}
                   </div>
                   <div style={{ fontSize: 13, color: Z.textSecondary }}>
                     {m.phone || "--"}
@@ -1435,6 +1498,13 @@ export default function SettingsPage() {
             ]}
           />
         </FormField>
+        <FormField label="Position">
+          <Select
+            value={tmPosition}
+            onChange={setTmPosition}
+            options={POSITION_OPTIONS}
+          />
+        </FormField>
         <FormField label="Monthly Target ($)">
           <Input
             value={tmTarget}
@@ -1460,8 +1530,73 @@ export default function SettingsPage() {
           >
             Cancel
           </Btn>
-          <Btn onClick={handleSaveMember}>
-            {editingMember ? "Save Changes" : "Add Member"}
+          <Btn onClick={handleSaveMember}>Save Changes</Btn>
+        </div>
+      </Modal>
+
+      {/* Invite User Modal */}
+      <Modal
+        open={inviteModalOpen}
+        onClose={() => {
+          setInviteModalOpen(false);
+          setInvFirstName("");
+          setInvLastName("");
+          setInvEmail("");
+          setInvPosition("");
+        }}
+        title="Invite User"
+      >
+        <FormField label="First Name">
+          <Input
+            value={invFirstName}
+            onChange={setInvFirstName}
+            placeholder="First name"
+          />
+        </FormField>
+        <FormField label="Last Name">
+          <Input
+            value={invLastName}
+            onChange={setInvLastName}
+            placeholder="Last name"
+          />
+        </FormField>
+        <FormField label="Email">
+          <Input
+            value={invEmail}
+            onChange={setInvEmail}
+            placeholder="Email"
+            type="email"
+          />
+        </FormField>
+        <FormField label="Position">
+          <Select
+            value={invPosition}
+            onChange={setInvPosition}
+            options={POSITION_OPTIONS}
+          />
+        </FormField>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            marginTop: 8,
+          }}
+        >
+          <Btn
+            variant="secondary"
+            onClick={() => {
+              setInviteModalOpen(false);
+              setInvFirstName("");
+              setInvLastName("");
+              setInvEmail("");
+              setInvPosition("");
+            }}
+          >
+            Cancel
+          </Btn>
+          <Btn onClick={handleInviteUser} disabled={inviting}>
+            {inviting ? "Sending..." : "Send Invite"}
           </Btn>
         </div>
       </Modal>

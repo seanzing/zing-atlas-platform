@@ -5,18 +5,24 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if (auth.error) return auth.error;
 
-    const teamMembers = await prisma.teamMember.findMany({
-      where: {
-        organizationId: ORG_ID,
-        active: true,
-        deletedAt: null,
-      },
-    });
+    const { searchParams } = new URL(request.url);
+    const position = searchParams.get("position");
+
+    const where: Record<string, unknown> = {
+      organizationId: ORG_ID,
+      active: true,
+      deletedAt: null,
+    };
+    if (position) {
+      where.position = position;
+    }
+
+    const teamMembers = await prisma.teamMember.findMany({ where });
 
     return NextResponse.json(serialize(teamMembers));
   } catch (error) {

@@ -132,6 +132,8 @@ model TeamMember {
   email           String?
   monthlyTarget   Decimal?  @map("monthly_target") @db.Decimal(12, 2)
   role            String?
+  position        String?
+  supabaseUserId  String?   @unique @map("supabase_user_id")
   active          Boolean   @default(true)
 
   deletedAt       DateTime?  @map("deleted_at")
