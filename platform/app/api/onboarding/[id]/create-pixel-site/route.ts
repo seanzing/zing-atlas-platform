@@ -5,6 +5,8 @@ import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 const PIXEL_API_URL = "https://pixel.yourwebsiteexample.com/api/sites";
 const PIXEL_SECRET = "zing-pixel-internal-2026";
 

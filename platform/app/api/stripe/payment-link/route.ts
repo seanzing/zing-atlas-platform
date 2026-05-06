@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();

@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; item: string }> }

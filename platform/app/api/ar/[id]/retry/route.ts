@@ -6,6 +6,8 @@ import { ORG_ID } from "@/lib/constants";
 import { getStripe } from "@/lib/stripe-client";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

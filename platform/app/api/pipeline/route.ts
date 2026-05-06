@@ -5,6 +5,8 @@ import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 function getDefaultRange(): { from: Date; to: Date } {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);

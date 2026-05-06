@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(

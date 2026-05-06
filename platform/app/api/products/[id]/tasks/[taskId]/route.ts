@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = { params: Promise<{ id: string; taskId: string }> };
 
 export async function PUT(

@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 function getDefaultRange(): { from: Date; to: Date } {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);

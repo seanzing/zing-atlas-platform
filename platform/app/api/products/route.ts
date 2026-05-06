@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const auth = await requireAuth();

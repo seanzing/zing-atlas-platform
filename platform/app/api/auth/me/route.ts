@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ORG_ID } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const supabase = createSupabaseServer();

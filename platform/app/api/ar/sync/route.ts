@@ -3,6 +3,8 @@ import { syncStripeToAR } from "@/lib/stripe-sync";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 // Module-level last sync time (resets on restart — fine for Phase 1)
 let lastSyncTime: string | null = null;
 

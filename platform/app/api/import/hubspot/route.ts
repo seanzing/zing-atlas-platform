@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 const HUBSPOT_API = "https://api.hubapi.com";
 const ACTIVE_STRIPE_STATUSES = ["Active", "Trialing", "Past Due", "Unpaid"];
 const CANCELLED_WEBSITE_STATUSES = [

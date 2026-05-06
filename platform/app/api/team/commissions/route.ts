@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 import { calcDealCommission } from "@/lib/commission";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();

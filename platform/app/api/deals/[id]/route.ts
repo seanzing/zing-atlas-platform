@@ -5,6 +5,8 @@ import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: RouteContext) {

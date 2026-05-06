@@ -5,6 +5,8 @@ import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: RouteContext) {

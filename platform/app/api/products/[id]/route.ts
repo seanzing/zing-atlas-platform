@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

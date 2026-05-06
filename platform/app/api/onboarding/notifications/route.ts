@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth();
