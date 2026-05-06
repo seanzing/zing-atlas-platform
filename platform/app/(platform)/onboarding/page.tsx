@@ -321,7 +321,7 @@ export default function OnboardingByCustomerPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 1fr 0.8fr 0.8fr 1fr 0.8fr 0.8fr",
+            gridTemplateColumns: "1.5fr 1fr 0.8fr 0.8fr 1fr 0.8fr 0.8fr 40px",
             padding: "14px 20px",
             fontSize: 11,
             fontWeight: 700,
@@ -338,6 +338,7 @@ export default function OnboardingByCustomerPage() {
           <div>Progress</div>
           <div>Status</div>
           <div>Won Date</div>
+          <div></div>
         </div>
 
         {filtered.map((ob) => {
@@ -350,7 +351,7 @@ export default function OnboardingByCustomerPage() {
               onClick={() => { setSelectedOb(ob); setPanelOpen(true); }}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.5fr 1fr 0.8fr 0.8fr 1fr 0.8fr 0.8fr",
+                gridTemplateColumns: "1.5fr 1fr 0.8fr 0.8fr 1fr 0.8fr 0.8fr 40px",
                 padding: "14px 20px",
                 fontSize: 13,
                 borderBottom: `1px solid ${Z.borderLight}`,
@@ -372,6 +373,14 @@ export default function OnboardingByCustomerPage() {
               </div>
               <div><Badge label={st.label} color={st.color} /></div>
               <div style={{ color: Z.textMuted, fontSize: 12 }}>{fmtDate(ob.wonDate)}</div>
+              <Link
+                href={`/onboarding/${ob.id}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", color: Z.textMuted, textDecoration: "none" }}
+                title="Open detail page"
+              >
+                →
+              </Link>
             </div>
           );
         })}

@@ -101,6 +101,14 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // Sync websiteStatus on parent Onboarding for website taskType
+    if (item.taskType === "website" && item.onboardingId) {
+      await prisma.onboarding.update({
+        where: { id: item.onboardingId },
+        data: { websiteStatus: status },
+      });
+    }
+
     logger.info({ itemId: id, status }, "PUT /api/onboarding/items/[id]/status");
     return NextResponse.json(updated);
   } catch (error) {

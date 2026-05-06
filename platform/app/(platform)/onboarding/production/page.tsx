@@ -287,7 +287,7 @@ export default function WorkQueuePage() {
 
                   {/* View full record */}
                   <Link
-                    href={`/onboarding?highlight=${row.onboardingId}`}
+                    href={`/onboarding/${row.onboardingId}`}
                     title="View full record"
                     style={{
                       width: 32,
