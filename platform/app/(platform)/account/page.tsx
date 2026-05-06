@@ -119,21 +119,39 @@ function AccountContent() {
           </div>
           <div style={{ flexShrink: 0 }}>
             {googleConnected === true ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 14px",
-                  background: "#22c55e18",
-                  border: "1px solid #22c55e55",
-                  borderRadius: 6,
-                  color: "#22c55e",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                <span>✓</span> Connected
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 14px",
+                    background: "#22c55e18",
+                    border: "1px solid #22c55e55",
+                    borderRadius: 6,
+                    color: "#22c55e",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>✓</span> Connected
+                </div>
+                <button
+                  onClick={handleConnectGoogle}
+                  style={{
+                    padding: "6px 12px",
+                    background: "transparent",
+                    color: "#ffffff55",
+                    border: "1px solid #ffffff22",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Reconnect
+                </button>
               </div>
             ) : (
               <button
