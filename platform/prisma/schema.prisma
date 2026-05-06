@@ -172,16 +172,39 @@ model Onboarding {
   wonDate          DateTime? @map("won_date") @db.Date
   status           String?
 
+  websiteStatus    String?   @default("not_started") @map("website_status")
+
   deal             Deal?     @relation(fields: [dealId], references: [id])
   product          Product?  @relation(fields: [productId], references: [id])
   items            OnboardingItem[]
   webOwners        OnboardingWebOwner[]
+  activityLog      ActivityLog[]
 
   deletedAt        DateTime?  @map("deleted_at")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
   @@map("onboarding")
+}
+
+model ActivityLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  onboardingId    String?   @map("onboarding_id") @db.Uuid
+  contactId       String?   @map("contact_id") @db.Uuid
+  teamMemberId    String?   @map("team_member_id") @db.Uuid
+  type            String
+  subject         String?
+  body            String?   @db.Text
+  toEmail         String?   @map("to_email")
+  fromEmail       String?   @map("from_email")
+  previewUrl      String?   @map("preview_url")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  onboarding      Onboarding? @relation(fields: [onboardingId], references: [id])
+
+  @@map("activity_log")
 }
 
 model OnboardingItem {

@@ -2,6 +2,7 @@ import Sidebar from "@/components/Sidebar";
 import SWRProvider from "@/components/SWRProvider";
 import { AuthProvider } from "@/lib/auth-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import GlobalSearch from "@/components/GlobalSearch";
 import { Z } from "@/lib/constants";
 
 export default function PlatformLayout({
@@ -25,6 +26,7 @@ export default function PlatformLayout({
           <div style={{ flex: 1, overflow: "auto", padding: "28px 36px" }}>
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
+          <GlobalSearch />
         </div>
       </AuthProvider>
     </SWRProvider>

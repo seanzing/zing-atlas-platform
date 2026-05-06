@@ -136,6 +136,7 @@ export default function Sidebar() {
                     { label: "By Task", href: "/onboarding/by-task" },
                     { label: "Full View", href: "/onboarding/full" },
                     { label: "Work Funnel", href: "/onboarding/funnel" },
+                    { label: "Production", href: "/onboarding/production" },
                   ].map((sub) => {
                     const subActive = pathname === sub.href;
                     return (
@@ -164,6 +165,33 @@ export default function Sidebar() {
             </div>
           );
         })}
+      </div>
+
+      {/* Search hint */}
+      <div style={{ padding: "0 8px 8px" }}>
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: "1px solid #ffffff12",
+            background: "#ffffff06",
+            color: "#ffffff45",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#ffffff25")}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#ffffff12")}
+        >
+          <span>Search</span>
+          <kbd style={{ fontSize: 10, background: "#ffffff12", padding: "2px 6px", borderRadius: 4 }}>⌘K</kbd>
+        </button>
       </div>
 
       {/* User */}
