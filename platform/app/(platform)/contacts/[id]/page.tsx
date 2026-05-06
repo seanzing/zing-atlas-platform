@@ -77,7 +77,7 @@ interface ActivityEntry {
   createdAt: string;
 }
 
-const TABS = ["Customer Info", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+const TABS = ["Customer Info", "Activity", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
 
 const EMAIL_TEMPLATES = [
   {
@@ -222,6 +222,11 @@ export default function ContactDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { data: contact, error: contactError, mutate } = useSWR<ContactDetail>(`/api/contacts/${id}`, fetcher);
+  const { data: activityData, mutate: mutateActivity } = useSWR<{ activity: ActivityEntry[] }>(
+    `/api/contacts/${id}/activity`,
+    fetcher
+  );
+  const activity = activityData?.activity ?? [];
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
@@ -485,6 +490,7 @@ export default function ContactDetailPage() {
           contactName={contact.name}
           contactEmail={contact.email || ""}
           onClose={() => setComposeOpen(false)}
+          onEmailSent={() => mutateActivity()}
         />
       )}
 
@@ -993,6 +999,57 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Activity tab — emails sent + future: replies, notes */}
+      {activeTab === "Activity" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {activity.length === 0 ? (
+            <div style={{ color: "#ffffff35", fontSize: 13, padding: "20px 0" }}>
+              No activity yet. Send an email using the ✉ Email button above.
+            </div>
+          ) : (
+            activity.map((entry) => (
+              <div
+                key={entry.id}
+                style={{
+                  background: "#ffffff08",
+                  border: "1px solid #ffffff12",
+                  borderRadius: 10,
+                  padding: 16,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>✉</span>
+                    <span style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 700 }}>
+                      {entry.subject || "(no subject)"}
+                    </span>
+                  </div>
+                  <span style={{ color: "#ffffff45", fontSize: 11 }}>
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ color: "#ffffff55", fontSize: 11, marginBottom: 8 }}>
+                  From {entry.fromEmail || "unknown"} → {entry.toEmail || "unknown"}
+                </div>
+                <div
+                  style={{
+                    color: "#ffffff80",
+                    fontSize: 12,
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.6,
+                    maxHeight: 120,
+                    overflow: "hidden",
+                    maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
+                  }}
+                >
+                  {entry.body}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 

@@ -17,6 +17,7 @@ interface FloatingEmailComposeProps {
   contactName: string;
   contactEmail: string;
   onClose: () => void;
+  onEmailSent?: () => void;
 }
 
 const TEMPLATES = [
@@ -51,6 +52,7 @@ export default function FloatingEmailCompose({
   contactName,
   contactEmail,
   onClose,
+  onEmailSent,
 }: FloatingEmailComposeProps) {
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 }); // offset from default bottom-right
@@ -130,6 +132,7 @@ export default function FloatingEmailCompose({
         return;
       }
       setSent(true);
+      onEmailSent?.();
       setTimeout(() => {
         setSent(false);
         setSubject("");
