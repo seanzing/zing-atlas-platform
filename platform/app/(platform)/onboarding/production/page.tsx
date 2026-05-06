@@ -391,8 +391,8 @@ export default function ProductionPage() {
             if (selectedId) mutate(`/api/onboarding/${selectedId}/activity`);
           }}
           onNotConfigured={() => {
-            showToast("Gmail not configured yet — credentials pending", false);
             setEmailModal(null);
+            window.location.href = "/account?googlePrompt=1";
           }}
         />
       )}

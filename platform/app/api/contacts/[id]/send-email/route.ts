@@ -39,7 +39,13 @@ export async function POST(
       return NextResponse.json({ error: "No email on auth user" }, { status: 400 });
     }
 
-    await sendGmailAs(fromEmail, to, subject, body, teamMember.googleRefreshToken);
+    // Convert plain-text body to HTML (escape entities, preserve line breaks)
+    const htmlBody = body
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+    await sendGmailAs(fromEmail, to, subject, htmlBody, teamMember.googleRefreshToken);
 
     await prisma.activityLog.create({
       data: {

@@ -28,6 +28,8 @@ export async function GET() {
         onboardingId: ob.id,
         customerName: ob.customerName,
         businessName: ob.businessName,
+        email: ob.email,
+        websiteStatus: ob.websiteStatus ?? "not_started",
         designer: websiteItem?.owner ?? ob.offshoreDesigner ?? ob.usDesigner ?? null,
         product: ob.product?.description ?? null,
         wonDate: ob.wonDate,

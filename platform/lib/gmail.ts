@@ -24,13 +24,8 @@ export async function sendGmailAs(
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-  // Convert plain-text newlines to <br> so HTML email preserves line breaks
-  const htmlBody = bodyHtml
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\n/g, "<br>");
-
+  // bodyHtml is expected to already be safe HTML — callers are responsible for
+  // converting plain text (escape entities + \n→<br>) before calling this function.
   const message = [
     `From: ${fromEmail}`,
     `To: ${to}`,
@@ -38,7 +33,7 @@ export async function sendGmailAs(
     `Content-Type: text/html; charset=utf-8`,
     `MIME-Version: 1.0`,
     ``,
-    `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
+    `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${bodyHtml}</div>`,
   ].join("\r\n");
 
   const encoded = Buffer.from(message)
