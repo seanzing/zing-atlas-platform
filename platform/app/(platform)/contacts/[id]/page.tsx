@@ -102,6 +102,132 @@ const EMAIL_TEMPLATES = [
   },
 ];
 
+function ActivityEmailCard({ entry }: { entry: ActivityEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const dt = new Date(entry.createdAt);
+  const dateStr = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const timeStr = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+  return (
+    <div
+      style={{
+        background: "linear-gradient(135deg, #1a1a3e 0%, #12122e 100%)",
+        border: "1px solid #3a3a6e",
+        borderRadius: 12,
+        overflow: "hidden",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+      }}
+    >
+      {/* Card header */}
+      <div style={{ padding: "14px 18px 0" }}>
+        {/* Type badge + timestamp */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span
+              style={{
+                background: "rgba(58, 90, 255, 0.2)",
+                border: "1px solid rgba(58, 90, 255, 0.4)",
+                color: "#7aa0ff",
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: 20,
+                textTransform: "uppercase",
+                letterSpacing: 0.8,
+              }}
+            >
+              ✉ Email Sent
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+            <span style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 600 }}>{dateStr}</span>
+            <span style={{ color: "#7070a0", fontSize: 11 }}>{timeStr}</span>
+          </div>
+        </div>
+
+        {/* Subject */}
+        <div style={{ color: "#ffffff", fontSize: 15, fontWeight: 700, marginBottom: 10, lineHeight: 1.3 }}>
+          {entry.subject || "(no subject)"}
+        </div>
+
+        {/* From / To */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <div style={{ color: "#6060a0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>From</div>
+            <div style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 500 }}>{entry.fromEmail || "—"}</div>
+          </div>
+          <div>
+            <div style={{ color: "#6060a0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>To</div>
+            <div style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 500 }}>{entry.toEmail || "—"}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body preview / expanded */}
+      <div style={{ padding: "0 18px", marginBottom: 4 }}>
+        <div
+          style={{
+            color: "#a0a0c0",
+            fontSize: 13,
+            whiteSpace: "pre-wrap",
+            lineHeight: 1.7,
+            maxHeight: expanded ? "none" : 72,
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          {entry.body || ""}
+          {!expanded && entry.body && entry.body.length > 160 && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 32,
+                background: "linear-gradient(to bottom, transparent, #12122e)",
+              }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Expand toggle */}
+      {entry.body && entry.body.length > 160 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "10px 18px",
+            background: "none",
+            border: "none",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            color: "#7aa0ff",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          {expanded ? "▲ Show less" : "▼ Show full message"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   const date = new Date(d);
@@ -1004,50 +1130,38 @@ export default function ContactDetailPage() {
 
       {/* Activity tab — emails sent + future: replies, notes */}
       {activeTab === "Activity" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ color: Z.textPrimary, fontSize: 15, fontWeight: 700 }}>
+              Email History
+            </div>
+            <div style={{ color: Z.textMuted, fontSize: 12 }}>
+              {activity.length} {activity.length === 1 ? "email" : "emails"} sent
+            </div>
+          </div>
+
           {activity.length === 0 ? (
-            <div style={{ color: "#ffffff35", fontSize: 13, padding: "20px 0" }}>
-              No activity yet. Send an email using the ✉ Email button above.
+            <div
+              style={{
+                background: Z.card,
+                border: `1px solid ${Z.border}`,
+                borderRadius: 12,
+                padding: "32px 24px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>✉️</div>
+              <div style={{ color: Z.textPrimary, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+                No emails sent yet
+              </div>
+              <div style={{ color: Z.textMuted, fontSize: 13 }}>
+                Use the ✉ Email button above to send the first email to this contact.
+              </div>
             </div>
           ) : (
             activity.map((entry) => (
-              <div
-                key={entry.id}
-                style={{
-                  background: "#ffffff08",
-                  border: "1px solid #ffffff12",
-                  borderRadius: 10,
-                  padding: 16,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>✉</span>
-                    <span style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 700 }}>
-                      {entry.subject || "(no subject)"}
-                    </span>
-                  </div>
-                  <span style={{ color: "#ffffff45", fontSize: 11 }}>
-                    {new Date(entry.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <div style={{ color: "#ffffff55", fontSize: 11, marginBottom: 8 }}>
-                  From {entry.fromEmail || "unknown"} → {entry.toEmail || "unknown"}
-                </div>
-                <div
-                  style={{
-                    color: "#ffffff80",
-                    fontSize: 12,
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.6,
-                    maxHeight: 120,
-                    overflow: "hidden",
-                    maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
-                  }}
-                >
-                  {entry.body}
-                </div>
-              </div>
+              <ActivityEmailCard key={entry.id} entry={entry} />
             ))
           )}
         </div>
