@@ -1,28 +1,29 @@
 import { google } from "googleapis";
 
+/**
+ * Send an email via Gmail API using a team member's stored OAuth refresh token.
+ * Each team member connects their Google account once (Settings → Connect Google Account),
+ * which stores their refresh token. This function uses that token to send as them.
+ */
 export async function sendGmailAs(
   fromEmail: string,
   to: string,
   subject: string,
-  bodyText: string
+  bodyHtml: string,
+  refreshToken: string
 ): Promise<void> {
-  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!serviceAccountJson) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON not configured");
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured");
   }
 
-  const serviceAccount = JSON.parse(serviceAccountJson);
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-  const auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: ["https://www.googleapis.com/auth/gmail.send"],
-    subject: fromEmail, // impersonate this user
-  });
+  const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-  const gmail = google.gmail({ version: "v1", auth });
-
-  // Build RFC 2822 message
   const message = [
     `From: ${fromEmail}`,
     `To: ${to}`,
@@ -30,7 +31,7 @@ export async function sendGmailAs(
     `Content-Type: text/html; charset=utf-8`,
     `MIME-Version: 1.0`,
     ``,
-    bodyText,
+    bodyHtml,
   ].join("\r\n");
 
   const encoded = Buffer.from(message)
@@ -42,5 +43,54 @@ export async function sendGmailAs(
   await gmail.users.messages.send({
     userId: "me",
     requestBody: { raw: encoded },
+  });
+}
+
+/**
+ * Exchange an OAuth authorization code for tokens.
+ * Called from the /api/auth/google/callback route.
+ */
+export async function exchangeGoogleCode(code: string): Promise<{
+  accessToken: string;
+  refreshToken: string;
+  email: string;
+}> {
+  const clientId = process.env.GOOGLE_CLIENT_ID!;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`;
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const { tokens } = await oauth2Client.getToken(code);
+
+  if (!tokens.refresh_token) {
+    throw new Error("No refresh token returned — user may need to revoke and reconnect");
+  }
+
+  // Get user email from token info
+  oauth2Client.setCredentials(tokens);
+  const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+  const { data } = await oauth2.userinfo.get();
+
+  return {
+    accessToken: tokens.access_token!,
+    refreshToken: tokens.refresh_token,
+    email: data.email!,
+  };
+}
+
+/**
+ * Build the Google OAuth authorization URL for the connect flow.
+ */
+export function getGoogleAuthUrl(): string {
+  const clientId = process.env.GOOGLE_CLIENT_ID!;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`;
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+
+  return oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent", // force consent screen to always get refresh_token
+    scope: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/userinfo.email"],
   });
 }

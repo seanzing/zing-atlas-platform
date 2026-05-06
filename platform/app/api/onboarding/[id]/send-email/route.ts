@@ -38,20 +38,20 @@ export async function POST(
       return NextResponse.json({ error: "No email on auth user" }, { status: 400 });
     }
 
-    // Find team member for audit trail
+    // Find team member — need their stored Google refresh token
     const teamMember = await prisma.teamMember.findFirst({
       where: { supabaseUserId: auth.user.id, organizationId: ORG_ID },
+      select: { id: true, googleRefreshToken: true },
     });
 
-    // Graceful degradation if Gmail not configured
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    if (!teamMember?.googleRefreshToken) {
       return NextResponse.json(
-        { error: "Gmail not configured" },
+        { error: "Google account not connected. Go to Settings → Connect Google Account." },
         { status: 503 }
       );
     }
 
-    await sendGmailAs(fromEmail, to, subject, body);
+    await sendGmailAs(fromEmail, to, subject, body, teamMember.googleRefreshToken);
 
     await prisma.activityLog.create({
       data: {
@@ -63,11 +63,11 @@ export async function POST(
         toEmail: to,
         fromEmail,
         previewUrl: previewUrl ?? null,
-        teamMemberId: teamMember?.id ?? null,
+        teamMemberId: teamMember.id,
       },
     });
 
-    logger.info({ id, to, subject }, "Email sent via Gmail");
+    logger.info({ id, to, subject, from: fromEmail }, "Email sent via Gmail OAuth");
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error({ err: error }, "POST /api/onboarding/[id]/send-email failed");
