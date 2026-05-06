@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
+import EmailThreadCard from "@/components/EmailThreadCard";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
@@ -87,6 +88,35 @@ interface ActivityEntry {
   createdAt: string;
 }
 
+interface EmailMessage {
+  id: string;
+  type: "email_sent" | "email_received";
+  subject: string | null;
+  body: string | null;
+  fromEmail: string | null;
+  toEmail: string | null;
+  createdAt: string;
+}
+
+interface EmailThread {
+  gmailThreadId: string;
+  subject: string;
+  messageCount: number;
+  lastMessageAt: string;
+  participants: string[];
+  messages: EmailMessage[];
+}
+
+interface StandaloneEntry {
+  id: string;
+  type: string;
+  subject: string | null;
+  body: string | null;
+  fromEmail: string | null;
+  toEmail: string | null;
+  createdAt: string;
+}
+
 const TABS = ["Customer Info", "Activity", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
 
 const EMAIL_TEMPLATES = [
@@ -111,138 +141,6 @@ const EMAIL_TEMPLATES = [
     body: "Hi NAME,\n\nExciting news: your website is now live! Thank you for choosing ZING. We are here if you need anything!\n\nBest,\nSENDER",
   },
 ];
-
-function ActivityEmailCard({ entry }: { entry: ActivityEntry }) {
-  const [expanded, setExpanded] = useState(false);
-  const dt = new Date(entry.createdAt);
-  const dateStr = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-  const timeStr = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-
-  const isReceived = entry.type === "email_received";
-
-  return (
-    <div
-      style={{
-        background: "linear-gradient(135deg, #1a1a3e 0%, #12122e 100%)",
-        border: "1px solid #3a3a6e",
-        borderRadius: 12,
-        overflow: "hidden",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
-      }}
-    >
-      {/* Card header */}
-      <div style={{ padding: "14px 18px 0" }}>
-        {/* Type badge + timestamp */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                background: isReceived
-                  ? "rgba(34, 197, 94, 0.2)"
-                  : "rgba(58, 90, 255, 0.2)",
-                border: isReceived
-                  ? "1px solid rgba(34, 197, 94, 0.4)"
-                  : "1px solid rgba(58, 90, 255, 0.4)",
-                color: isReceived ? "#4ade80" : "#7aa0ff",
-                fontSize: 10,
-                fontWeight: 700,
-                padding: "2px 8px",
-                borderRadius: 20,
-                textTransform: "uppercase",
-                letterSpacing: 0.8,
-              }}
-            >
-              {isReceived ? "↩ Reply Received" : "✉ Email Sent"}
-            </span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-            <span style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 600 }}>{dateStr}</span>
-            <span style={{ color: "#7070a0", fontSize: 11 }}>{timeStr}</span>
-          </div>
-        </div>
-
-        {/* Subject */}
-        <div style={{ color: "#ffffff", fontSize: 15, fontWeight: 700, marginBottom: 10, lineHeight: 1.3 }}>
-          {entry.subject || "(no subject)"}
-        </div>
-
-        {/* From / To */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 8,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 8,
-            padding: "10px 14px",
-            marginBottom: 12,
-          }}
-        >
-          <div>
-            <div style={{ color: "#6060a0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>From</div>
-            <div style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 500 }}>{entry.fromEmail || "—"}</div>
-          </div>
-          <div>
-            <div style={{ color: "#6060a0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>To</div>
-            <div style={{ color: "#c0c0e0", fontSize: 12, fontWeight: 500 }}>{entry.toEmail || "—"}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Body preview / expanded */}
-      <div style={{ padding: "0 18px", marginBottom: 4 }}>
-        <div
-          style={{
-            color: "#a0a0c0",
-            fontSize: 13,
-            whiteSpace: "pre-wrap",
-            lineHeight: 1.7,
-            maxHeight: expanded ? "none" : 72,
-            overflow: "hidden",
-            position: "relative",
-          }}
-        >
-          {entry.body || ""}
-          {!expanded && entry.body && entry.body.length > 160 && (
-            <div
-              style={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: 32,
-                background: "linear-gradient(to bottom, transparent, #12122e)",
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Expand toggle */}
-      {entry.body && entry.body.length > 160 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "10px 18px",
-            background: "none",
-            border: "none",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            color: "#7aa0ff",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            textAlign: "left",
-          }}
-        >
-          {expanded ? "▲ Show less" : "▼ Show full message"}
-        </button>
-      )}
-    </div>
-  );
-}
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -364,11 +262,15 @@ export default function ContactDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { data: contact, error: contactError, mutate } = useSWR<ContactDetail>(`/api/contacts/${id}`, fetcher);
-  const { data: activityData, mutate: mutateActivity } = useSWR<{ activity: ActivityEntry[] }>(
+  const { data: activityData, mutate: mutateActivity } = useSWR<{
+    threads: EmailThread[];
+    standalone: StandaloneEntry[];
+  }>(
     `/api/contacts/${id}/activity`,
     fetcher
   );
-  const activity = activityData?.activity ?? [];
+  const threads = activityData?.threads ?? [];
+  // standalone entries available via activityData?.standalone
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
@@ -420,7 +322,20 @@ export default function ContactDetailPage() {
       setEmailActivityLoading(true);
       fetch(`/api/contacts/${id}/activity`)
         .then((r) => r.json())
-        .then((d) => setEmailActivity(d.activity || []))
+        .then((d) => {
+          // Flatten threads into individual messages for the Email tab
+          const msgs: ActivityEntry[] = [];
+          for (const t of d.threads || []) {
+            for (const m of t.messages || []) {
+              msgs.push({ ...m, teamMemberId: null });
+            }
+          }
+          for (const s of d.standalone || []) {
+            msgs.push({ ...s, teamMemberId: null });
+          }
+          msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setEmailActivity(msgs);
+        })
         .catch(() => setEmailActivity([]))
         .finally(() => setEmailActivityLoading(false));
     }
@@ -462,7 +377,17 @@ export default function ContactDetailPage() {
       setSelectedTemplate("");
       const actRes = await fetch(`/api/contacts/${id}/activity`);
       const actData = await actRes.json();
-      setEmailActivity(actData.activity || []);
+      const msgs: ActivityEntry[] = [];
+      for (const t of actData.threads || []) {
+        for (const m of t.messages || []) {
+          msgs.push({ ...m, teamMemberId: null });
+        }
+      }
+      for (const s of actData.standalone || []) {
+        msgs.push({ ...s, teamMemberId: null });
+      }
+      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setEmailActivity(msgs);
     } catch {
       showToast("Failed to send email", false);
     } finally {
@@ -1233,59 +1158,61 @@ export default function ContactDetailPage() {
         </div>
       )}
 
-      {/* Activity tab — emails sent + future: replies, notes */}
+      {/* Activity tab — threaded email view */}
       {activeTab === "Activity" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 0" }}>
           {/* Header row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ color: Z.textPrimary, fontSize: 15, fontWeight: 700 }}>
-              Email History
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffffcc" }}>
+              Email Threads
+              {threads.length > 0 && (
+                <span style={{ marginLeft: 8, fontSize: 11, color: "#ffffff45", fontWeight: 400 }}>
+                  {threads.length} {threads.length === 1 ? "thread" : "threads"}
+                </span>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
                 onClick={checkReplies}
                 disabled={checkingReplies}
                 style={{
                   padding: "5px 12px",
                   borderRadius: 6,
-                  border: `1px solid ${Z.border}`,
+                  border: "1px solid #ffffff18",
                   background: "transparent",
-                  color: Z.textSecondary,
+                  color: "#ffffff55",
                   fontSize: 12,
                   cursor: checkingReplies ? "not-allowed" : "pointer",
                   fontWeight: 600,
                 }}
               >
-                {checkingReplies ? "Checking..." : "↻ Check for replies"}
+                {checkingReplies ? "Checking..." : "\u21BB Check for replies"}
               </button>
-              {replyCheck && <span style={{ fontSize: 12, color: Z.textMuted }}>{replyCheck}</span>}
-              <span style={{ color: Z.textMuted, fontSize: 12 }}>
-                {activity.length} {activity.length === 1 ? "email" : "emails"}
-              </span>
+              {replyCheck && (
+                <span style={{ fontSize: 12, color: "#ffffff40" }}>{replyCheck}</span>
+              )}
             </div>
           </div>
 
-          {activity.length === 0 ? (
-            <div
-              style={{
-                background: Z.card,
-                border: `1px solid ${Z.border}`,
-                borderRadius: 12,
-                padding: "32px 24px",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 32, marginBottom: 10 }}>✉️</div>
-              <div style={{ color: Z.textPrimary, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                No emails sent yet
-              </div>
-              <div style={{ color: Z.textMuted, fontSize: 13 }}>
-                Use the ✉ Email button above to send the first email to this contact.
-              </div>
+          {/* Thread list */}
+          {threads.length === 0 ? (
+            <div style={{
+              padding: "40px 24px",
+              textAlign: "center",
+              color: "#ffffff30",
+              fontSize: 13,
+              border: "1px dashed #ffffff12",
+              borderRadius: 12,
+            }}>
+              No email threads yet. Send the first email using the \u2709 button above.
             </div>
           ) : (
-            activity.map((entry) => (
-              <ActivityEmailCard key={entry.id} entry={entry} />
+            threads.map((thread, i) => (
+              <EmailThreadCard
+                key={thread.gmailThreadId}
+                thread={thread}
+                defaultExpanded={i === 0}
+              />
             ))
           )}
         </div>

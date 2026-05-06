@@ -53,10 +53,15 @@ export async function POST(
         contactId: id,
         organizationId: ORG_ID,
         type: "email_received",
+        gmailThreadId: { not: null },
       },
-      select: { gmailThreadId: true },
+      select: { metadata: true },
     });
-    const knownReplyIds = new Set(existingReplies.map((r) => r.gmailThreadId));
+    const knownMessageIds = new Set(
+      existingReplies
+        .map((r) => (r.metadata as { gmailMessageId?: string } | null)?.gmailMessageId)
+        .filter(Boolean)
+    );
 
     let newReplies = 0;
 
@@ -73,8 +78,7 @@ export async function POST(
         );
 
         for (const reply of replies) {
-          const replyId = `${sent.gmailThreadId}:${reply.id}`;
-          if (knownReplyIds.has(replyId)) continue;
+          if (knownMessageIds.has(reply.id)) continue;
 
           await prisma.activityLog.create({
             data: {
@@ -86,10 +90,11 @@ export async function POST(
               body: reply.body || reply.snippet,
               fromEmail: reply.from,
               toEmail: auth.user.email ?? "",
-              gmailThreadId: replyId,
+              gmailThreadId: sent.gmailThreadId,
+              metadata: { gmailMessageId: reply.id },
             },
           });
-          knownReplyIds.add(replyId);
+          knownMessageIds.add(reply.id);
           newReplies++;
         }
       } catch {
