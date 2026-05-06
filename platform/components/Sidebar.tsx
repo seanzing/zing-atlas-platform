@@ -196,7 +196,11 @@ export default function Sidebar() {
 
       {/* User */}
       <div style={{ padding: "16px 8px", borderTop: "1px solid #ffffff12" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Link href="/account" style={{ textDecoration: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "6px 8px", borderRadius: 8, cursor: "pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#ffffff0a")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+        >
           <div
             style={{
               width: 32,
@@ -223,6 +227,7 @@ export default function Sidebar() {
             <div style={{ color: "#ffffff45", fontSize: 10 }}>{displayRole}</div>
           </div>
         </div>
+        </Link>
         <button
           onClick={signOut}
           style={{
