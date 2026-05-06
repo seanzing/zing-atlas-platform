@@ -6,6 +6,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { ORG_ID } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
+export const dynamic = "force-dynamic";
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
