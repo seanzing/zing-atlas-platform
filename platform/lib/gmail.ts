@@ -95,6 +95,10 @@ export function getGoogleAuthUrl(): string {
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // force consent screen to always get refresh_token
-    scope: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/userinfo.email"],
+    scope: [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/userinfo.email",
+    ],
   });
 }
