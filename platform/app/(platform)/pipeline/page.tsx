@@ -227,6 +227,8 @@ export default function PipelinePage() {
   // Add Won modal state
   const [addWonTitle, setAddWonTitle] = useState("");
   const [addWonContactName, setAddWonContactName] = useState("");
+  const [addWonEmail, setAddWonEmail] = useState("");
+  const [addWonPhone, setAddWonPhone] = useState("");
   const [addWonRep, setAddWonRep] = useState("");
   const [addWonDealType, setAddWonDealType] = useState("new");
   const [addWonProductId, setAddWonProductId] = useState("");
@@ -491,9 +493,30 @@ export default function PipelinePage() {
 
   const submitAddWonDeal = useCallback(async () => {
     try {
+      // Step 1: create or find Contact if email provided
+      let contactId: string | undefined;
+      if (addWonEmail) {
+        const contactRes = await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: addWonContactName || addWonEmail,
+            email: addWonEmail,
+            phone: addWonPhone || undefined,
+            leadSource: "direct",
+          }),
+        });
+        if (contactRes.ok) {
+          const c = await contactRes.json();
+          contactId = c.id;
+        }
+      }
+
+      // Step 2: create the deal (with contactId if we have one)
       const body: Record<string, unknown> = {
         title: addWonTitle,
         contactName: addWonContactName || undefined,
+        contactId: contactId || undefined,
         rep: addWonRep || undefined,
         stage: "won",
         dealType: addWonDealType,
@@ -517,7 +540,7 @@ export default function PipelinePage() {
     } catch {
       showToast("Failed to create deal", false);
     }
-  }, [addWonTitle, addWonContactName, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, pipelineUrl, showToast]);
+  }, [addWonTitle, addWonContactName, addWonEmail, addWonPhone, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, pipelineUrl, showToast]);
 
   const handleSaveNotes = useCallback(
     async (deal: Deal) => {
@@ -574,6 +597,8 @@ export default function PipelinePage() {
   function resetAddWonForm() {
     setAddWonTitle("");
     setAddWonContactName("");
+    setAddWonEmail("");
+    setAddWonPhone("");
     setAddWonRep("");
     setAddWonDealType("new");
     setAddWonProductId("");
@@ -2150,6 +2175,22 @@ export default function PipelinePage() {
             value={addWonContactName}
             onChange={setAddWonContactName}
             placeholder="Contact name"
+          />
+        </FormField>
+
+        <FormField label="Email">
+          <Input
+            value={addWonEmail}
+            onChange={setAddWonEmail}
+            placeholder="customer@example.com"
+          />
+        </FormField>
+
+        <FormField label="Phone">
+          <Input
+            value={addWonPhone}
+            onChange={setAddWonPhone}
+            placeholder="(555) 000-0000"
           />
         </FormField>
 
