@@ -220,30 +220,58 @@ function MessageRow({ msg, isLast, contactId }: { msg: EmailMessage; isLast: boo
                 </div>
                 {attachments.map((att, i) => {
                   const gmailMessageId = msg.metadata?.gmailMessageId;
-                  const downloadUrl = gmailMessageId && att.attachmentId
+                  const baseUrl = gmailMessageId && att.attachmentId
                     ? `/api/contacts/${contactId}/attachment?messageId=${encodeURIComponent(gmailMessageId)}&attachmentId=${encodeURIComponent(att.attachmentId)}&filename=${encodeURIComponent(att.name)}&mimeType=${encodeURIComponent(att.mimeType)}`
                     : null;
+                  const viewUrl = baseUrl ? `${baseUrl}&mode=view` : null;
+                  const downloadUrl = baseUrl ? `${baseUrl}&mode=download` : null;
+
+                  const INLINE_TYPES = ["image/","application/pdf","video/","audio/","text/plain","text/csv"];
+                  const OFFICE_TYPES = ["application/msword","application/vnd.openxmlformats","application/vnd.ms-excel","application/vnd.ms-powerpoint"];
+                  const canView = viewUrl && (
+                    INLINE_TYPES.some(t => att.mimeType.startsWith(t)) ||
+                    OFFICE_TYPES.some(t => att.mimeType.startsWith(t))
+                  );
 
                   return (
                     <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "7px 10px", background: "#ffffff08",
-                      border: "1px solid #ffffff15", borderRadius: 6,
-                      cursor: downloadUrl ? "pointer" : "default",
-                      transition: "background 0.15s",
-                    }}
-                      onClick={() => downloadUrl && window.open(downloadUrl, "_blank")}
-                      onMouseEnter={(e) => { if (downloadUrl) (e.currentTarget as HTMLElement).style.background = "#ffffff14"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#ffffff08"; }}
-                    >
-                      <span style={{ fontSize: 16 }}>{getFileIcon(att.mimeType)}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffffcc" }}>{att.name}</div>
-                        <div style={{ fontSize: 10, color: "#ffffff40" }}>
-                          {formatFileSize(att.size)}
-                          {downloadUrl && <span style={{ marginLeft: 8, color: "#7aa0ff" }}>{"\u2193"} Download</span>}
-                        </div>
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 12px", background: "#ffffff06",
+                      border: "1px solid #ffffff12", borderRadius: 8,
+                    }}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>{getFileIcon(att.mimeType)}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffffcc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{att.name}</div>
+                        <div style={{ fontSize: 10, color: "#ffffff40" }}>{formatFileSize(att.size)}</div>
                       </div>
+                      {baseUrl && (
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          {canView && (
+                            <button
+                              onClick={() => window.open(viewUrl!, "_blank")}
+                              style={{
+                                padding: "4px 10px", borderRadius: 5,
+                                border: "1px solid #3a5aff55",
+                                background: "#3a5aff18", color: "#7aa0ff",
+                                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              }}
+                            >
+                              View
+                            </button>
+                          )}
+                          <button
+                            onClick={() => window.open(downloadUrl!, "_blank")}
+                            style={{
+                              padding: "4px 10px", borderRadius: 5,
+                              border: "1px solid #ffffff18",
+                              background: "transparent", color: "#ffffff55",
+                              fontSize: 11, fontWeight: 700, cursor: "pointer",
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
