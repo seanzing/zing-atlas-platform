@@ -59,6 +59,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Fire-and-forget: auto-create Pixel site for this onboarding
+    // Non-fatal — if Pixel is down, onboarding still succeeds
+    const pixelWebhookUrl = process.env.PIXEL_WEBHOOK_URL;
+    const pixelWebhookSecret = process.env.PIXEL_WEBHOOK_SECRET;
+    if (pixelWebhookUrl && pixelWebhookSecret) {
+      fetch(`${pixelWebhookUrl}/api/webhooks/pixel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": pixelWebhookSecret,
+        },
+        body: JSON.stringify({
+          event: "onboarding.created",
+          onboardingId: onboarding.id,
+          businessName: (onboarding as Record<string, unknown>).businessName ?? (onboarding as Record<string, unknown>).customerName ?? "New Customer",
+          contactEmail: (onboarding as Record<string, unknown>).email ?? null,
+          contactPhone: (onboarding as Record<string, unknown>).phone ?? null,
+          tier: (onboarding as Record<string, unknown>).productId ?? null,
+        }),
+      }).catch((err: unknown) => logger.error({ err }, "[Pixel webhook] Failed to auto-create site"));
+    }
+
     return NextResponse.json(serialize(onboarding), { status: 201 });
   } catch (error) {
     logger.error({ err: error }, "POST /api/onboarding error");
