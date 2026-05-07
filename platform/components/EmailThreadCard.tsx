@@ -14,7 +14,7 @@ interface EmailMessage {
   metadata: {
     bodyHtml?: string;
     hasHtml?: boolean;
-    attachments?: Array<{ name: string; size: number; mimeType: string }>;
+    attachments?: Array<{ name: string; size: number; mimeType: string; attachmentId?: string }>;
     gmailMessageId?: string;
   } | null;
 }
@@ -26,6 +26,47 @@ interface EmailThread {
   lastMessageAt: string;
   participants: string[];
   messages: EmailMessage[];
+}
+
+/** Strip Gmail quoted HTML (div.gmail_quote, blockquote.gmail_quote, div.gmail_attr) */
+function stripGmailQuotedHtml(html: string): string {
+  if (!html) return '';
+
+  // Find the first occurrence of gmail_quote and cut everything from there
+  const quoteContainerIdx = html.indexOf('class="gmail_quote_container"');
+  const quoteIdx = html.indexOf('class="gmail_quote"');
+
+  const cutAt = Math.min(
+    quoteContainerIdx > -1 ? quoteContainerIdx : Infinity,
+    quoteIdx > -1 ? quoteIdx : Infinity
+  );
+
+  if (cutAt === Infinity) return html.trim();
+
+  // Walk backwards to find the opening < of the tag
+  let tagStart = cutAt;
+  while (tagStart > 0 && html[tagStart] !== '<') tagStart--;
+
+  return html.slice(0, tagStart).trim();
+}
+
+/** Strip quoted HTML, replace cid: images with placeholder */
+function prepareGmailHtml(html: string): string {
+  let result = stripGmailQuotedHtml(html);
+
+  // Remove gmail_attr "On [date] ... wrote:" lines that may precede the quote
+  result = result.replace(/<div[^>]*class="[^"]*gmail_attr[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+
+  // Replace cid: images with a styled placeholder (can't be fetched without Gmail API)
+  result = result.replace(
+    /<img[^>]*src="cid:[^"]*"[^>]*>/gi,
+    '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:#ffffff08;border:1px solid #ffffff15;border-radius:6px;font-size:11px;color:#ffffff50;margin:4px 0;">\u{1F5BC} Inline image (open in Gmail to view)</div>'
+  );
+
+  // Clean up trailing <br> tags
+  result = result.replace(/(<br\s*\/?>\s*){2,}$/gi, '').trim();
+
+  return result;
 }
 
 /** Strip quoted reply chains — everything from "On [date] ... wrote:" onwards */
@@ -99,12 +140,13 @@ function getFileIcon(mimeType: string): string {
 }
 
 const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ["p", "br", "b", "strong", "i", "em", "u", "a", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "span", "div", "table", "tr", "td", "th", "thead", "tbody", "img"],
+  ALLOWED_TAGS: ["p", "br", "b", "strong", "i", "em", "u", "a", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "span", "div", "table", "tr", "td", "th", "thead", "tbody", "img", "style"],
   ALLOWED_ATTR: ["href", "src", "alt", "style", "class", "target"],
   FORBID_ATTR: ["onerror", "onload", "onclick"],
+  FORCE_BODY: true,
 };
 
-function MessageRow({ msg, isLast }: { msg: EmailMessage; isLast: boolean }) {
+function MessageRow({ msg, isLast, contactId }: { msg: EmailMessage; isLast: boolean; contactId: string }) {
   const isSent = msg.type === "email_sent";
   const body = stripQuotedText(msg.body);
   const sender = isSent
@@ -152,12 +194,12 @@ function MessageRow({ msg, isLast }: { msg: EmailMessage; isLast: boolean }) {
             padding: "12px 16px",
           }}>
             {hasHtml ? (
-              <div
-                style={{ fontSize: 13, color: "#ffffffcc", lineHeight: 1.7 }}
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(bodyHtml!, SANITIZE_CONFIG),
-                }}
-              />
+              <div style={{ fontSize: 13, color: "#ffffffcc", lineHeight: 1.7 }}>
+                <style>{`.gmail_quote, .gmail_quote_container, .gmail_attr { display: none !important; }`}</style>
+                <div dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(prepareGmailHtml(bodyHtml!), SANITIZE_CONFIG),
+                }} />
+              </div>
             ) : (
               <div style={{
                 fontSize: 13, color: "#ffffffcc", lineHeight: 1.7,
@@ -176,19 +218,35 @@ function MessageRow({ msg, isLast }: { msg: EmailMessage; isLast: boolean }) {
                 }}>
                   {attachments.length} Attachment{attachments.length > 1 ? "s" : ""}
                 </div>
-                {attachments.map((att, i) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "7px 10px", background: "#ffffff08",
-                    border: "1px solid #ffffff12", borderRadius: 6,
-                  }}>
-                    <span style={{ fontSize: 16 }}>{getFileIcon(att.mimeType)}</span>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffffcc" }}>{att.name}</div>
-                      <div style={{ fontSize: 10, color: "#ffffff40" }}>{formatFileSize(att.size)}</div>
+                {attachments.map((att, i) => {
+                  const gmailMessageId = msg.metadata?.gmailMessageId;
+                  const downloadUrl = gmailMessageId && att.attachmentId
+                    ? `/api/contacts/${contactId}/attachment?messageId=${encodeURIComponent(gmailMessageId)}&attachmentId=${encodeURIComponent(att.attachmentId)}&filename=${encodeURIComponent(att.name)}&mimeType=${encodeURIComponent(att.mimeType)}`
+                    : null;
+
+                  return (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "7px 10px", background: "#ffffff08",
+                      border: "1px solid #ffffff15", borderRadius: 6,
+                      cursor: downloadUrl ? "pointer" : "default",
+                      transition: "background 0.15s",
+                    }}
+                      onClick={() => downloadUrl && window.open(downloadUrl, "_blank")}
+                      onMouseEnter={(e) => { if (downloadUrl) (e.currentTarget as HTMLElement).style.background = "#ffffff14"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#ffffff08"; }}
+                    >
+                      <span style={{ fontSize: 16 }}>{getFileIcon(att.mimeType)}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffffcc" }}>{att.name}</div>
+                        <div style={{ fontSize: 10, color: "#ffffff40" }}>
+                          {formatFileSize(att.size)}
+                          {downloadUrl && <span style={{ marginLeft: 8, color: "#7aa0ff" }}>{"\u2193"} Download</span>}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -418,6 +476,7 @@ export default function EmailThreadCard({
               key={msg.id}
               msg={msg}
               isLast={i === thread.messages.length - 1}
+              contactId={contactId}
             />
           ))}
 

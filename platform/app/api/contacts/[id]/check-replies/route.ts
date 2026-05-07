@@ -55,12 +55,19 @@ export async function POST(
         type: "email_received",
         gmailThreadId: { not: null },
       },
-      select: { metadata: true },
+      select: { metadata: true, fromEmail: true, createdAt: true },
     });
     const knownMessageIds = new Set(
       existingReplies
         .map((r) => (r.metadata as { gmailMessageId?: string } | null)?.gmailMessageId)
-        .filter(Boolean)
+        .filter((mid): mid is string => Boolean(mid))
+    );
+
+    // Legacy dedup: entries stored before metadata tracking have null gmailMessageId
+    const knownLegacyKeys = new Set(
+      existingReplies
+        .filter((r) => !(r.metadata as { gmailMessageId?: string } | null)?.gmailMessageId)
+        .map((r) => `${r.fromEmail}:${new Date(r.createdAt).toDateString()}`)
     );
 
     let newReplies = 0;
@@ -79,6 +86,10 @@ export async function POST(
 
         for (const reply of replies) {
           if (knownMessageIds.has(reply.id)) continue;
+
+          // Legacy dedup: same sender + same day (for entries without gmailMessageId)
+          const legacyKey = `${reply.from}:${new Date(reply.date || '').toDateString()}`;
+          if (knownLegacyKeys.has(legacyKey)) continue;
 
           await prisma.activityLog.create({
             data: {
