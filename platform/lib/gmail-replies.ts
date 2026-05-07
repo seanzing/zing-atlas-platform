@@ -53,7 +53,9 @@ export async function getThreadReplies(
   sentMessageSubject: string,
   refreshToken: string,
   clientId: string,
-  clientSecret: string
+  clientSecret: string,
+  supabaseServiceKey: string,
+  contactId: string,
 ): Promise<GmailMessage[]> {
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
@@ -69,7 +71,7 @@ export async function getThreadReplies(
   const messages = thread.data.messages ?? [];
 
   // Skip the first message (the one we sent), return the rest as replies
-  const replies = messages.slice(1).map((msg) => {
+  const replyPromises = messages.slice(1).map(async (msg) => {
     const headers = msg.payload?.headers ?? [];
     const getHeader = (name: string) =>
       headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -89,6 +91,82 @@ export async function getThreadReplies(
       }
     }
 
+    // --- Inline image extraction + upload to Supabase Storage ---
+    type InlinePart = { cid: string; mimeType: string; data?: string; attachmentId?: string };
+    const inlineParts: InlinePart[] = [];
+
+    const extractInlineParts = (mparts: any[]) => {  // eslint-disable-line @typescript-eslint/no-explicit-any
+      for (const part of mparts) {
+        const hdrs = part.headers ?? [];
+        const contentId = hdrs.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value as string | undefined;  // eslint-disable-line @typescript-eslint/no-explicit-any
+        const disposition = hdrs.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value as string | undefined;  // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        if (contentId && !disposition?.toLowerCase().includes('attachment') && part.mimeType?.startsWith('image/')) {
+          const cleanCid = contentId.replace(/[<>]/g, '').trim();
+          inlineParts.push({
+            cid: cleanCid,
+            mimeType: part.mimeType,
+            data: part.body?.data,
+            attachmentId: part.body?.attachmentId,
+          });
+        }
+        if (part.parts) extractInlineParts(part.parts);
+      }
+    }
+
+    const allMsgParts = msg.payload?.parts ?? [];
+    if (allMsgParts.length > 0) extractInlineParts(allMsgParts);
+
+    // Fetch + upload each inline image, build cid→URL map
+    const cidToUrl: Record<string, string> = {};
+    for (const inline of inlineParts) {
+      try {
+        let imageData = inline.data;
+        if (!imageData && inline.attachmentId) {
+          const attRes = await gmail.users.messages.attachments.get({
+            userId: 'me',
+            messageId: msg.id!,
+            id: inline.attachmentId,
+          });
+          imageData = attRes.data.data ?? undefined;
+        }
+        if (!imageData) continue;
+
+        const buffer = Buffer.from(imageData, 'base64url');
+        const ext = inline.mimeType.split('/')[1]?.split('+')[0] ?? 'jpg';
+        const safeCid = inline.cid.replace(/[^a-zA-Z0-9]/g, '_');
+        const path = `${contactId}/${msg.id}/${safeCid}.${ext}`;
+
+        const uploadRes = await fetch(
+          `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/email-images/${path}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseServiceKey,
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': inline.mimeType,
+              'x-upsert': 'true',
+            },
+            body: buffer,
+          }
+        );
+
+        if (uploadRes.ok) {
+          cidToUrl[inline.cid] = `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/public/email-images/${path}`;
+        }
+      } catch {
+        // Non-fatal — image stays as cid: reference
+      }
+    }
+
+    // Rewrite cid: references in HTML
+    let processedHtml = result.html;
+    for (const [cid, url] of Object.entries(cidToUrl)) {
+      const escapedCid = cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      processedHtml = processedHtml.replace(new RegExp(`cid:${escapedCid}`, 'g'), url);
+    }
+    result.html = processedHtml;
+
     return {
       id: msg.id ?? "",
       threadId: msg.threadId ?? threadId,
@@ -103,6 +181,9 @@ export async function getThreadReplies(
       attachments: result.attachments,
     };
   });
+
+  // Await all message processing (map callbacks are now async)
+  const replies = await Promise.all(replyPromises);
 
   return replies;
 }

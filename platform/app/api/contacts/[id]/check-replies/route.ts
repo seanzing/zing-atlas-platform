@@ -76,12 +76,15 @@ export async function POST(
       if (!sent.gmailThreadId) continue;
 
       try {
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
         const replies = await getThreadReplies(
           sent.gmailThreadId,
           sent.subject ?? "",
           teamMember.googleRefreshToken,
           clientId,
-          clientSecret
+          clientSecret,
+          supabaseServiceKey,
+          id,
         );
 
         for (const reply of replies) {

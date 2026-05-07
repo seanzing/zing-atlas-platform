@@ -57,10 +57,10 @@ function prepareGmailHtml(html: string): string {
   // Remove gmail_attr "On [date] ... wrote:" lines that may precede the quote
   result = result.replace(/<div[^>]*class="[^"]*gmail_attr[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
 
-  // Replace cid: images with a styled placeholder (can't be fetched without Gmail API)
+  // Replace any remaining cid: images (failed uploads) with a styled placeholder
   result = result.replace(
     /<img[^>]*src="cid:[^"]*"[^>]*>/gi,
-    '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:#ffffff08;border:1px solid #ffffff15;border-radius:6px;font-size:11px;color:#ffffff50;margin:4px 0;">\u{1F5BC} Inline image (open in Gmail to view)</div>'
+    '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:#ffffff08;border:1px solid #ffffff15;border-radius:6px;font-size:11px;color:#ffffff50;margin:4px 0;">🖼 Image unavailable</div>'
   );
 
   // Clean up trailing <br> tags

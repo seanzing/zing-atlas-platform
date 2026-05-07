@@ -88,14 +88,103 @@ export async function POST(request: NextRequest) {
       const to = getHeader("to");
       const subject = getHeader("subject");
 
-      // Extract plain text body
+      // Extract plain text and HTML body
       let bodyText = "";
+      let bodyHtml = "";
       const parts = fullMsg.data.payload?.parts ?? [];
-      const textPart = parts.find((p) => p.mimeType === "text/plain");
-      if (textPart?.body?.data) {
-        bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
+
+      const walkPartsWebhook = (wparts: any[]) => {  // eslint-disable-line @typescript-eslint/no-explicit-any
+        for (const part of wparts) {
+          if (part.mimeType === "text/plain" && part.body?.data) {
+            bodyText = Buffer.from(part.body.data, "base64").toString("utf-8");
+          } else if (part.mimeType === "text/html" && part.body?.data) {
+            bodyHtml = Buffer.from(part.body.data, "base64").toString("utf-8");
+          } else if (part.parts) {
+            walkPartsWebhook(part.parts);
+          }
+        }
+      }
+
+      if (parts.length > 0) {
+        walkPartsWebhook(parts);
       } else if (fullMsg.data.payload?.body?.data) {
-        bodyText = Buffer.from(fullMsg.data.payload.body.data, "base64").toString("utf-8");
+        if (fullMsg.data.payload.mimeType === "text/html") {
+          bodyHtml = Buffer.from(fullMsg.data.payload.body.data, "base64").toString("utf-8");
+        } else {
+          bodyText = Buffer.from(fullMsg.data.payload.body.data, "base64").toString("utf-8");
+        }
+      }
+
+      // --- Inline image extraction + upload to Supabase Storage ---
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      type InlinePart = { cid: string; mimeType: string; data?: string; attachmentId?: string };
+      const inlineParts: InlinePart[] = [];
+
+      const extractInlineParts = (iparts: any[]) => {  // eslint-disable-line @typescript-eslint/no-explicit-any
+        for (const part of iparts) {
+          const hdrs = part.headers ?? [];
+          const contentId = hdrs.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value as string | undefined;  // eslint-disable-line @typescript-eslint/no-explicit-any
+          const disposition = hdrs.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value as string | undefined;  // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (contentId && !disposition?.toLowerCase().includes('attachment') && part.mimeType?.startsWith('image/')) {
+            const cleanCid = contentId.replace(/[<>]/g, '').trim();
+            inlineParts.push({
+              cid: cleanCid,
+              mimeType: part.mimeType,
+              data: part.body?.data,
+              attachmentId: part.body?.attachmentId,
+            });
+          }
+          if (part.parts) extractInlineParts(part.parts);
+        }
+      }
+
+      if (parts.length > 0) extractInlineParts(parts);
+
+      const cidToUrl: Record<string, string> = {};
+      for (const inline of inlineParts) {
+        try {
+          let imageData = inline.data;
+          if (!imageData && inline.attachmentId) {
+            const attRes = await gmail.users.messages.attachments.get({
+              userId: 'me',
+              messageId: message.id!,
+              id: inline.attachmentId,
+            });
+            imageData = attRes.data.data ?? undefined;
+          }
+          if (!imageData) continue;
+
+          const buffer = Buffer.from(imageData, 'base64url');
+          const ext = inline.mimeType.split('/')[1]?.split('+')[0] ?? 'jpg';
+          const safeCid = inline.cid.replace(/[^a-zA-Z0-9]/g, '_');
+          const path = `${activityEntry.contactId}/${message.id}/${safeCid}.${ext}`;
+
+          const uploadRes = await fetch(
+            `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/email-images/${path}`,
+            {
+              method: 'POST',
+              headers: {
+                'apikey': supabaseServiceKey,
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'Content-Type': inline.mimeType,
+                'x-upsert': 'true',
+              },
+              body: buffer,
+            }
+          );
+
+          if (uploadRes.ok) {
+            cidToUrl[inline.cid] = `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/public/email-images/${path}`;
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // Rewrite cid: references in HTML
+      for (const [cid, url] of Object.entries(cidToUrl)) {
+        const escapedCid = cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        bodyHtml = bodyHtml.replace(new RegExp(`cid:${escapedCid}`, 'g'), url);
       }
 
       await prisma.activityLog.create({
@@ -109,7 +198,11 @@ export async function POST(request: NextRequest) {
           fromEmail: from,
           toEmail: to,
           gmailThreadId: message.threadId,
-          metadata: { gmailMessageId: message.id },
+          metadata: JSON.parse(JSON.stringify({
+            gmailMessageId: message.id,
+            bodyHtml: bodyHtml || undefined,
+            hasHtml: bodyHtml.length > 0,
+          })),
         },
       });
     }
