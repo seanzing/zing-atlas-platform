@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getStripe } from "@/lib/stripe-client";
-import { ORG_ID } from "@/lib/constants";
+import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,6 +88,196 @@ export async function POST(request: NextRequest) {
 
     const eventType = event.type;
     const eventObject = event.data?.object;
+
+    // ── checkout.session.completed ──
+    if (eventType === "checkout.session.completed") {
+      const session = eventObject;
+      const sessionId = session?.id as string;
+
+      // Re-fetch session with line_items expanded to get product info
+      const stripe = getStripe();
+      const fullSession = await stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ["line_items.data.price.product"],
+      });
+
+      const customerDetails = fullSession.customer_details;
+      const email = customerDetails?.email;
+      const customerName = customerDetails?.name ?? "";
+      const phone = customerDetails?.phone ?? null;
+
+      if (!email) {
+        logger.warn({ eventId }, "checkout.session.completed: no customer email");
+        return NextResponse.json({ received: true, skipped: "no_email" });
+      }
+
+      // Determine tier from product name
+      const lineItem = fullSession.line_items?.data?.[0];
+      const product = lineItem?.price?.product as
+        | { name?: string; id?: string }
+        | null;
+      const productName = (product?.name ?? "").toLowerCase();
+
+      let tierKey: "DISCOVER" | "BOOST" | "DOMINATE" = "DISCOVER";
+      if (productName.includes("dominate")) {
+        tierKey = "DOMINATE";
+      } else if (
+        productName.includes("boost") &&
+        !productName.includes("gbp boost")
+      ) {
+        tierKey = "BOOST";
+      } else if (productName.includes("discover")) {
+        tierKey = "DISCOVER";
+      } else {
+        logger.warn(
+          { eventId, productName },
+          "checkout.session.completed: unrecognized product name, defaulting to DISCOVER"
+        );
+      }
+
+      // Find or create Contact
+      let contact = await prisma.contact.findFirst({
+        where: { email, organizationId: ORG_ID, deletedAt: null },
+      });
+
+      if (!contact) {
+        contact = await prisma.contact.create({
+          data: {
+            organizationId: ORG_ID,
+            name: customerName || email,
+            email,
+            phone,
+            leadSource: "stripe",
+          },
+        });
+        logger.info(
+          { contactId: contact.id, email },
+          "checkout.session.completed: created new contact"
+        );
+      }
+
+      // Find the Atlas Product record for this tier
+      const atlasProduct = await prisma.product.findFirst({
+        where: {
+          organizationId: ORG_ID,
+          description: { contains: tierKey },
+        },
+      });
+
+      // Create Deal
+      const amountTotal = (fullSession.amount_total ?? 0) / 100;
+      const stripeSubscriptionId =
+        typeof fullSession.subscription === "string"
+          ? fullSession.subscription
+          : typeof fullSession.subscription === "object" &&
+              fullSession.subscription !== null
+            ? (fullSession.subscription as { id: string }).id
+            : null;
+
+      const deal = await prisma.deal.create({
+        data: {
+          organizationId: ORG_ID,
+          contactId: contact.id,
+          contactName: customerName || null,
+          title: `${customerName || email} – ${tierKey}`,
+          stage: "won",
+          paymentStatus: "won",
+          value: amountTotal,
+          productId: atlasProduct?.id ?? null,
+          stripeSubscriptionId: stripeSubscriptionId ?? null,
+          wonDate: new Date(),
+        },
+      });
+
+      // Create Onboarding with task items
+      const wonDate = new Date();
+      const onboarding = await prisma.onboarding.create({
+        data: {
+          organizationId: ORG_ID,
+          dealId: deal.id,
+          customerName: customerName || null,
+          email,
+          phone,
+          productId: atlasProduct?.id ?? null,
+          value: amountTotal,
+          wonDate,
+          websiteStatus: "not_started",
+        },
+      });
+
+      // Build task items using the same constants as the deals route
+      const taskTypes = PRODUCT_TASK_MAP[tierKey];
+      if (taskTypes) {
+        await prisma.onboardingItem.createMany({
+          data: taskTypes.map((taskType, idx) => {
+            const template = ONBOARDING_TASK_TEMPLATES[taskType];
+            return {
+              onboardingId: onboarding.id,
+              itemName: template.itemName,
+              taskType: template.taskType,
+              ownerRole: template.ownerRole,
+              stage: "pending",
+              currentStatus: template.statusOptions[0]?.value ?? "not_started",
+              statusOptions: JSON.parse(
+                JSON.stringify(template.statusOptions)
+              ),
+              isConditional: template.isConditional,
+              isActive: idx === 0,
+              owner: null,
+              dueDate: addDays(wonDate, template.daysOffset),
+            };
+          }),
+        });
+      }
+
+      // Create AR account
+      await prisma.arAccount.create({
+        data: {
+          organizationId: ORG_ID,
+          customerName: customerName || null,
+          email,
+          phone,
+          status: "paid",
+          mrr: amountTotal,
+          amountPaid: amountTotal,
+          paidDate: new Date(),
+          lastPaymentDate: new Date(),
+          stripeStatus: `paid:${eventId}`,
+          daysPastDue: 0,
+        },
+      });
+
+      // Log activity
+      await prisma.activityLog.create({
+        data: {
+          organizationId: ORG_ID,
+          contactId: contact.id,
+          onboardingId: onboarding.id,
+          type: "note",
+          subject: `New customer — ${tierKey} plan`,
+          body: `Customer signed up via Stripe Checkout. Product: ${product?.name ?? "unknown"}. Amount: $${amountTotal.toFixed(2)}.`,
+        },
+      });
+
+      logger.info(
+        {
+          eventId,
+          contactId: contact.id,
+          dealId: deal.id,
+          onboardingId: onboarding.id,
+          tierKey,
+        },
+        "checkout.session.completed: new customer created"
+      );
+
+      return NextResponse.json({
+        received: true,
+        processed: "checkout_completed",
+        contactId: contact.id,
+        dealId: deal.id,
+        onboardingId: onboarding.id,
+        tier: tierKey,
+      });
+    }
 
     // ── customer.subscription.created ──
     if (eventType === "customer.subscription.created") {
