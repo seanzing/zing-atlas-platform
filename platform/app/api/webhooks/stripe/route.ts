@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
     const eventObject = event.data?.object;
 
     // ── checkout.session.completed ──
-    if (eventType === "checkout.session.completed") {
+    // Gated by STRIPE_AUTO_ONBOARD=true — disabled during HubSpot dual-system period
+    if (eventType === "checkout.session.completed" && process.env.STRIPE_AUTO_ONBOARD === "true") {
       const session = eventObject;
       const sessionId = session?.id as string;
 
