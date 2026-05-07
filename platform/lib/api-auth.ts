@@ -9,7 +9,7 @@ export async function requireAuth(): Promise<
   | { user: { id: string; email?: string }; error?: never }
   | { user?: never; error: NextResponse }
 > {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const {
     data: { user },
     error,

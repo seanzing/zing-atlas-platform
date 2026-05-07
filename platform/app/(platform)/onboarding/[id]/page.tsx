@@ -36,6 +36,15 @@ const TRACK_COLORS: Record<string, string> = {
   ai_chat: Z.turquoise,
 };
 
+function parseNotes(raw: unknown): Record<string, unknown> | null {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+  return null;
+}
+
 interface OnboardingItem {
   id: string;
   itemName: string | null;
@@ -196,7 +205,7 @@ export default function OnboardingDetailPage() {
     if (!websiteItem) { setLinkingSite(false); return; }
 
     // Store pixelSiteId in the website task item's notes
-    const existingNotes = (websiteItem.notes as Record<string, unknown>) ?? {};
+    const existingNotes = parseNotes(websiteItem.notes) ?? {};
     await fetch(`/api/onboarding/items/${websiteItem.id}/note`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -204,14 +213,16 @@ export default function OnboardingDetailPage() {
     });
 
     // Also update Pixel to store atlasOnboardingId (best effort)
-    const pixelUrl = process.env.NEXT_PUBLIC_PIXEL_URL || "https://pixel.yourwebsiteexample.com";
-    try {
-      await fetch(`${pixelUrl}/api/sites/${linkSiteId.trim()}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ atlasOnboardingId: id }),
-      });
-    } catch { /* non-fatal */ }
+    const pixelUrl = process.env.NEXT_PUBLIC_PIXEL_URL;
+    if (pixelUrl) {
+      try {
+        await fetch(`${pixelUrl}/api/sites/${linkSiteId.trim()}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ atlasOnboardingId: id }),
+        });
+      } catch { /* non-fatal */ }
+    }
 
     mutate();
     setLinkSiteId("");
@@ -408,7 +419,7 @@ export default function OnboardingDetailPage() {
                 </select>
                 {(() => {
                   const websiteItem = ob.items.find((i) => i.taskType === "website");
-                  const notes = websiteItem?.notes as Record<string, unknown> | null;
+                  const notes = parseNotes(websiteItem?.notes);
                   const pixelSiteId = notes?.pixelSiteId as string | undefined;
                   if (pixelSiteId) {
                     return (
@@ -632,7 +643,7 @@ function TaskItemRow({
 }) {
   const isComplete = item.stage === "complete" || item.completedAt != null;
   const [note, setNote] = useState(() => {
-    const n = item.notes as Record<string, unknown> | null;
+    const n = parseNotes(item.notes);
     return (n?.userNote as string) ?? "";
   });
   const [savingNote, setSavingNote] = useState(false);

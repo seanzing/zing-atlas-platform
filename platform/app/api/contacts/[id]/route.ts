@@ -218,6 +218,17 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       prisma.deal.deleteMany({
         where: { contactId: id },
       }),
+      // Delete activity logs for contact
+      prisma.activityLog.deleteMany({
+        where: { contactId: id },
+      }),
+      // Delete notifications referencing contact deals/onboardings
+      prisma.notification.deleteMany({
+        where: {
+          organizationId: ORG_ID,
+          link: { contains: id },
+        },
+      }),
       // Delete the contact itself
       prisma.contact.delete({
         where: { id },

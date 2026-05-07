@@ -138,7 +138,7 @@ export async function getThreadReplies(
         const path = `${contactId}/${msg.id}/${safeCid}.${ext}`;
 
         const uploadRes = await fetch(
-          `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/email-images/${path}`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/email-images/${path}`,
           {
             method: 'POST',
             headers: {
@@ -152,7 +152,7 @@ export async function getThreadReplies(
         );
 
         if (uploadRes.ok) {
-          cidToUrl[inline.cid] = `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/public/email-images/${path}`;
+          cidToUrl[inline.cid] = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/email-images/${path}`;
         }
       } catch {
         // Non-fatal — image stays as cid: reference

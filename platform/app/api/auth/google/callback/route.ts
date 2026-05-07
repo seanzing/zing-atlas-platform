@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get session to find which team member is connecting
-    const supabase = createSupabaseServer();
-    const { data: { session } } = await supabase.auth.getSession();
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/login`
       );
@@ -38,14 +38,14 @@ export async function GET(request: NextRequest) {
     const updated = await prisma.teamMember.updateMany({
       where: {
         organizationId: ORG_ID,
-        email: session.user.email,
+        email: user.email,
         deletedAt: null,
       },
       data: { googleRefreshToken: refreshToken },
     });
 
     if (updated.count === 0) {
-      logger.warn({ email: session.user.email }, "No TeamMember found to store Google token");
+      logger.warn({ email: user.email }, "No TeamMember found to store Google token");
     } else {
       logger.info({ email: googleEmail }, "Google account connected for team member");
 
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
           if (watchRes.data.historyId) {
             const member = await prisma.teamMember.findFirst({
-              where: { email: session.user.email, organizationId: ORG_ID, deletedAt: null },
+              where: { email: user.email, organizationId: ORG_ID, deletedAt: null },
             });
             if (member) {
               await prisma.teamMember.update({

@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const supabase = createSupabaseServer();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.email) {
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
       return NextResponse.json({ connected: false });
     }
 
     const member = await prisma.teamMember.findFirst({
-      where: { organizationId: ORG_ID, email: session.user.email, deletedAt: null },
+      where: { organizationId: ORG_ID, email: user.email, deletedAt: null },
       select: { googleRefreshToken: true },
     });
 

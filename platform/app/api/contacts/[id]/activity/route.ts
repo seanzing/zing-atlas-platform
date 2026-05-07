@@ -106,7 +106,8 @@ export async function GET(
         createdAt: e.createdAt.toISOString(),
       })),
     });
-  } catch {
-    return NextResponse.json({ threads: [], standalone: [] });
+  } catch (err) {
+    console.error("[activity] error fetching activity:", err);
+    return NextResponse.json({ error: "Failed to fetch activity" }, { status: 500 });
   }
 }

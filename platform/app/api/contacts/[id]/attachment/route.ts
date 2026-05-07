@@ -81,7 +81,7 @@ export async function GET(
 
       // Upload to Supabase Storage
       const uploadRes = await fetch(
-        `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/email-images/${storagePath}`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/email-images/${storagePath}`,
         {
           method: "POST",
           headers: {
@@ -98,7 +98,7 @@ export async function GET(
         return NextResponse.json({ error: "Upload failed" }, { status: 500 });
       }
 
-      const publicUrl = `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/public/email-images/${storagePath}`;
+      const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/email-images/${storagePath}`;
       const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`;
 
       // Redirect to Google Docs Viewer
@@ -123,9 +123,10 @@ export async function GET(
 
     // Inline for natively renderable types in view mode, attachment otherwise
     const isInline = mode === "view" && INLINE_TYPES.has(mimeType);
+    const safeFilename = filename.replace(/["\\r\\n]/g, "");
     const disposition = isInline
-      ? `inline; filename="${filename}"`
-      : `attachment; filename="${filename}"`;
+      ? `inline; filename="${safeFilename}"`
+      : `attachment; filename="${safeFilename}"`;
 
     return new NextResponse(buffer, {
       status: 200,

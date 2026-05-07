@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 2. Log to ArTimeline — find or create AR record to attach timeline entry
-    const deal = await prisma.deal.findUnique({ where: { id: dealId } });
+    const deal = await prisma.deal.findFirst({ where: { id: dealId, organizationId: ORG_ID, deletedAt: null } });
     if (deal) {
       // Find existing AR account by email or create a stub
       let arAccount = await prisma.arAccount.findFirst({

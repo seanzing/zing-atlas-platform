@@ -140,7 +140,7 @@ function getFileIcon(mimeType: string): string {
 }
 
 const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ["p", "br", "b", "strong", "i", "em", "u", "a", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "span", "div", "table", "tr", "td", "th", "thead", "tbody", "img", "style"],
+  ALLOWED_TAGS: ["p", "br", "b", "strong", "i", "em", "u", "a", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "span", "div", "table", "tr", "td", "th", "thead", "tbody", "img"],
   ALLOWED_ATTR: ["href", "src", "alt", "style", "class", "target"],
   FORBID_ATTR: ["onerror", "onload", "onclick"],
   FORCE_BODY: true,
@@ -314,7 +314,7 @@ function InlineReplyBox({
     if (!body.trim()) return;
     setSending(true);
     try {
-      await fetch(`/api/contacts/${contactId}/reply-in-thread`, {
+      const res = await fetch(`/api/contacts/${contactId}/reply-in-thread`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,6 +324,11 @@ function InlineReplyBox({
           gmailThreadId: thread.gmailThreadId,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Failed to send reply");
+        return;
+      }
       setBody("");
       setOpen(false);
       onSent();

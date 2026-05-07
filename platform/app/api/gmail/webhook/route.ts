@@ -7,6 +7,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify Pub/Sub push token
+    const authHeader = request.headers.get("authorization") ?? "";
+    const pubsubToken = process.env.GMAIL_PUBSUB_TOKEN;
+    if (pubsubToken && authHeader !== `Bearer ${pubsubToken}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const data = body.message?.data;
     if (!data) return NextResponse.json({ ok: true });
@@ -160,7 +167,7 @@ export async function POST(request: NextRequest) {
           const path = `${activityEntry.contactId}/${message.id}/${safeCid}.${ext}`;
 
           const uploadRes = await fetch(
-            `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/email-images/${path}`,
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/email-images/${path}`,
             {
               method: 'POST',
               headers: {
@@ -174,7 +181,7 @@ export async function POST(request: NextRequest) {
           );
 
           if (uploadRes.ok) {
-            cidToUrl[inline.cid] = `https://nxmvslehqxvvcfunimvx.supabase.co/storage/v1/object/public/email-images/${path}`;
+            cidToUrl[inline.cid] = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/email-images/${path}`;
           }
         } catch {
           // Non-fatal
@@ -208,7 +215,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error("[gmail-webhook] error processing notification:", err);
     // Always return 200 to Pub/Sub to avoid retries
     return NextResponse.json({ ok: true });
   }

@@ -46,6 +46,13 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const template = await prisma.emailTemplate.findFirst({
+      where: { id, organizationId: ORG_ID, deletedAt: null },
+    });
+    if (!template) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+
     await prisma.emailTemplate.update({
       where: { id },
       data: { deletedAt: new Date() },

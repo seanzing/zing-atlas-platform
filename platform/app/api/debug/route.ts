@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Not available" }, { status: 404 });
+  }
   const checks: Record<string, unknown> = {};
 
   // Check 1: Supabase env vars available on server
@@ -14,7 +17,7 @@ export async function GET() {
 
   // Check 2: Auth session
   try {
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const { data: { user }, error } = await supabase.auth.getUser();
     checks.authUser = user?.email ?? null;
     checks.authError = error?.message ?? null;

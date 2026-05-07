@@ -8,7 +8,7 @@ import { serialize } from "@/lib/serialize";
 export const dynamic = "force-dynamic";
 
 const PIXEL_API_URL = "https://pixel.yourwebsiteexample.com/api/sites";
-const PIXEL_SECRET = "zing-pixel-internal-2026";
+const PIXEL_SECRET = process.env.PIXEL_API_SECRET || "";
 
 function slugify(name: string): string {
   return name

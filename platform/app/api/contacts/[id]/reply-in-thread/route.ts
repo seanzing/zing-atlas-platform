@@ -36,7 +36,13 @@ export async function POST(
       );
     }
 
-    const fromEmail = auth.user.email!;
+    const fromEmail = auth.user.email;
+    if (!fromEmail) {
+      return NextResponse.json(
+        { error: "No email on auth user" },
+        { status: 400 }
+      );
+    }
 
     const htmlBody = body
       .replace(/&/g, "&amp;")

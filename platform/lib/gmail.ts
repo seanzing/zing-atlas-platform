@@ -83,10 +83,13 @@ export async function exchangeGoogleCode(code: string): Promise<{
   const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
   const { data } = await oauth2.userinfo.get();
 
+  if (!tokens.access_token) throw new Error("No access token received from Google");
+  if (!data.email) throw new Error("No email received from Google");
+
   return {
-    accessToken: tokens.access_token!,
+    accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
-    email: data.email!,
+    email: data.email,
   };
 }
 

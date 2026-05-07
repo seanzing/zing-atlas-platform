@@ -32,6 +32,10 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Onboarding item not found" }, { status: 404 });
     }
 
+    if (item.onboarding?.deletedAt) {
+      return NextResponse.json({ error: "Onboarding not found" }, { status: 404 });
+    }
+
     // Parse statusOptions
     const statusOptions: StatusOption[] = Array.isArray(item.statusOptions)
       ? (item.statusOptions as unknown as StatusOption[])

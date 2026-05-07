@@ -15,6 +15,14 @@ export async function PUT(
     const auth = await requireAuth();
     if (auth.error) return auth.error;
 
+    const requestingMember = await prisma.teamMember.findFirst({
+      where: { supabaseUserId: auth.user.id, organizationId: ORG_ID, deletedAt: null },
+      select: { role: true },
+    });
+    if (requestingMember?.role !== "admin") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await request.json();
 
