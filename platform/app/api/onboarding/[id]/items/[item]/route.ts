@@ -39,7 +39,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { stage, owner, dueDate } = body;
+    const { stage, owner, dueDate, assignedTeamMemberId } = body;
 
     const updatedItem = await prisma.onboardingItem.update({
       where: { id: itemId },
@@ -47,6 +47,7 @@ export async function PUT(
         ...(stage !== undefined && { stage }),
         ...(owner !== undefined && { owner }),
         ...(dueDate !== undefined && { dueDate }),
+        ...(assignedTeamMemberId !== undefined && { assignedTeamMemberId }),
       },
     });
 

@@ -19,10 +19,22 @@ interface OnboardingItem {
   statusOptions: { value: string; label: string }[] | null;
   stage: string | null;
   owner: string | null;
+  assignedTeamMemberId: string | null;
   dueDate: string | null;
   completedAt: string | null;
   isActive: boolean;
   notes: string | null;
+}
+
+interface TeamMember {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: string | null;
+}
+
+function memberName(m: TeamMember): string {
+  return [m.firstName, m.lastName].filter(Boolean).join(" ") || "Unknown";
 }
 
 interface Onboarding {
@@ -76,7 +88,9 @@ const NAV_TABS = [
 
 export default function OnboardingByCustomerPage() {
   const { data: onboardings } = useSWR<Onboarding[]>("/api/onboarding?status=active");
+  const { data: teamMembers } = useSWR<TeamMember[]>("/api/team");
   const [search, setSearch] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [selectedOb, setSelectedOb] = useState<Onboarding | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [, setSavingNote] = useState<string | null>(null);
@@ -101,19 +115,19 @@ export default function OnboardingByCustomerPage() {
 
   // Filter
   const filtered = list.filter((o) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      (o.businessName ?? "").toLowerCase().includes(q) ||
-      (o.customerName ?? "").toLowerCase().includes(q) ||
-      (o.rep ?? "").toLowerCase().includes(q)
-    );
+    if (search) {
+      const q = search.toLowerCase();
+      if (
+        !(o.businessName ?? "").toLowerCase().includes(q) &&
+        !(o.customerName ?? "").toLowerCase().includes(q) &&
+        !(o.rep ?? "").toLowerCase().includes(q)
+      ) return false;
+    }
+    if (assigneeFilter !== "all") {
+      return o.items.some((i) => i.assignedTeamMemberId === assigneeFilter);
+    }
+    return true;
   });
-
-  function getDesigner(ob: Onboarding): string {
-    const websiteItem = ob.items.find((i) => i.taskType === "website");
-    return websiteItem?.owner ?? "—";
-  }
 
   function getProgress(ob: Onboarding): { done: number; total: number } {
     const total = ob.items.length;
@@ -316,6 +330,28 @@ export default function OnboardingByCustomerPage() {
         <SearchBar value={search} onChange={setSearch} placeholder="Search by business, customer, or rep..." />
       </div>
 
+      {/* Assignee filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {[{ id: "all", label: "All" }, ...(teamMembers || []).map((m) => ({ id: m.id, label: memberName(m) }))].map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setAssigneeFilter(opt.id)}
+            style={{
+              padding: "5px 14px",
+              borderRadius: 99,
+              border: `1px solid ${assigneeFilter === opt.id ? Z.ultramarine : Z.border}`,
+              background: assigneeFilter === opt.id ? Z.ultramarine : "transparent",
+              color: assigneeFilter === opt.id ? "#fff" : Z.textSecondary,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, overflow: "hidden" }}>
         <div
@@ -334,7 +370,7 @@ export default function OnboardingByCustomerPage() {
           <div>Business Name</div>
           <div>Customer</div>
           <div>Product</div>
-          <div>Designer</div>
+          <div>Assigned</div>
           <div>Progress</div>
           <div>Status</div>
           <div>Won Date</div>
@@ -364,7 +400,42 @@ export default function OnboardingByCustomerPage() {
               <div style={{ fontWeight: 700 }}>{ob.businessName ?? "—"}</div>
               <div style={{ color: Z.textSecondary }}>{ob.customerName ?? "—"}</div>
               <div><Badge label={ob.product?.description?.split(" - ")[0] ?? "—"} color={Z.ultramarine} /></div>
-              <div style={{ color: Z.textSecondary }}>{getDesigner(ob)}</div>
+              <div onClick={(e) => e.stopPropagation()}>
+                {(() => {
+                  const websiteItem = ob.items.find((i) => i.taskType === "website");
+                  const currentId = websiteItem?.assignedTeamMemberId ?? "";
+                  return (
+                    <select
+                      value={currentId}
+                      onChange={async (e) => {
+                        const newId = e.target.value;
+                        if (!websiteItem) return;
+                        await fetch(`/api/onboarding/${ob.id}/items/${websiteItem.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ assignedTeamMemberId: newId || null }),
+                        });
+                        mutate("/api/onboarding?status=active");
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: currentId ? Z.textPrimary : Z.textMuted,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        padding: 0,
+                        outline: "none",
+                        maxWidth: 130,
+                      }}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {(teamMembers || []).map((m) => (
+                        <option key={m.id} value={m.id}>{memberName(m)}</option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ flex: 1, height: 6, borderRadius: 3, background: Z.borderLight, overflow: "hidden" }}>
                   <div style={{ width: `${pct}%`, height: "100%", background: Z.turquoise, borderRadius: 3, transition: "width 0.3s" }} />
@@ -509,9 +580,44 @@ export default function OnboardingByCustomerPage() {
                       <Badge label={statusLabel} color={statusColor} />
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 16, fontSize: 11, color: Z.textMuted }}>
+                  <div style={{ display: "flex", gap: 16, fontSize: 11, color: Z.textMuted, alignItems: "center" }}>
                     <span>Due: {fmtDate(item.dueDate)}</span>
-                    {item.owner && <span>Owner: {item.owner}</span>}
+                    <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 11, color: Z.textMuted }}>Assigned:</span>
+                      <select
+                        value={item.assignedTeamMemberId ?? ""}
+                        onChange={async (e) => {
+                          const newId = e.target.value;
+                          await fetch(`/api/onboarding/${selectedOb.id}/items/${item.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ assignedTeamMemberId: newId || null }),
+                          });
+                          setSelectedOb({
+                            ...selectedOb,
+                            items: selectedOb.items.map((i) =>
+                              i.id === item.id ? { ...i, assignedTeamMemberId: newId || null } : i
+                            ),
+                          });
+                          mutate("/api/onboarding?status=active");
+                        }}
+                        style={{
+                          background: "none",
+                          border: `1px solid ${Z.borderLight}`,
+                          borderRadius: 6,
+                          color: item.assignedTeamMemberId ? Z.textPrimary : Z.textMuted,
+                          fontSize: 11,
+                          cursor: "pointer",
+                          padding: "2px 6px",
+                          outline: "none",
+                        }}
+                      >
+                        <option value="">Unassigned</option>
+                        {(teamMembers || []).map((m) => (
+                          <option key={m.id} value={m.id}>{memberName(m)}</option>
+                        ))}
+                      </select>
+                    </div>
                     {item.completedAt && <span>Completed: {fmtDate(item.completedAt)}</span>}
                   </div>
 

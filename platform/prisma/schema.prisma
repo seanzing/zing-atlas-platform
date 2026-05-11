@@ -258,10 +258,11 @@ model OnboardingItem {
   ownerRole       String?   @map("owner_role")
   currentStatus   String?   @map("current_status")
   statusOptions   Json?     @map("status_options")
-  isConditional   Boolean   @default(false) @map("is_conditional")
-  isActive        Boolean   @default(true) @map("is_active")
-  completedAt     DateTime? @map("completed_at")
-  notes           String?   @db.Text
+  isConditional         Boolean   @default(false) @map("is_conditional")
+  isActive              Boolean   @default(true) @map("is_active")
+  completedAt           DateTime? @map("completed_at")
+  notes                 String?   @db.Text
+  assignedTeamMemberId  String?   @map("assigned_team_member_id") @db.Uuid
 
   onboarding      Onboarding @relation(fields: [onboardingId], references: [id])
   notifications   OnboardingNotification[]
