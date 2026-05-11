@@ -53,6 +53,8 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   // New contact form state
   const [formName, setFormName] = useState("");
@@ -106,6 +108,58 @@ export default function ContactsPage() {
     setFormStatus("Active Lead");
     setFormLeadSource("Email");
     setFormNotes("");
+  };
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const someFilteredSelected =
+    filtered.some((c) => selectedIds.has(c.id)) && !allFilteredSelected;
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filtered.forEach((c) => next.delete(c.id));
+      } else {
+        filtered.forEach((c) => next.add(c.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkStatusChange = async (newStatus: string) => {
+    if (!newStatus || selectedIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/contacts/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus }),
+          })
+        )
+      );
+      await mutate();
+      clearSelection();
+      showToast(`Updated ${ids.length} contact${ids.length === 1 ? "" : "s"}`, true);
+    } catch {
+      showToast("Failed to update contacts", false);
+    } finally {
+      setBulkUpdating(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -237,12 +291,24 @@ export default function ContactsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 1fr",
+            gridTemplateColumns: "40px 2fr 2fr 1fr 1fr 1fr 1fr 1fr",
             padding: "14px 24px",
             borderBottom: `1px solid ${Z.border}`,
             background: Z.bg,
+            alignItems: "center",
           }}
         >
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someFilteredSelected;
+                }}
+                onChange={toggleSelectAll}
+                style={{ cursor: "pointer", width: 16, height: 16 }}
+              />
+            </div>
           {["Name", "Email", "Company", "Campaign", "Lead Source", "Status", "Value"].map(
             (h) => (
               <div
@@ -264,6 +330,7 @@ export default function ContactsPage() {
         {/* Rows */}
         {filtered.map((c, i) => {
           const campaign = c.campaignId ? campaignMap.get(c.campaignId) : null;
+          const isSelected = selectedIds.has(c.id);
           return (
             <div
               key={c.id}
@@ -272,15 +339,33 @@ export default function ContactsPage() {
               onMouseLeave={() => setHoveredRow(null)}
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "40px 2fr 2fr 1fr 1fr 1fr 1fr 1fr",
                 padding: "14px 24px",
                 alignItems: "center",
                 borderBottom: `1px solid ${Z.borderLight}`,
                 cursor: "pointer",
-                background: hoveredRow === c.id ? Z.bg : "transparent",
+                background: isSelected
+                  ? `${Z.ultramarine}10`
+                  : hoveredRow === c.id
+                  ? Z.bg
+                  : "transparent",
                 transition: "background 0.15s",
               }}
             >
+              {/* Checkbox */}
+              <div
+                style={{ display: "flex", alignItems: "center" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelectOne(c.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ cursor: "pointer", width: 16, height: 16 }}
+                />
+              </div>
+
               {/* Name */}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Avatar initials={getInitials(c.name)} index={i} size={32} />
@@ -486,6 +571,91 @@ export default function ContactsPage() {
           <Btn onClick={handleCreate}>Create Contact</Btn>
         </div>
       </Modal>
+
+      {/* Sticky bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: Z.oxford,
+            color: "#fff",
+            borderRadius: 12,
+            padding: "12px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            boxShadow: "0 10px 32px rgba(5, 5, 54, 0.35)",
+            zIndex: 100,
+            minWidth: 480,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            {selectedIds.size} contact{selectedIds.size === 1 ? "" : "s"} selected
+          </div>
+          <div style={{ flex: 1 }} />
+          <select
+            value=""
+            disabled={bulkUpdating}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) handleBulkStatusChange(val);
+            }}
+            style={{
+              padding: "8px 12px",
+              background: "rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: bulkUpdating ? "not-allowed" : "pointer",
+              outline: "none",
+            }}
+          >
+            <option value="" style={{ color: Z.textPrimary }}>
+              {bulkUpdating ? "Updating..." : "Change Status"}
+            </option>
+            <option value="Active Lead" style={{ color: Z.textPrimary }}>
+              Active Lead
+            </option>
+            <option value="Live Customer" style={{ color: Z.textPrimary }}>
+              Live Customer
+            </option>
+            <option value="Cancelled" style={{ color: Z.textPrimary }}>
+              Cancelled
+            </option>
+            <option value="DNC" style={{ color: Z.textPrimary }}>
+              DNC
+            </option>
+          </select>
+          <button
+            onClick={clearSelection}
+            disabled={bulkUpdating}
+            style={{
+              padding: "8px 14px",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: bulkUpdating ? "not-allowed" : "pointer",
+            }}
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
+
       <Toast toast={toast} />
     </div>
   );
