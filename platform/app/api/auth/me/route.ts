@@ -34,6 +34,7 @@ export async function GET() {
         firstName: true,
         lastName: true,
         role: true,
+        department: true,
         email: true,
       },
     });
@@ -46,6 +47,7 @@ export async function GET() {
             firstName: teamMember.firstName,
             lastName: teamMember.lastName,
             role: teamMember.role,
+            department: teamMember.department,
           }
         : null,
       isAdmin: teamMember?.role === "Admin",

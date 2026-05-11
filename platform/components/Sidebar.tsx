@@ -7,6 +7,14 @@ import { Z, NAV_ITEMS } from "@/lib/constants";
 import { useAuthContext } from "@/lib/auth-context";
 import NotificationBell from "@/components/NotificationBell";
 
+const DEPT_NAV: Record<string, string[]> = {
+  designer:   ["dashboard", "onboarding", "tasks", "settings"],
+  onboarding: ["dashboard", "contacts", "onboarding", "tasks", "support", "settings"],
+  publishing: ["dashboard", "onboarding", "tasks", "settings"],
+  sales:      ["dashboard", "contacts", "pipeline", "support", "ar", "settings"],
+  all:        [],
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [hovered, setHovered] = useState<string | null>(null);
@@ -19,6 +27,11 @@ export default function Sidebar() {
     ? `${user.teamMember.firstName || ""} ${user.teamMember.lastName || ""}`.trim()
     : user?.email || "";
   const displayRole = user?.teamMember?.role || "User";
+  const dept = user?.teamMember?.department ?? "all";
+  const allowedKeys = DEPT_NAV[dept] ?? [];
+  const visibleNavItems = allowedKeys.length === 0
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter(item => allowedKeys.includes(item.key));
 
   return (
     <div
@@ -79,7 +92,7 @@ export default function Sidebar() {
 
       {/* Nav Items */}
       <div style={{ flex: 1 }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const active =
             pathname === item.href ||
             (item.key === "contacts" && pathname.startsWith("/contacts")) ||
@@ -230,7 +243,7 @@ export default function Sidebar() {
             >
               {displayName}
             </div>
-            <div style={{ color: "#ffffff45", fontSize: 10 }}>{displayRole}</div>
+            <div style={{ color: "#ffffff45", fontSize: 10 }}>{displayRole}{dept !== "all" ? ` · ${dept}` : ""}</div>
           </div>
         </div>
         </Link>

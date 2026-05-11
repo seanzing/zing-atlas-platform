@@ -168,6 +168,7 @@ model TeamMember {
   monthlyTarget   Decimal?  @map("monthly_target") @db.Decimal(12, 2)
   role            String?
   position           String?
+  department         String?
   supabaseUserId     String?  @unique @map("supabase_user_id")
   googleRefreshToken String?  @map("google_refresh_token")
   gmailHistoryId    String?  @map("gmail_history_id")

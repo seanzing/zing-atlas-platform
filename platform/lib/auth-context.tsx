@@ -20,6 +20,7 @@ export interface AuthUser {
     firstName: string;
     lastName: string;
     role: string;
+    department: string | null;
   } | null;
   isAdmin: boolean;
 }

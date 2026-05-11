@@ -25,9 +25,18 @@ interface TeamMember {
   monthlyTarget: number;
   role: string;
   position: string | null;
+  department: string | null;
   supabaseUserId: string | null;
   active: boolean;
 }
+
+const DEPARTMENT_OPTIONS = [
+  { value: "all",        label: "All (Generalist)" },
+  { value: "designer",   label: "Designer" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "publishing", label: "Publishing" },
+  { value: "sales",      label: "Sales" },
+];
 
 const POSITION_OPTIONS = [
   { value: "", label: "None" },
@@ -415,6 +424,7 @@ export default function SettingsPage() {
   const [tmRole, setTmRole] = useState("Sales Rep");
   const [tmTarget, setTmTarget] = useState("");
   const [tmPosition, setTmPosition] = useState("");
+  const [tmDepartment, setTmDepartment] = useState("all");
 
   // Invite modal
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -422,6 +432,7 @@ export default function SettingsPage() {
   const [invLastName, setInvLastName] = useState("");
   const [invEmail, setInvEmail] = useState("");
   const [invPosition, setInvPosition] = useState("");
+  const [invDepartment, setInvDepartment] = useState("all");
   const [inviting, setInviting] = useState(false);
 
   // Campaign modal
@@ -818,6 +829,8 @@ export default function SettingsPage() {
     setTmRole("Sales Rep");
     setTmTarget("");
     setTmPosition("");
+    setTmDepartment("all");
+    setInvDepartment("all");
     setEditingMember(null);
   };
 
@@ -830,6 +843,7 @@ export default function SettingsPage() {
     setTmRole(m.role);
     setTmTarget(String(m.monthlyTarget));
     setTmPosition(m.position || "");
+    setTmDepartment(m.department || "all");
     setTeamModalOpen(true);
   };
 
@@ -843,6 +857,7 @@ export default function SettingsPage() {
       role: tmRole,
       monthlyTarget: tmTarget ? parseFloat(tmTarget) : 0,
       position: tmPosition || null,
+      department: tmDepartment,
     };
 
     try {
@@ -878,6 +893,7 @@ export default function SettingsPage() {
           lastName: invLastName,
           email: invEmail,
           position: invPosition || undefined,
+          department: invDepartment,
         }),
       });
       if (!res.ok) {
@@ -892,6 +908,7 @@ export default function SettingsPage() {
       setInvLastName("");
       setInvEmail("");
       setInvPosition("");
+      setInvDepartment("all");
       showToast(`Invite sent to ${invEmail}`);
     } catch {
       showToast("Failed to send invite");
@@ -1651,6 +1668,13 @@ export default function SettingsPage() {
             options={POSITION_OPTIONS}
           />
         </FormField>
+        <FormField label="Department">
+          <Select
+            value={tmDepartment}
+            onChange={setTmDepartment}
+            options={DEPARTMENT_OPTIONS}
+          />
+        </FormField>
         <FormField label="Monthly Target ($)">
           <Input
             value={tmTarget}
@@ -1719,6 +1743,13 @@ export default function SettingsPage() {
             value={invPosition}
             onChange={setInvPosition}
             options={POSITION_OPTIONS}
+          />
+        </FormField>
+        <FormField label="Department">
+          <Select
+            value={invDepartment}
+            onChange={setInvDepartment}
+            options={DEPARTMENT_OPTIONS}
           />
         </FormField>
         <div
