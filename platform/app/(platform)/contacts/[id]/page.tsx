@@ -1206,6 +1206,83 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Notes */}
+          <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 16 }}>Notes</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+              <input
+                value={noteInput}
+                onChange={e => setNoteInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && noteInput.trim()) handleAddNote(); }}
+                placeholder="Add a note..."
+                style={{ flex: 1, padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+              />
+              <Btn onClick={handleAddNote} disabled={!noteInput.trim()}>Add Note</Btn>
+            </div>
+            {(!contactNotes || contactNotes.length === 0) ? (
+              <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No notes yet. Add the first one above.</div>
+            ) : (
+              <div>
+                {contactNotes.map((note, i) => (
+                  <div key={note.id} style={{ paddingBottom: 14, marginBottom: 14, borderBottom: i < contactNotes.length - 1 ? `1px solid ${Z.borderLight}` : "none" }}>
+                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.5, marginBottom: 4 }}>{note.body}</div>
+                    <div style={{ fontSize: 11, color: Z.textMuted }}>{formatRelative(note.createdAt)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Tasks */}
+          <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Tasks</div>
+              <Btn variant="secondary" onClick={() => setShowTaskForm(v => !v)}>+ Add Task</Btn>
+            </div>
+            {showTaskForm && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
+                <input
+                  value={taskTitle}
+                  onChange={e => setTaskTitle(e.target.value)}
+                  placeholder="Task title..."
+                  style={{ flex: 1, padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                />
+                <input
+                  type="date"
+                  value={taskDueDate}
+                  onChange={e => setTaskDueDate(e.target.value)}
+                  style={{ padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                />
+                <Btn onClick={handleAddTask} disabled={!taskTitle.trim()}>Save</Btn>
+                <Btn variant="secondary" onClick={() => { setShowTaskForm(false); setTaskTitle(""); setTaskDueDate(""); }}>Cancel</Btn>
+              </div>
+            )}
+            {(!contactTasks || contactTasks.length === 0) ? (
+              <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No tasks yet.</div>
+            ) : (
+              <div>
+                {contactTasks.map(task => {
+                  const badge = taskDueBadge(task.dueDate);
+                  return (
+                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${Z.borderLight}`, opacity: task.completed ? 0.5 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={task.completed}
+                        onChange={() => handleToggleTask(task.id, !task.completed)}
+                        style={{ width: 16, height: 16, cursor: "pointer", accentColor: Z.ultramarine }}
+                      />
+                      <span style={{ flex: 1, fontSize: 13, color: task.completed ? Z.textMuted : Z.textPrimary, textDecoration: task.completed ? "line-through" : "none" }}>{task.title}</span>
+                      {badge && (
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: badge.bg, color: badge.color }}>{badge.label}</span>
+                      )}
+                      <span style={{ fontSize: 11, color: Z.textMuted }}>{formatRelative(task.createdAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
