@@ -31,6 +31,7 @@ interface Deal {
   value: number;
   stage: string;
   createdAt: string;
+  productId?: string | null;
 }
 
 interface Ticket {
@@ -365,6 +366,11 @@ export default function ContactDetailPage() {
   const [dealValue, setDealValue] = useState("");
   const [dealStage, setDealStage] = useState("call-now");
   const [dealProductId, setDealProductId] = useState("");
+  const [editingDeal, setEditingDeal] = useState<{ id: string; title: string; value: number; stage: string; productId: string | null } | null>(null);
+  const [editDealTitle, setEditDealTitle] = useState("");
+  const [editDealValue, setEditDealValue] = useState("");
+  const [editDealStage, setEditDealStage] = useState("call-now");
+  const [editDealProductId, setEditDealProductId] = useState("");
 
   // Silent background reply check when Activity tab is opened
   useEffect(() => {
@@ -515,6 +521,30 @@ export default function ContactDetailPage() {
     setDealProductId("");
     setAddDealOpen(false);
     mutate();
+  };
+
+  const handleEditDeal = async () => {
+    if (!editingDeal || !editDealTitle.trim()) return;
+    await fetch(`/api/deals/${editingDeal.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: editDealTitle.trim(),
+        value: editDealValue ? parseFloat(editDealValue) : 0,
+        stage: editDealStage,
+        productId: editDealProductId || undefined,
+      }),
+    });
+    setEditingDeal(null);
+    mutate();
+  };
+
+  const openEditDeal = (deal: { id: string; title: string; value: number; stage: string; productId?: string | null }) => {
+    setEditingDeal({ id: deal.id, title: deal.title, value: deal.value, stage: deal.stage, productId: deal.productId ?? null });
+    setEditDealTitle(deal.title);
+    setEditDealValue(String(deal.value || 0));
+    setEditDealStage(deal.stage || "call-now");
+    setEditDealProductId(deal.productId || "");
   };
 
   if (contactError) return (
@@ -976,15 +1006,24 @@ export default function ContactDetailPage() {
                         >
                           {deal.title}
                         </span>
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: Z.textPrimary,
-                          }}
-                        >
-                          {fmt(Number(deal.value) || 0)}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: Z.textPrimary,
+                            }}
+                          >
+                            {fmt(Number(deal.value) || 0)}
+                          </span>
+                          <button
+                            onClick={() => openEditDeal(deal)}
+                            style={{ fontSize: 11, color: Z.textMuted, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
+                            title="Edit deal"
+                          >
+                            ✏️
+                          </button>
+                        </div>
                       </div>
                       <div
                         style={{
@@ -1614,6 +1653,60 @@ export default function ContactDetailPage() {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
           <Btn variant="secondary" onClick={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); setDealProductId(""); }}>Cancel</Btn>
           <Btn onClick={handleAddDeal} disabled={!dealProductId || !dealTitle.trim()}>Create Deal</Btn>
+        </div>
+      </Modal>
+      <Modal
+        open={!!editingDeal}
+        onClose={() => setEditingDeal(null)}
+        title="Edit Deal"
+      >
+        <FormField label="Product">
+          <Select
+            value={editDealProductId}
+            onChange={(val) => {
+              setEditDealProductId(val);
+              const product = (productOptions || []).find(p => p.id === val);
+              if (product) {
+                setEditDealTitle(product.description);
+                setEditDealValue(String(product.price));
+              }
+            }}
+            options={[
+              { value: "", label: "No product / keep existing" },
+              ...(productOptions || []).map(p => ({
+                value: p.id,
+                label: `${p.description} — $${Number(p.price).toFixed(2)}/mo`,
+              })),
+            ]}
+          />
+        </FormField>
+        <FormField label="Title">
+          <Input value={editDealTitle} onChange={setEditDealTitle} placeholder="Deal title" />
+        </FormField>
+        <FormField label="Value ($)">
+          <Input value={editDealValue} onChange={setEditDealValue} placeholder="0" type="number" />
+        </FormField>
+        <FormField label="Stage">
+          <Select
+            value={editDealStage}
+            onChange={setEditDealStage}
+            options={[
+              { value: "call-now", label: "Call Now" },
+              { value: "call-no-answer", label: "Call No Answer" },
+              { value: "hot-72", label: "Hot 72" },
+              { value: "active", label: "Active" },
+              { value: "appointment", label: "Appointment" },
+              { value: "appt-no-show", label: "Appt No Show" },
+              { value: "marketing-appt", label: "Marketing Appt" },
+              { value: "promo-hot", label: "Promo Hot" },
+              { value: "promo-cold", label: "Promo Cold" },
+              { value: "won", label: "Won" },
+            ]}
+          />
+        </FormField>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+          <Btn variant="secondary" onClick={() => setEditingDeal(null)}>Cancel</Btn>
+          <Btn onClick={handleEditDeal} disabled={!editDealTitle.trim()}>Save Changes</Btn>
         </div>
       </Modal>
       <Toast toast={toast} />
