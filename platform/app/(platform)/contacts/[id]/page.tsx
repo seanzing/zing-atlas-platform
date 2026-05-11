@@ -15,6 +15,8 @@ import {
   Btn,
   FormField,
   Input,
+  Modal,
+  Select,
 } from "@/components/ui";
 import {
   Z,
@@ -351,6 +353,10 @@ export default function ContactDetailPage() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const { toast, showToast } = useToast();
+  const [addDealOpen, setAddDealOpen] = useState(false);
+  const [dealTitle, setDealTitle] = useState("");
+  const [dealValue, setDealValue] = useState("");
+  const [dealStage, setDealStage] = useState("call-now");
 
   // Silent background reply check when Activity tab is opened
   useEffect(() => {
@@ -479,6 +485,26 @@ export default function ContactDetailPage() {
       body: JSON.stringify({ completed }),
     });
     mutateTasks();
+  };
+
+  const handleAddDeal = async () => {
+    if (!dealTitle.trim()) return;
+    await fetch("/api/deals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: dealTitle.trim(),
+        value: dealValue ? parseFloat(dealValue) : 0,
+        stage: dealStage,
+        contactId: id,
+        contactName: contact?.name,
+      }),
+    });
+    setDealTitle("");
+    setDealValue("");
+    setDealStage("call-now");
+    setAddDealOpen(false);
+    mutate();
   };
 
   if (contactError) return (
@@ -907,15 +933,9 @@ export default function ContactDetailPage() {
                 padding: "24px 28px",
               }}
             >
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 800,
-                  color: Z.textPrimary,
-                  marginBottom: 16,
-                }}
-              >
-                Deals
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Deals</div>
+                <Btn variant="secondary" onClick={() => setAddDealOpen(true)}>+ Add Deal</Btn>
               </div>
               {contact.deals && contact.deals.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1536,6 +1556,36 @@ export default function ContactDetailPage() {
           )}
         </div>
       )}
+      <Modal open={addDealOpen} onClose={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); }} title="Add Deal">
+        <FormField label="Title">
+          <Input value={dealTitle} onChange={setDealTitle} placeholder="e.g. Website Design — Acme Plumbing" />
+        </FormField>
+        <FormField label="Value ($)">
+          <Input value={dealValue} onChange={setDealValue} placeholder="0" type="number" />
+        </FormField>
+        <FormField label="Stage">
+          <Select
+            value={dealStage}
+            onChange={setDealStage}
+            options={[
+              { value: "call-now", label: "Call Now" },
+              { value: "call-no-answer", label: "Call No Answer" },
+              { value: "hot-72", label: "Hot 72" },
+              { value: "active", label: "Active" },
+              { value: "appointment", label: "Appointment" },
+              { value: "appt-no-show", label: "Appt No Show" },
+              { value: "marketing-appt", label: "Marketing Appt" },
+              { value: "promo-hot", label: "Promo Hot" },
+              { value: "promo-cold", label: "Promo Cold" },
+              { value: "won", label: "Won" },
+            ]}
+          />
+        </FormField>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+          <Btn variant="secondary" onClick={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); }}>Cancel</Btn>
+          <Btn onClick={handleAddDeal} disabled={!dealTitle.trim()}>Create Deal</Btn>
+        </div>
+      </Modal>
       <Toast toast={toast} />
     </div>
   );
