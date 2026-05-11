@@ -41,9 +41,14 @@ interface Ticket {
 
 interface OnboardingItem {
   id: string;
-  itemName: string;
-  status: string;
-  dueDate: string;
+  itemName: string | null;
+  currentStatus: string | null;
+  completedAt: string | null;
+  dueDate: string | null;
+  owner: string | null;
+  ownerRole: string | null;
+  stage: string | null;
+  isActive: boolean;
 }
 
 interface OnboardingRecord {
@@ -238,8 +243,8 @@ function generateTimeline(
         entries.push({
           channel: "Onboarding",
           date: fmtDate(item.dueDate),
-          note: `${item.itemName} - ${item.status}`,
-          color: item.status === "complete" ? "#10b981" : Z.bluejeans,
+          note: `${item.itemName ?? "Untitled"} - ${item.currentStatus ?? "—"}`,
+          color: item.currentStatus === "complete" ? "#10b981" : Z.bluejeans,
         });
       });
     }
@@ -1176,52 +1181,114 @@ export default function ContactDetailPage() {
 
           {/* Tasks */}
           <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Tasks</div>
-              <Btn variant="secondary" onClick={() => setShowTaskForm(v => !v)}>+ Add Task</Btn>
+            {/* Section 1: Onboarding Tasks (read-only) */}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 16 }}>Onboarding Tasks</div>
+              {(() => {
+                const items = (contact.onboarding || []).filter(o => o.isActive);
+                if (items.length === 0) {
+                  return <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No onboarding tasks yet.</div>;
+                }
+                const isComplete = (o: OnboardingItem) => o.completedAt !== null || o.currentStatus === "complete";
+                const incomplete = items.filter(o => !isComplete(o)).sort((a, b) => {
+                  if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                  if (a.dueDate) return -1;
+                  if (b.dueDate) return 1;
+                  return 0;
+                });
+                const complete = items.filter(o => isComplete(o)).sort((a, b) => {
+                  if (a.completedAt && b.completedAt) return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
+                  if (a.completedAt) return -1;
+                  if (b.completedAt) return 1;
+                  return 0;
+                });
+                const ordered = [...incomplete, ...complete];
+                return (
+                  <div>
+                    {ordered.map((item, i) => {
+                      const done = isComplete(item);
+                      const badge = taskDueBadge(item.dueDate);
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "10px 0",
+                            borderBottom: i < ordered.length - 1 ? `1px solid ${Z.borderLight}` : "none",
+                            opacity: done ? 0.5 : 1,
+                          }}
+                        >
+                          <span style={{ width: 16, height: 16, borderRadius: "50%", background: done ? "#10b981" : Z.borderLight, display: "inline-block", flexShrink: 0 }} />
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                            <span style={{ fontSize: 13, color: done ? Z.textMuted : Z.textPrimary, textDecoration: done ? "line-through" : "none" }}>
+                              {item.itemName || "Untitled"}
+                            </span>
+                            {item.owner && (
+                              <span style={{ fontSize: 11, color: Z.textMuted }}>{item.owner}</span>
+                            )}
+                          </div>
+                          {badge && (
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: badge.bg, color: badge.color }}>{badge.label}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
-            {showTaskForm && (
-              <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
-                <input
-                  value={taskTitle}
-                  onChange={e => setTaskTitle(e.target.value)}
-                  placeholder="Task title..."
-                  style={{ flex: 1, padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                />
-                <input
-                  type="date"
-                  value={taskDueDate}
-                  onChange={e => setTaskDueDate(e.target.value)}
-                  style={{ padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                />
-                <Btn onClick={handleAddTask} disabled={!taskTitle.trim()}>Save</Btn>
-                <Btn variant="secondary" onClick={() => { setShowTaskForm(false); setTaskTitle(""); setTaskDueDate(""); }}>Cancel</Btn>
+
+            {/* Section 2: Ad-hoc Tasks */}
+            <div style={{ borderTop: `1px solid ${Z.borderLight}`, marginTop: 24, paddingTop: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Ad-hoc Tasks</div>
+                <Btn variant="secondary" onClick={() => setShowTaskForm(v => !v)}>+ Add Task</Btn>
               </div>
-            )}
-            {(!contactTasks || contactTasks.length === 0) ? (
-              <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No tasks yet.</div>
-            ) : (
-              <div>
-                {contactTasks.map(task => {
-                  const badge = taskDueBadge(task.dueDate);
-                  return (
-                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${Z.borderLight}`, opacity: task.completed ? 0.5 : 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => handleToggleTask(task.id, !task.completed)}
-                        style={{ width: 16, height: 16, cursor: "pointer", accentColor: Z.ultramarine }}
-                      />
-                      <span style={{ flex: 1, fontSize: 13, color: task.completed ? Z.textMuted : Z.textPrimary, textDecoration: task.completed ? "line-through" : "none" }}>{task.title}</span>
-                      {badge && (
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: badge.bg, color: badge.color }}>{badge.label}</span>
-                      )}
-                      <span style={{ fontSize: 11, color: Z.textMuted }}>{formatRelative(task.createdAt)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+              {showTaskForm && (
+                <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
+                  <input
+                    value={taskTitle}
+                    onChange={e => setTaskTitle(e.target.value)}
+                    placeholder="Task title..."
+                    style={{ flex: 1, padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                  />
+                  <input
+                    type="date"
+                    value={taskDueDate}
+                    onChange={e => setTaskDueDate(e.target.value)}
+                    style={{ padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                  />
+                  <Btn onClick={handleAddTask} disabled={!taskTitle.trim()}>Save</Btn>
+                  <Btn variant="secondary" onClick={() => { setShowTaskForm(false); setTaskTitle(""); setTaskDueDate(""); }}>Cancel</Btn>
+                </div>
+              )}
+              {(!contactTasks || contactTasks.length === 0) ? (
+                <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No tasks yet.</div>
+              ) : (
+                <div>
+                  {contactTasks.map(task => {
+                    const badge = taskDueBadge(task.dueDate);
+                    return (
+                      <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${Z.borderLight}`, opacity: task.completed ? 0.5 : 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => handleToggleTask(task.id, !task.completed)}
+                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: Z.ultramarine }}
+                        />
+                        <span style={{ flex: 1, fontSize: 13, color: task.completed ? Z.textMuted : Z.textPrimary, textDecoration: task.completed ? "line-through" : "none" }}>{task.title}</span>
+                        {badge && (
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: badge.bg, color: badge.color }}>{badge.label}</span>
+                        )}
+                        <span style={{ fontSize: 11, color: Z.textMuted }}>{formatRelative(task.createdAt)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
