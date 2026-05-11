@@ -1146,66 +1146,6 @@ export default function ContactDetailPage() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === "Email" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Compose */}
-          <div style={{ background: "#ffffff08", border: "1px solid #ffffff15", borderRadius: 10, padding: 20 }}>
-            <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>Compose Email</div>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => applyTemplate(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: selectedTemplate ? "#ffffffcc" : "#ffffff55", fontSize: 12, cursor: "pointer", marginBottom: 12 }}
-            >
-              <option value="">Use a template...</option>
-              {EMAIL_TEMPLATES.map((t) => (
-                <option key={t.label} value={t.label}>{t.label}</option>
-              ))}
-            </select>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>TO</div>
-              <input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="customer@email.com"
-                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>SUBJECT</div>
-              <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Subject"
-                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>MESSAGE</div>
-              <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Write your message..." rows={8}
-                style={{ width: "100%", padding: 10, background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} />
-            </div>
-            <button onClick={handleSendEmail} disabled={emailSending}
-              style={{ padding: "9px 20px", background: emailSending ? "#ffffff20" : "linear-gradient(135deg, #3A5AFF, #9600FF)", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: emailSending ? "not-allowed" : "pointer" }}>
-              {emailSending ? "Sending..." : "Send Email"}
-            </button>
-          </div>
-          {/* History */}
-          <div>
-            <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Email History</div>
-            {emailActivityLoading ? (
-              <div style={{ color: "#ffffff45", fontSize: 13 }}>Loading...</div>
-            ) : emailActivity.length === 0 ? (
-              <div style={{ color: "#ffffff35", fontSize: 13 }}>No emails sent yet.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {emailActivity.map((entry) => (
-                  <div key={entry.id} style={{ background: "#ffffff08", border: "1px solid #ffffff12", borderRadius: 8, padding: 14 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                      <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 600 }}>{entry.subject || "(no subject)"}</div>
-                      <div style={{ color: "#ffffff45", fontSize: 11 }}>{new Date(entry.createdAt).toLocaleString()}</div>
-                    </div>
-                    <div style={{ color: "#ffffff65", fontSize: 11, marginBottom: 6 }}>From: {entry.fromEmail || "unknown"} to {entry.toEmail || "unknown"}</div>
-                    <div style={{ color: "#ffffff80", fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 80, overflow: "hidden" }}>{entry.body}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Notes */}
           <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
@@ -1283,6 +1223,67 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === "Email" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Compose */}
+          <div style={{ background: "#ffffff08", border: "1px solid #ffffff15", borderRadius: 10, padding: 20 }}>
+            <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>Compose Email</div>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => applyTemplate(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: selectedTemplate ? "#ffffffcc" : "#ffffff55", fontSize: 12, cursor: "pointer", marginBottom: 12 }}
+            >
+              <option value="">Use a template...</option>
+              {EMAIL_TEMPLATES.map((t) => (
+                <option key={t.label} value={t.label}>{t.label}</option>
+              ))}
+            </select>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>TO</div>
+              <input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="customer@email.com"
+                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>SUBJECT</div>
+              <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Subject"
+                style={{ width: "100%", padding: "8px 10px", background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>MESSAGE</div>
+              <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Write your message..." rows={8}
+                style={{ width: "100%", padding: 10, background: "#ffffff0a", border: "1px solid #ffffff18", borderRadius: 6, color: "#ffffffcc", fontSize: 13, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} />
+            </div>
+            <button onClick={handleSendEmail} disabled={emailSending}
+              style={{ padding: "9px 20px", background: emailSending ? "#ffffff20" : "linear-gradient(135deg, #3A5AFF, #9600FF)", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: emailSending ? "not-allowed" : "pointer" }}>
+              {emailSending ? "Sending..." : "Send Email"}
+            </button>
+          </div>
+          {/* History */}
+          <div>
+            <div style={{ color: "#ffffff55", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Email History</div>
+            {emailActivityLoading ? (
+              <div style={{ color: "#ffffff45", fontSize: 13 }}>Loading...</div>
+            ) : emailActivity.length === 0 ? (
+              <div style={{ color: "#ffffff35", fontSize: 13 }}>No emails sent yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {emailActivity.map((entry) => (
+                  <div key={entry.id} style={{ background: "#ffffff08", border: "1px solid #ffffff12", borderRadius: 8, padding: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                      <div style={{ color: "#ffffffcc", fontSize: 13, fontWeight: 600 }}>{entry.subject || "(no subject)"}</div>
+                      <div style={{ color: "#ffffff45", fontSize: 11 }}>{new Date(entry.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div style={{ color: "#ffffff65", fontSize: 11, marginBottom: 6 }}>From: {entry.fromEmail || "unknown"} to {entry.toEmail || "unknown"}</div>
+                    <div style={{ color: "#ffffff80", fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 80, overflow: "hidden" }}>{entry.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
