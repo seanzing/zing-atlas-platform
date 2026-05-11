@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       where: { supabaseUserId: auth.user.id, organizationId: ORG_ID, deletedAt: null },
       select: { role: true },
     });
-    if (requestingMember?.role !== "admin") {
+    if (requestingMember?.role !== "Admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 

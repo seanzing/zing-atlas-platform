@@ -421,7 +421,7 @@ export default function SettingsPage() {
   const [tmLastName, setTmLastName] = useState("");
   const [tmEmail, setTmEmail] = useState("");
   const [tmPhone, setTmPhone] = useState("");
-  const [tmRole, setTmRole] = useState("Sales Rep");
+  const [tmRole, setTmRole] = useState("Member");
   const [tmTarget, setTmTarget] = useState("");
   const [tmPosition, setTmPosition] = useState("");
   const [tmDepartment, setTmDepartment] = useState("all");
@@ -826,7 +826,7 @@ export default function SettingsPage() {
     setTmLastName("");
     setTmEmail("");
     setTmPhone("");
-    setTmRole("Sales Rep");
+    setTmRole("Member");
     setTmTarget("");
     setTmPosition("");
     setTmDepartment("all");
@@ -1653,19 +1653,9 @@ export default function SettingsPage() {
             value={tmRole}
             onChange={setTmRole}
             options={[
-              { value: "Sales Rep", label: "Sales Rep" },
-              { value: "Manager", label: "Manager" },
+              { value: "Member", label: "Member" },
               { value: "Admin", label: "Admin" },
-              { value: "Designer", label: "Designer" },
-              { value: "Support", label: "Support" },
             ]}
-          />
-        </FormField>
-        <FormField label="Position">
-          <Select
-            value={tmPosition}
-            onChange={setTmPosition}
-            options={POSITION_OPTIONS}
           />
         </FormField>
         <FormField label="Department">
@@ -1675,14 +1665,16 @@ export default function SettingsPage() {
             options={DEPARTMENT_OPTIONS}
           />
         </FormField>
-        <FormField label="Monthly Target ($)">
-          <Input
-            value={tmTarget}
-            onChange={setTmTarget}
-            placeholder="0"
-            type="number"
-          />
-        </FormField>
+        {tmDepartment === "sales" && (
+          <FormField label="Monthly Target ($)">
+            <Input
+              value={tmTarget}
+              onChange={setTmTarget}
+              placeholder="0"
+              type="number"
+            />
+          </FormField>
+        )}
         <div
           style={{
             display: "flex",
@@ -1736,13 +1728,6 @@ export default function SettingsPage() {
             onChange={setInvEmail}
             placeholder="Email"
             type="email"
-          />
-        </FormField>
-        <FormField label="Position">
-          <Select
-            value={invPosition}
-            onChange={setInvPosition}
-            options={POSITION_OPTIONS}
           />
         </FormField>
         <FormField label="Department">
