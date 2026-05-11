@@ -64,6 +64,12 @@ interface OnboardingRecord {
 
 // Campaign data is included inline from the contacts API
 
+interface ProductOption {
+  id: string;
+  description: string;
+  price: number;
+}
+
 interface ContactNote {
   id: string;
   body: string;
@@ -328,6 +334,7 @@ export default function ContactDetailPage() {
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
+  const { data: productOptions } = useSWR<ProductOption[]>("/api/products");
   const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
   const { data: contactTasks, mutate: mutateTasks } = useSWR<ContactTask[]>(`/api/contacts/${id}/tasks`);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -357,6 +364,7 @@ export default function ContactDetailPage() {
   const [dealTitle, setDealTitle] = useState("");
   const [dealValue, setDealValue] = useState("");
   const [dealStage, setDealStage] = useState("call-now");
+  const [dealProductId, setDealProductId] = useState("");
 
   // Silent background reply check when Activity tab is opened
   useEffect(() => {
@@ -498,11 +506,13 @@ export default function ContactDetailPage() {
         stage: dealStage,
         contactId: id,
         contactName: contact?.name,
+        productId: dealProductId || undefined,
       }),
     });
     setDealTitle("");
     setDealValue("");
     setDealStage("call-now");
+    setDealProductId("");
     setAddDealOpen(false);
     mutate();
   };
@@ -1556,9 +1566,29 @@ export default function ContactDetailPage() {
           )}
         </div>
       )}
-      <Modal open={addDealOpen} onClose={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); }} title="Add Deal">
+      <Modal open={addDealOpen} onClose={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); setDealProductId(""); }} title="Add Deal">
+        <FormField label="Product">
+          <Select
+            value={dealProductId}
+            onChange={(val) => {
+              setDealProductId(val);
+              const product = (productOptions || []).find(p => p.id === val);
+              if (product) {
+                setDealTitle(product.description);
+                setDealValue(String(product.price));
+              }
+            }}
+            options={[
+              { value: "", label: "Select a product..." },
+              ...(productOptions || []).map(p => ({
+                value: p.id,
+                label: `${p.description} — $${Number(p.price).toFixed(2)}/mo`,
+              })),
+            ]}
+          />
+        </FormField>
         <FormField label="Title">
-          <Input value={dealTitle} onChange={setDealTitle} placeholder="e.g. Website Design — Acme Plumbing" />
+          <Input value={dealTitle} onChange={setDealTitle} placeholder="Auto-filled from product" />
         </FormField>
         <FormField label="Value ($)">
           <Input value={dealValue} onChange={setDealValue} placeholder="0" type="number" />
@@ -1582,8 +1612,8 @@ export default function ContactDetailPage() {
           />
         </FormField>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-          <Btn variant="secondary" onClick={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); }}>Cancel</Btn>
-          <Btn onClick={handleAddDeal} disabled={!dealTitle.trim()}>Create Deal</Btn>
+          <Btn variant="secondary" onClick={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); setDealProductId(""); }}>Cancel</Btn>
+          <Btn onClick={handleAddDeal} disabled={!dealProductId || !dealTitle.trim()}>Create Deal</Btn>
         </div>
       </Modal>
       <Toast toast={toast} />
