@@ -63,7 +63,6 @@ export default function ContactsPage() {
   const [formPhone, setFormPhone] = useState("");
   const [formStatus, setFormStatus] = useState("Active Lead");
   const [formLeadSource, setFormLeadSource] = useState("Email");
-  const [formNotes, setFormNotes] = useState("");
 
   const { toast, showToast } = useToast();
 
@@ -107,7 +106,6 @@ export default function ContactsPage() {
     setFormPhone("");
     setFormStatus("Active Lead");
     setFormLeadSource("Email");
-    setFormNotes("");
   };
 
   const allFilteredSelected =
@@ -175,7 +173,6 @@ export default function ContactsPage() {
           phone: formPhone,
           status: formStatus,
           leadSource: formLeadSource,
-          notes: formNotes,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -530,27 +527,7 @@ export default function ContactsPage() {
             ]}
           />
         </FormField>
-        <FormField label="Notes">
-          <textarea
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-            placeholder="Additional notes..."
-            rows={3}
-            style={{
-              width: "100%",
-              padding: "10px 14px",
-              background: Z.bg,
-              border: `1px solid ${Z.border}`,
-              borderRadius: 8,
-              color: Z.textPrimary,
-              fontSize: 13,
-              outline: "none",
-              boxSizing: "border-box",
-              resize: "vertical",
-              fontFamily: "inherit",
-            }}
-          />
-        </FormField>
+
         <div
           style={{
             display: "flex",

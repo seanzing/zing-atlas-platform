@@ -57,6 +57,21 @@ interface OnboardingRecord {
 
 // Campaign data is included inline from the contacts API
 
+interface ContactNote {
+  id: string;
+  body: string;
+  createdAt: string;
+}
+
+interface ContactTask {
+  id: string;
+  title: string;
+  dueDate: string | null;
+  completed: boolean;
+  completedAt: string | null;
+  createdAt: string;
+}
+
 interface ContactDetail {
   id: string;
   name: string;
@@ -165,6 +180,17 @@ function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   const date = new Date(d);
   return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function taskDueBadge(dueDate: string | null): { label: string; color: string; bg: string } | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  const now = new Date();
+  const diffDays = Math.floor((due.getTime() - now.setHours(0, 0, 0, 0)) / 86400000);
+  if (diffDays < 0) return { label: "Overdue", color: "#fff", bg: "#ef4444" };
+  if (diffDays === 0) return { label: "Today", color: "#fff", bg: "#f59e0b" };
+  if (diffDays === 1) return { label: "Tomorrow", color: "#fff", bg: "#f59e0b" };
+  return { label: due.toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: Z.textMuted, bg: Z.borderLight };
 }
 
 function generateTimeline(
@@ -295,6 +321,8 @@ export default function ContactDetailPage() {
   const { data: campaigns } = useSWR<{ id: string; name: string; type: string }[]>(
     "/api/campaigns"
   );
+  const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
+  const { data: contactTasks, mutate: mutateTasks } = useSWR<ContactTask[]>(`/api/contacts/${id}/tasks`);
   const [composeOpen, setComposeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showSecondaryEmail, setShowSecondaryEmail] = useState(false);
@@ -305,7 +333,10 @@ export default function ContactDetailPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editSecondaryEmail, setEditSecondaryEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
-  const [editNotes, setEditNotes] = useState("");
+  const [noteInput, setNoteInput] = useState("");
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
@@ -412,6 +443,39 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleAddNote = async () => {
+    if (!noteInput.trim()) return;
+    await fetch(`/api/contacts/${id}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: noteInput.trim() }),
+    });
+    setNoteInput("");
+    mutateNotes();
+  };
+
+  const handleAddTask = async () => {
+    if (!taskTitle.trim()) return;
+    await fetch(`/api/contacts/${id}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: taskTitle.trim(), dueDate: taskDueDate || undefined }),
+    });
+    setTaskTitle("");
+    setTaskDueDate("");
+    setShowTaskForm(false);
+    mutateTasks();
+  };
+
+  const handleToggleTask = async (taskId: string, completed: boolean) => {
+    await fetch(`/api/contacts/${id}/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed }),
+    });
+    mutateTasks();
+  };
+
   if (contactError) return (
     <div style={{ textAlign: "center", padding: "80px 20px" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>404</div>
@@ -457,7 +521,6 @@ export default function ContactDetailPage() {
     setEditEmail(contact.email);
     setEditSecondaryEmail(contact.secondaryEmail || "");
     setEditPhone(contact.phone);
-    setEditNotes(contact.notes || "");
     setEditing(true);
   };
 
@@ -476,7 +539,6 @@ export default function ContactDetailPage() {
           email: editEmail,
           secondaryEmail: editSecondaryEmail || null,
           phone: editPhone,
-          notes: editNotes,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -746,11 +808,6 @@ export default function ContactDetailPage() {
                     )}
                   </DetailField>
                 </div>
-                {contact.notes && (
-                  <div style={{ marginTop: 20 }}>
-                    <DetailField label="Notes" value={contact.notes} />
-                  </div>
-                )}
               </div>
             ) : (
               /* Edit mode - 2 column grid */
@@ -824,29 +881,6 @@ export default function ContactDetailPage() {
                     type="tel"
                   />
                 </FormField>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <FormField label="Notes">
-                    <textarea
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      placeholder="Additional notes..."
-                      rows={3}
-                      style={{
-                        width: "100%",
-                        padding: "10px 14px",
-                        background: Z.bg,
-                        border: `1px solid ${Z.border}`,
-                        borderRadius: 8,
-                        color: Z.textPrimary,
-                        fontSize: 13,
-                        outline: "none",
-                        boxSizing: "border-box",
-                        resize: "vertical",
-                        fontFamily: "inherit",
-                      }}
-                    />
-                  </FormField>
-                </div>
               </div>
             )}
           </div>

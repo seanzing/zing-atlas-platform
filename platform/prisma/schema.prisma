@@ -28,12 +28,47 @@ model Contact {
   campaign        Campaign?  @relation(fields: [campaignId], references: [id])
   deals           Deal[]
   tickets         Ticket[]
+  noteLog         ContactNote[]
+  tasks           ContactTask[]
 
   deletedAt       DateTime?  @map("deleted_at")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
   @@map("contacts")
+}
+
+model ContactNote {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  contactId      String    @map("contact_id") @db.Uuid
+  body           String    @db.Text
+  authorId       String?   @map("author_id") @db.Uuid
+
+  contact        Contact   @relation(fields: [contactId], references: [id])
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("contact_notes")
+}
+
+model ContactTask {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  contactId      String    @map("contact_id") @db.Uuid
+  title          String
+  dueDate        DateTime? @map("due_date") @db.Date
+  assignedToId   String?   @map("assigned_to_id") @db.Uuid
+  completed      Boolean   @default(false)
+  completedAt    DateTime? @map("completed_at")
+
+  contact        Contact   @relation(fields: [contactId], references: [id])
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("contact_tasks")
 }
 
 model Deal {
