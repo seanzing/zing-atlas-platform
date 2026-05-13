@@ -1359,6 +1359,22 @@ export default function PipelinePage() {
                             {deal.contact?.name || deal.contactName || "—"}
                           </div>
                         )}
+                        {(deal.contact?.phone || deal.contact?.email) && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: Z.textMuted,
+                              marginBottom: 2,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {deal.contact?.phone && deal.contact?.email
+                              ? `${deal.contact.phone} · ${deal.contact.email}`
+                              : deal.contact?.phone || deal.contact?.email}
+                          </div>
+                        )}
                         <div
                           style={{
                             fontSize: 11,
@@ -1411,6 +1427,7 @@ export default function PipelinePage() {
                         </div>
 
                         {/* Quick action buttons */}
+                        {(deal.contact?.phone || deal.contact?.email) && (
                         <div
                           data-quick-actions
                           style={{
@@ -1423,15 +1440,11 @@ export default function PipelinePage() {
                             borderTop: `1px solid ${Z.borderLight}`,
                           }}
                         >
-                          {[
-                            { icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z", title: "Call" },
-                            { icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z", title: "Message" },
-                            { icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", title: "Email" },
-                            { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", title: "Calendar" },
-                          ].map((action) => (
-                            <button
-                              key={action.title}
-                              title={action.title}
+                          {/* Call */}
+                          {deal.contact?.phone && (
+                            <a
+                              href={`tel:${deal.contact.phone}`}
+                              title="Call"
                               onClick={(e) => e.stopPropagation()}
                               style={{
                                 width: 28,
@@ -1444,25 +1457,68 @@ export default function PipelinePage() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 padding: 0,
+                                textDecoration: "none",
+                                fontSize: 14,
+                                lineHeight: 1,
                               }}
                             >
-                              <svg
-                                width={14}
-                                height={14}
-                                fill="none"
-                                stroke={Z.textMuted}
-                                strokeWidth={1.5}
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d={action.icon}
-                                />
-                              </svg>
+                              📞
+                            </a>
+                          )}
+                          {/* Text — disabled, coming soon */}
+                          {deal.contact?.phone && (
+                            <button
+                              disabled
+                              title="SMS coming soon"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 6,
+                                border: `1px solid ${Z.borderLight}`,
+                                background: Z.card,
+                                cursor: "not-allowed",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                opacity: 0.4,
+                                fontSize: 14,
+                                lineHeight: 1,
+                              }}
+                            >
+                              💬
                             </button>
-                          ))}
+                          )}
+                          {/* Email */}
+                          {deal.contact?.email && deal.contact?.id && deal.contact?.name && (
+                            <button
+                              title="Email"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEmailComposeTo({ id: deal.contact!.id, name: deal.contact!.name, email: deal.contact!.email! });
+                                setShowEmailCompose(true);
+                              }}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 6,
+                                border: `1px solid ${Z.borderLight}`,
+                                background: Z.card,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                fontSize: 14,
+                                lineHeight: 1,
+                              }}
+                            >
+                              ✉️
+                            </button>
+                          )}
                         </div>
+                        )}
                       </div>
                     );
                   })}
