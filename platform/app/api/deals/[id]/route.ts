@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
+import { computeHeatScore } from "@/lib/heat-score";
+import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +32,15 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Deal not found" }, { status: 404 });
     }
 
+    const stageRef = deal.stageEnteredAt ?? deal.createdAt;
+    const timeInStageDays = Math.floor((Date.now() - new Date(stageRef).getTime()) / 86400000);
+    const heatScore = computeHeatScore(
+      { stage: deal.stage ?? '', probability: deal.probability, stageEnteredAt: deal.stageEnteredAt, createdAt: deal.createdAt },
+      deal.contact ? { lastContact: deal.contact.lastContact } : null
+    );
+
     logger.info({ dealId: deal.id }, "GET /api/deals/[id]");
-    return NextResponse.json(serialize(deal));
+    return NextResponse.json(serialize({ ...deal, timeInStageDays, heatScore }));
   } catch (error) {
     logger.error({ err: error }, "GET /api/deals/[id] failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -53,6 +62,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 
     const body = await req.json();
     const stagingWon = body.stage === "won" && existing.stage !== "won";
+    const stageChanged = body.stage !== undefined && body.stage !== existing.stage;
 
     // Whitelist allowed fields to prevent mass assignment
     const updateData: Record<string, unknown> = {};
@@ -86,6 +96,9 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       updateData.wonDate = new Date();
     } else if (updateData.wonDate) {
       updateData.wonDate = new Date(updateData.wonDate as string);
+    }
+    if (stageChanged) {
+      updateData.stageEnteredAt = new Date();
     }
 
     const deal = await prisma.deal.update({
@@ -176,6 +189,41 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
         }
 
         logger.info({ dealId: deal.id, onboardingId: onboarding.id }, "Deal moved to won — onboarding created");
+      }
+
+      // Closed Won Automation: send welcome email via Resend
+      try {
+        const contact = deal.contactId
+          ? await prisma.contact.findUnique({ where: { id: deal.contactId } })
+          : null;
+        if (contact?.email) {
+          const designer = deal.assignedDesigner
+            ? await prisma.designer.findFirst({ where: { name: deal.assignedDesigner, organizationId: ORG_ID } })
+            : null;
+
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: 'ZING <noreply@zingwebsitedesign.com>',
+            to: contact.email,
+            subject: 'Welcome to ZING — Your Next Steps',
+            html: `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://app.zingwebsitedesign.com/forms/gbp-info">Complete your Google Business Profile info form</a></li><li><a href="https://app.zingwebsitedesign.com/forms/design-brief">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>— ${deal.rep}, ZING Team</p>`,
+          });
+
+          // TODO: Trigger BoldSign API to send service agreement — awaiting API key (BOLDSIGN_API_KEY)
+          await prisma.deal.update({ where: { id: deal.id }, data: { boldsignSentAt: new Date() } });
+
+          await prisma.activityLog.create({
+            data: {
+              organizationId: ORG_ID,
+              contactId: deal.contactId,
+              type: 'note',
+              subject: 'BoldSign service agreement triggered',
+              metadata: { source: 'closed_won_automation' },
+            },
+          });
+        }
+      } catch (err) {
+        logger.error({ err }, 'Closed Won automation failed (non-fatal)');
       }
     }
 

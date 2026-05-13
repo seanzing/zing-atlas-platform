@@ -10,6 +10,7 @@ import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
 import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { NewSaleModal } from "@/components/NewSaleModal";
+import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -81,6 +82,8 @@ type Product = any;
 type Designer = any;
 
 const NOTE_SECTIONS = ["Reps", "Designer", "Publishing", "Accounts", "Support"] as const;
+const DEPT_TABS = ["Reps", "Designer", "Publishing", "Accounts", "Support", "Marketing", "Referrals"] as const;
+type DeptTab = typeof DEPT_TABS[number];
 
 /* ── Take Sale sub-component (must be inside <Elements>) ── */
 
@@ -238,9 +241,20 @@ export default function PipelinePage() {
   const [addWonLaunchFee, setAddWonLaunchFee] = useState("");
   const [addWonSplitPayments, setAddWonSplitPayments] = useState(false);
   const [addWonSplitCount, setAddWonSplitCount] = useState("2");
+  const [addWonIndustry, setAddWonIndustry] = useState("");
+  const [addWonWebsiteUrl, setAddWonWebsiteUrl] = useState("");
+  const [addWonMarketingComments, setAddWonMarketingComments] = useState("");
 
   // Notes state for slide-out panel
   const [dealNotes, setDealNotes] = useState<Record<string, string>>({});
+  // Department notes tab
+  const [activeDeptTab, setActiveDeptTab] = useState<DeptTab>("Reps");
+  const [deptNotes, setDeptNotes] = useState<Record<string, { notes: {id:string;author:string|null;content:string;createdAt:string}[]; count: number }>>({});
+  const [deptNoteInput, setDeptNoteInput] = useState("");
+  const [deptNoteSaving, setDeptNoteSaving] = useState(false);
+  // Email compose
+  const [showEmailCompose, setShowEmailCompose] = useState(false);
+  const [emailComposeTo, setEmailComposeTo] = useState<{ id: string; name: string; email: string } | null>(null);
   const { toast, showToast } = useToast();
 
   /* ── data fetching ── */
@@ -504,6 +518,9 @@ export default function PipelinePage() {
             email: addWonEmail,
             phone: addWonPhone || undefined,
             leadSource: "direct",
+            industry: addWonIndustry || undefined,
+            websiteUrl: addWonWebsiteUrl || undefined,
+            marketingComments: addWonMarketingComments || undefined,
           }),
         });
         if (contactRes.ok) {
@@ -608,6 +625,9 @@ export default function PipelinePage() {
     setAddWonLaunchFee("");
     setAddWonSplitPayments(false);
     setAddWonSplitCount("2");
+    setAddWonIndustry("");
+    setAddWonWebsiteUrl("");
+    setAddWonMarketingComments("");
   }
 
   function loadDealNotes(deal: Deal) {
@@ -617,6 +637,30 @@ export default function PipelinePage() {
       loaded[`${deal.id}-${s}`] = notes[s] || "";
     });
     setDealNotes((prev) => ({ ...prev, ...loaded }));
+  }
+
+  async function loadDeptNotes(dealId: string) {
+    try {
+      const res = await fetch(`/api/deals/${dealId}/notes`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setDeptNotes(data.grouped || {});
+    } catch { /* non-fatal */ }
+  }
+
+  async function submitDeptNote(deal: Deal) {
+    if (!deptNoteInput.trim()) return;
+    setDeptNoteSaving(true);
+    try {
+      await fetch(`/api/deals/${deal.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ department: activeDeptTab, content: deptNoteInput.trim() }),
+      });
+      setDeptNoteInput("");
+      await loadDeptNotes(deal.id);
+    } catch { showToast("Failed to save note", false); }
+    setDeptNoteSaving(false);
   }
 
   const productOptions = useMemo(
@@ -1302,6 +1346,9 @@ export default function PipelinePage() {
                           onClick={() => {
                             setSelectedDeal(deal);
                             loadDealNotes(deal);
+                            loadDeptNotes(deal.id);
+                            setActiveDeptTab("Reps");
+                            setDeptNoteInput("");
                           }}
                           style={{
                             fontSize: 13,
@@ -1369,6 +1416,12 @@ export default function PipelinePage() {
                             )}
                           </div>
                         )}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                          <div style={{ fontSize: 11, color: "#8b90a8" }}>{deal.timeInStageDays ?? 0}d in stage</div>
+                          {deal.heatScore !== undefined && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: deal.heatScore >= 70 ? "#10b981" : deal.heatScore >= 40 ? "#f59e0b" : "#ef4444" }}>🔥{deal.heatScore}</span>
+                          )}
+                        </div>
 
                         {/* Quick action buttons */}
                         <div
@@ -1580,63 +1633,36 @@ export default function PipelinePage() {
               </div>
 
               {/* Quick action buttons */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  marginTop: 12,
-                }}
-              >
-                {[
-                  { label: "Call", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" },
-                  { label: "Text", icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" },
-                  { label: "Email", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-                  { label: "Appt", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-                ].map((action) => (
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                {selectedDeal.contact?.phone && (
+                  <a
+                    href={`tel:${selectedDeal.contact.phone}`}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.turquoise}`, background: `${Z.turquoise}12`, cursor: "pointer", fontSize: 12, fontWeight: 700, color: Z.turquoise, textDecoration: "none" }}
+                  >📞 Call</a>
+                )}
+                {selectedDeal.contact?.phone && (
                   <button
-                    key={action.label}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      padding: "8px 0",
-                      borderRadius: 8,
-                      border: `1px solid ${Z.border}`,
-                      background: Z.card,
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: Z.textSecondary,
-                      transition: "all 0.15s",
+                    disabled
+                    title="SMS coming soon"
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.bg, cursor: "not-allowed", fontSize: 12, fontWeight: 700, color: Z.textMuted, opacity: 0.6 }}
+                  >💬 Text</button>
+                )}
+                {selectedDeal.contact?.email && (
+                  <button
+                    onClick={() => {
+                      setEmailComposeTo({ id: selectedDeal.contact.id, name: selectedDeal.contact.name, email: selectedDeal.contact.email });
+                      setShowEmailCompose(true);
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = Z.ultramarine;
-                      e.currentTarget.style.color = Z.ultramarine;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = Z.border;
-                      e.currentTarget.style.color = Z.textSecondary;
-                    }}
-                  >
-                    <svg
-                      width={14}
-                      height={14}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d={action.icon}
-                      />
-                    </svg>
-                    {action.label}
-                  </button>
-                ))}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.card, cursor: "pointer", fontSize: 12, fontWeight: 600, color: Z.textSecondary, transition: "all 0.15s" }}
+                  >✉️ Email</button>
+                )}
+              </div>
+              {/* Time in stage + heat score in detail panel */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, fontSize: 12, color: Z.textMuted }}>
+                <span>{selectedDeal.timeInStageDays ?? 0}d in stage</span>
+                {selectedDeal.heatScore !== undefined && (
+                  <span style={{ fontWeight: 700, color: selectedDeal.heatScore >= 70 ? "#10b981" : selectedDeal.heatScore >= 40 ? "#f59e0b" : "#ef4444" }}>🔥 Heat: {selectedDeal.heatScore}</span>
+                )}
               </div>
             </div>
 
@@ -1719,103 +1745,61 @@ export default function PipelinePage() {
                 )}
               </div>
 
-              {/* Notes sections */}
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: Z.textPrimary,
-                  marginBottom: 12,
-                }}
-              >
-                Notes
-              </div>
-              {NOTE_SECTIONS.map((section) => {
-                const noteKey = `${selectedDeal.id}-${section}`;
-                const isOpen = openNotes[noteKey] ?? false;
-                return (
-                  <div
-                    key={section}
-                    style={{
-                      marginBottom: 8,
-                      border: `1px solid ${Z.borderLight}`,
-                      borderRadius: 10,
-                      overflow: "hidden",
-                    }}
-                  >
+              {/* Department Notes Tabs (Item 4) */}
+              <div style={{ fontSize: 14, fontWeight: 800, color: Z.textPrimary, marginBottom: 10, marginTop: 8 }}>Notes by Department</div>
+              {/* Tab bar */}
+              <div style={{ display: "flex", gap: 4, overflowX: "auto", marginBottom: 12, paddingBottom: 4 }}>
+                {DEPT_TABS.map((tab) => {
+                  const count = deptNotes[tab]?.count ?? 0;
+                  const isActive = activeDeptTab === tab;
+                  return (
                     <button
-                      onClick={() =>
-                        setOpenNotes((prev) => ({
-                          ...prev,
-                          [noteKey]: !prev[noteKey],
-                        }))
-                      }
+                      key={tab}
+                      onClick={() => setActiveDeptTab(tab)}
                       style={{
-                        width: "100%",
-                        padding: "10px 14px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        background: Z.bg,
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: 12,
+                        flexShrink: 0,
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        fontSize: 11,
                         fontWeight: 700,
-                        color: Z.textPrimary,
+                        border: isActive ? "none" : `1px solid ${Z.borderLight}`,
+                        background: isActive ? Z.ultramarine : "transparent",
+                        color: isActive ? "#fff" : Z.textMuted,
+                        cursor: "pointer",
+                        position: "relative",
                       }}
                     >
-                      {section}
-                      <span
-                        style={{
-                          transform: isOpen
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                          transition: "transform 0.2s",
-                          fontSize: 10,
-                          color: Z.textMuted,
-                        }}
-                      >
-                        ▼
-                      </span>
+                      {tab}
+                      {count > 0 && (
+                        <span style={{ marginLeft: 4, background: isActive ? "rgba(255,255,255,0.3)" : "#ef4444", color: "#fff", borderRadius: 10, padding: "0 5px", fontSize: 10, fontWeight: 800 }}>{count}</span>
+                      )}
                     </button>
-                    {isOpen && (
-                      <div style={{ padding: 12 }}>
-                        <textarea
-                          value={dealNotes[noteKey] || ""}
-                          onChange={(e) =>
-                            setDealNotes((prev) => ({
-                              ...prev,
-                              [noteKey]: e.target.value,
-                            }))
-                          }
-                          placeholder={`${section} notes...`}
-                          style={{
-                            width: "100%",
-                            minHeight: 80,
-                            padding: 10,
-                            borderRadius: 8,
-                            border: `1px solid ${Z.border}`,
-                            background: Z.bg,
-                            fontSize: 12,
-                            color: Z.textPrimary,
-                            outline: "none",
-                            resize: "vertical",
-                            boxSizing: "border-box",
-                            fontFamily: "inherit",
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div style={{ marginTop: 12 }}>
-                <Btn
-                  small
-                  onClick={() => handleSaveNotes(selectedDeal)}
-                  variant="primary"
-                >
-                  Save Notes
+                  );
+                })}
+              </div>
+              {/* Notes list for active dept */}
+              <div style={{ minHeight: 60, marginBottom: 10 }}>
+                {(deptNotes[activeDeptTab]?.notes ?? []).length === 0 ? (
+                  <div style={{ fontSize: 12, color: Z.textMuted, padding: "8px 0" }}>No {activeDeptTab} notes yet.</div>
+                ) : (
+                  (deptNotes[activeDeptTab]?.notes ?? []).map((n) => (
+                    <div key={n.id} style={{ background: Z.bg, borderRadius: 8, padding: "8px 12px", marginBottom: 6, fontSize: 12, color: Z.textPrimary }}>
+                      <div style={{ fontWeight: 600 }}>{n.content}</div>
+                      <div style={{ fontSize: 10, color: Z.textMuted, marginTop: 2 }}>{n.author || "Unknown"} &middot; {new Date(n.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* Note input */}
+              <textarea
+                value={deptNoteInput}
+                onChange={(e) => setDeptNoteInput(e.target.value)}
+                placeholder={`Add ${activeDeptTab} note...`}
+                style={{ width: "100%", minHeight: 60, padding: 10, borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.bg, fontSize: 12, color: Z.textPrimary, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
+              />
+              <div style={{ marginTop: 4, display: "flex", gap: 8 }}>
+                <Btn small onClick={() => submitDeptNote(selectedDeal)} variant="primary" disabled={deptNoteSaving}>
+                  {deptNoteSaving ? "Saving..." : "Add Note"}
                 </Btn>
               </div>
             </div>
@@ -2194,6 +2178,30 @@ export default function PipelinePage() {
           />
         </FormField>
 
+        <FormField label="Industry">
+          <Input
+            value={addWonIndustry}
+            onChange={setAddWonIndustry}
+            placeholder="e.g. Plumbing, HVAC, Landscaping"
+          />
+        </FormField>
+
+        <FormField label="Website URL">
+          <Input
+            value={addWonWebsiteUrl}
+            onChange={setAddWonWebsiteUrl}
+            placeholder="https://example.com"
+          />
+        </FormField>
+
+        <FormField label="Marketing Comments">
+          <Input
+            value={addWonMarketingComments}
+            onChange={setAddWonMarketingComments}
+            placeholder="Any relevant marketing info"
+          />
+        </FormField>
+
         <FormField label="Sales Rep">
           <Select
             value={addWonRep}
@@ -2373,6 +2381,15 @@ export default function PipelinePage() {
         }}
       />
       <Toast toast={toast} />
+      {showEmailCompose && emailComposeTo && (
+        <FloatingEmailCompose
+          contactId={emailComposeTo.id}
+          contactName={emailComposeTo.name}
+          contactEmail={emailComposeTo.email}
+          onClose={() => { setShowEmailCompose(false); setEmailComposeTo(null); }}
+          onEmailSent={() => showToast("Email sent", true)}
+        />
+      )}
     </div>
   );
 }

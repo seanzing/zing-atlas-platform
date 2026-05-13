@@ -60,6 +60,14 @@ export async function GET(req: NextRequest) {
       where.rep = repParam;
     }
 
+    // Permission scoping: reps see only their own pipeline
+    const teamMember = await prisma.teamMember.findFirst({
+      where: { supabaseUserId: auth.user.id, organizationId: ORG_ID, deletedAt: null },
+    });
+    if (teamMember?.role === 'rep') {
+      where.rep = teamMember.firstName ?? undefined;
+    }
+
     const deals = await prisma.deal.findMany({
       where,
       include: {

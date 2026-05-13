@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import { PageLoader } from "@/components/PageLoader";
 import {
   Badge,
@@ -1061,9 +1062,29 @@ export default function SettingsPage() {
             <div style={{ fontSize: 14, color: Z.textSecondary }}>
               {(team || []).length} active team members
             </div>
-            <Btn onClick={() => setInviteModalOpen(true)}>
-              + Invite User
-            </Btn>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Link
+                href="/settings/users"
+                style={{
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: Z.textSecondary,
+                  border: `1px solid ${Z.border}`,
+                  borderRadius: 8,
+                  background: Z.card,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                Manage Users →
+              </Link>
+              <Btn onClick={() => setInviteModalOpen(true)}>
+                + Invite User
+              </Btn>
+            </div>
           </div>
 
           <div
@@ -1178,13 +1199,6 @@ export default function SettingsPage() {
                   <div style={{ display: "flex", gap: 6 }}>
                     <Btn small variant="secondary" onClick={() => openEditMember(m)}>
                       Edit
-                    </Btn>
-                    <Btn
-                      small
-                      variant="danger"
-                      onClick={() => handleDeactivateMember(m.id)}
-                    >
-                      ✕
                     </Btn>
                   </div>
                 </div>

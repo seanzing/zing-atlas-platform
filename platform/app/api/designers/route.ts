@@ -16,6 +16,15 @@ export async function GET() {
         organizationId: ORG_ID,
         active: true,
       },
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+        email: true,
+        team: true,
+        active: true,
+        bookingLink: true,
+      },
     });
 
     return NextResponse.json(designers);

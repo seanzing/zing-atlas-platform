@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
+import { computeHeatScore } from "@/lib/heat-score";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,14 @@ export async function GET(req: NextRequest) {
     if (rep) where.rep = rep;
     if (contactId) where.contactId = contactId;
 
+    // Permission scoping: reps see only their own pipeline
+    const teamMember = await prisma.teamMember.findFirst({
+      where: { supabaseUserId: auth.user.id, organizationId: ORG_ID, deletedAt: null },
+    });
+    if (teamMember?.role === 'rep') {
+      where.rep = teamMember.firstName ?? undefined;
+    }
+
     const deals = await prisma.deal.findMany({
       where,
       include: {
@@ -34,8 +43,18 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    const dealsWithMeta = deals.map((deal) => {
+      const stageRef = deal.stageEnteredAt ?? deal.createdAt;
+      const timeInStageDays = Math.floor((Date.now() - new Date(stageRef).getTime()) / 86400000);
+      const heatScore = computeHeatScore(
+        { stage: deal.stage ?? '', probability: deal.probability, stageEnteredAt: deal.stageEnteredAt, createdAt: deal.createdAt },
+        deal.contact ? { lastContact: deal.contact.lastContact } : null
+      );
+      return { ...deal, timeInStageDays, heatScore };
+    });
+
     logger.info({ count: deals.length }, "GET /api/deals");
-    return NextResponse.json(serialize(deals));
+    return NextResponse.json(serialize(dealsWithMeta));
   } catch (error) {
     logger.error({ err: error }, "GET /api/deals failed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -85,6 +104,7 @@ export async function POST(req: NextRequest) {
       dealData.launchFeeAmount = numFee;
     }
     if (wonDate !== undefined) dealData.wonDate = wonDate;
+    dealData.stageEnteredAt = new Date();
 
     const deal = await prisma.deal.create({ data: dealData as Parameters<typeof prisma.deal.create>[0]["data"] });
 

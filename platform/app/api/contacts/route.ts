@@ -61,6 +61,10 @@ export async function POST(request: NextRequest) {
       avatar,
       value,
       notes,
+      industry,
+      websiteUrl,
+      marketingComments,
+      manualRep,
     } = body;
 
     if (!name) {
@@ -68,6 +72,28 @@ export async function POST(request: NextRequest) {
         { error: "name is required" },
         { status: 400 }
       );
+    }
+
+    // Round-robin rep assignment
+    let assignedRep: string | undefined = manualRep || undefined;
+    if (!assignedRep) {
+      const activeReps = await prisma.teamMember.findMany({
+        where: { organizationId: ORG_ID, active: true, deletedAt: null, role: { not: null } },
+        orderBy: { id: "asc" },
+      });
+      if (activeReps.length > 0) {
+        const rrState = await prisma.roundRobinState.upsert({
+          where: { id: 1 },
+          create: { id: 1, lastRepIndex: 0 },
+          update: {},
+        });
+        const nextIndex = (rrState.lastRepIndex + 1) % activeReps.length;
+        assignedRep = activeReps[nextIndex].firstName ?? undefined;
+        await prisma.roundRobinState.update({
+          where: { id: 1 },
+          data: { lastRepIndex: nextIndex },
+        });
+      }
     }
 
     const contact = await prisma.contact.create({
@@ -84,6 +110,10 @@ export async function POST(request: NextRequest) {
         ...(avatar !== undefined && { avatar }),
         ...(value !== undefined && { value }),
         ...(notes !== undefined && { notes }),
+        ...(industry !== undefined && { industry }),
+        ...(websiteUrl !== undefined && { websiteUrl }),
+        ...(marketingComments !== undefined && { marketingComments }),
+        assignedRep: assignedRep ?? undefined,
       },
     });
 
