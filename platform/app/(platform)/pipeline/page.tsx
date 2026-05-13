@@ -490,11 +490,16 @@ export default function PipelinePage() {
       };
       if (wonProductId) body.productId = wonProductId;
 
-      await fetch(`/api/deals/${wonModalDeal.id}`, {
+      const res = await fetch(`/api/deals/${wonModalDeal.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast((err as { error?: string }).error || "Failed to move deal to Won", false);
+        return;
+      }
 
       mutate(pipelineUrl);
       mutate("/api/deals");

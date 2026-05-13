@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       "title", "stage", "value", "rep", "contactName", "company", "dealType",
       "productId", "contactId", "wonDate", "lostReason", "notes",
       "paymentStatus", "stripeSubscriptionId", "stripeCustomerId",
-      "designer", "designerEmail", "launchFeeAmount",
+      "assignedDesigner", "designerEmail", "launchFeeAmount", "deliveryDate",
     ];
     for (const key of whitelist) {
       if (key in body) updateData[key] = body[key];
@@ -96,6 +96,9 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       updateData.wonDate = new Date();
     } else if (updateData.wonDate) {
       updateData.wonDate = new Date(updateData.wonDate as string);
+    }
+    if (updateData.deliveryDate) {
+      updateData.deliveryDate = new Date(updateData.deliveryDate as string);
     }
     if (stageChanged) {
       updateData.stageEnteredAt = new Date();
@@ -204,7 +207,106 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://atlas.zingwebsitedesign.com';
           const gbpFormUrl = `${appUrl}/forms/gbp-info?contact=${deal.contactId ?? ''}`;
           const designBriefUrl = `${appUrl}/forms/design-brief?contact=${deal.contactId ?? ''}`;
-          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="${gbpFormUrl}">Complete your Google Business Profile info form</a></li><li><a href="${designBriefUrl}">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
+          const customerName = contact.company || contact.name || 'there';
+          const bookingStep = designer?.bookingLink
+            ? `
+            <tr>
+              <td style="padding: 0 0 16px 0;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left: 4px solid #050536; background-color: #F5F7FA; border-radius: 0 6px 6px 0;">
+                  <tr><td style="padding: 20px 24px;">
+                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 3</p>
+                    <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Book Your Onboarding Call</p>
+                    <p style="margin: 0 0 16px 0; font-size: 14px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.5;">Schedule a call with your designer to go over your project.</p>
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr><td style="background-color: #050536; border-radius: 4px;">
+                        <a href="${designer.bookingLink}" style="display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; font-family: Arial, sans-serif;">Book Your Call</a>
+                      </td></tr>
+                    </table>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>`
+            : '';
+          const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Welcome to ZING</title></head>
+<body style="margin: 0; padding: 0; background-color: #F5F7FA; font-family: Arial, sans-serif;">
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #F5F7FA;">
+    <tr><td align="center" style="padding: 40px 20px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background-color: #F5F7FA; padding: 28px 40px; text-align: center; border-radius: 8px 8px 0 0; border-bottom: 3px solid #050536;">
+            <img src="https://lirp.cdn-website.com/e97cdfbe/dms3rep/multi/opt/Main+logo%403x-1920w.png" alt="ZING Website Design" width="160" style="max-width: 160px; width: 100%; height: auto; display: block; margin: 0 auto;" />
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="background-color: #ffffff; padding: 40px 40px 32px 40px;">
+            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Hi ${customerName},</p>
+            <p style="margin: 0 0 28px 0; font-size: 15px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.6;">Welcome to ZING! We are excited to get started on your project. Here are your next steps to kick things off:</p>
+
+            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+
+              <!-- Step 1 -->
+              <tr>
+                <td style="padding: 0 0 16px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left: 4px solid #050536; background-color: #F5F7FA; border-radius: 0 6px 6px 0;">
+                    <tr><td style="padding: 20px 24px;">
+                      <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 1</p>
+                      <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Complete Your Google Business Profile Info</p>
+                      <p style="margin: 0 0 16px 0; font-size: 14px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.5;">Our team needs a few details to optimize your Google Business Profile.</p>
+                      <table cellpadding="0" cellspacing="0" border="0">
+                        <tr><td style="background-color: #050536; border-radius: 4px;">
+                          <a href="${gbpFormUrl}" style="display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; font-family: Arial, sans-serif;">Complete GBP Form</a>
+                        </td></tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Step 2 -->
+              <tr>
+                <td style="padding: 0 0 16px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left: 4px solid #050536; background-color: #F5F7FA; border-radius: 0 6px 6px 0;">
+                    <tr><td style="padding: 20px 24px;">
+                      <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 2</p>
+                      <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Complete Your Website Design Brief</p>
+                      <p style="margin: 0 0 16px 0; font-size: 14px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.5;">Tell us about your business, style preferences, and what you need from your website.</p>
+                      <table cellpadding="0" cellspacing="0" border="0">
+                        <tr><td style="background-color: #050536; border-radius: 4px;">
+                          <a href="${designBriefUrl}" style="display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; font-family: Arial, sans-serif;">Complete Design Brief</a>
+                        </td></tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Step 3 (conditional) -->
+              ${bookingStep}
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color: #F5F7FA; padding: 24px 40px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e8eaed;">
+            <p style="margin: 0 0 6px 0; font-size: 13px; color: #5a5f7a; font-family: Arial, sans-serif;">Questions? Reply to this email or contact your rep, ${deal.rep || 'your ZING rep'}.</p>
+            <p style="margin: 0 0 6px 0; font-size: 13px; color: #5a5f7a; font-family: Arial, sans-serif;"><strong style="color: #1a1a2e;">ZING Website Design</strong> | zingwebsitedesign.com</p>
+            <p style="margin: 0; font-size: 11px; color: #9ca3af; font-family: Arial, sans-serif;">You received this email because you recently signed up with ZING.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
           const smtp2goRes = await fetch('https://api.smtp2go.com/v3/email/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
