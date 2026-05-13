@@ -5,7 +5,7 @@ import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 import { computeHeatScore } from "@/lib/heat-score";
-import { Resend } from "resend";
+
 
 export const dynamic = "force-dynamic";
 
@@ -201,13 +201,22 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
             ? await prisma.designer.findFirst({ where: { name: deal.assignedDesigner, organizationId: ORG_ID } })
             : null;
 
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          await resend.emails.send({
-            from: 'ZING <noreply@zingwebsitedesign.com>',
-            to: contact.email,
-            subject: 'Welcome to ZING — Your Next Steps',
-            html: `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://app.zingwebsitedesign.com/forms/gbp-info">Complete your Google Business Profile info form</a></li><li><a href="https://app.zingwebsitedesign.com/forms/design-brief">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>— ${deal.rep}, ZING Team</p>`,
+          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://app.zingwebsitedesign.com/forms/gbp-info">Complete your Google Business Profile info form</a></li><li><a href="https://app.zingwebsitedesign.com/forms/design-brief">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
+          const smtp2goRes = await fetch('https://api.smtp2go.com/v3/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: process.env.SMTP2GO_API_KEY,
+              to: [contact.email],
+              sender: 'ZING <noreply@zing-work.com>',
+              subject: 'Welcome to ZING -- Your Next Steps',
+              html_body: emailHtml,
+            }),
           });
+          if (!smtp2goRes.ok) {
+            const errBody = await smtp2goRes.text();
+            logger.error({ status: smtp2goRes.status, body: errBody }, 'SMTP2GO send failed');
+          }
 
           await prisma.activityLog.create({
             data: {
