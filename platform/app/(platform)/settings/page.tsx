@@ -918,20 +918,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeactivateMember = async (id: string) => {
-    try {
-      const res = await fetch(`/api/team/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      mutateTeam();
-    } catch {
-      showToast("Failed to deactivate member");
-    }
-  };
-
   const resetCampForm = () => {
     setCampName("");
     setCampType("email");

@@ -81,7 +81,6 @@ type Product = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Designer = any;
 
-const NOTE_SECTIONS = ["Reps", "Designer", "Publishing", "Accounts", "Support"] as const;
 const DEPT_TABS = ["Reps", "Designer", "Publishing", "Accounts", "Support", "Marketing", "Referrals"] as const;
 type DeptTab = typeof DEPT_TABS[number];
 
@@ -204,8 +203,6 @@ export default function PipelinePage() {
   const [newSaleOpen, setNewSaleOpen] = useState(false);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"sms" | "email" | "calendar">("sms");
-  const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
-
   // Won modal state
   const [wonDealType, setWonDealType] = useState("new");
   const [wonProductId, setWonProductId] = useState("");
@@ -246,7 +243,6 @@ export default function PipelinePage() {
   const [addWonMarketingComments, setAddWonMarketingComments] = useState("");
 
   // Notes state for slide-out panel
-  const [dealNotes, setDealNotes] = useState<Record<string, string>>({});
   // Department notes tab
   const [activeDeptTab, setActiveDeptTab] = useState<DeptTab>("Reps");
   const [deptNotes, setDeptNotes] = useState<Record<string, { notes: {id:string;author:string|null;content:string;createdAt:string}[]; count: number }>>({});
@@ -560,28 +556,7 @@ export default function PipelinePage() {
     } catch {
       showToast("Failed to create deal", false);
     }
-  }, [addWonTitle, addWonContactName, addWonEmail, addWonPhone, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, pipelineUrl, showToast]);
-
-  const handleSaveNotes = useCallback(
-    async (deal: Deal) => {
-      try {
-        const notes: Record<string, string> = {};
-        NOTE_SECTIONS.forEach((s) => {
-          notes[s] = dealNotes[`${deal.id}-${s}`] || "";
-        });
-        await fetch(`/api/deals/${deal.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ allNotes: notes }),
-        });
-        mutate(pipelineUrl);
-        mutate("/api/deals");
-      } catch {
-        showToast("Failed to save notes", false);
-      }
-    },
-    [dealNotes, pipelineUrl, showToast]
-  );
+  }, [addWonTitle, addWonContactName, addWonEmail, addWonPhone, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, addWonIndustry, addWonWebsiteUrl, addWonMarketingComments, pipelineUrl, showToast]);
 
   /** Map a product (by description) to its Stripe price ID */
   function getStripePriceId(productId: string): string | null {
@@ -631,15 +606,6 @@ export default function PipelinePage() {
     setAddWonIndustry("");
     setAddWonWebsiteUrl("");
     setAddWonMarketingComments("");
-  }
-
-  function loadDealNotes(deal: Deal) {
-    const notes = deal.allNotes || {};
-    const loaded: Record<string, string> = {};
-    NOTE_SECTIONS.forEach((s) => {
-      loaded[`${deal.id}-${s}`] = notes[s] || "";
-    });
-    setDealNotes((prev) => ({ ...prev, ...loaded }));
   }
 
   async function loadDeptNotes(dealId: string) {
@@ -1348,7 +1314,6 @@ export default function PipelinePage() {
                         <div
                           onClick={() => {
                             setSelectedDeal(deal);
-                            loadDealNotes(deal);
                             loadDeptNotes(deal.id);
                             setActiveDeptTab("Reps");
                             setDeptNoteInput("");
@@ -2452,7 +2417,7 @@ export default function PipelinePage() {
                         }),
                       });
                     }
-                  } catch (_) {
+                  } catch {
                     // Non-fatal — activity log failure should not block the rep
                   } finally {
                     setContractSending(false);
