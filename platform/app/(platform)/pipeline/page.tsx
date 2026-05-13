@@ -255,6 +255,9 @@ export default function PipelinePage() {
   // Email compose
   const [showEmailCompose, setShowEmailCompose] = useState(false);
   const [emailComposeTo, setEmailComposeTo] = useState<{ id: string; name: string; email: string } | null>(null);
+  // BoldSign contract modal
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [contractSending, setContractSending] = useState(false);
   const { toast, showToast } = useToast();
 
   /* ── data fetching ── */
@@ -1656,6 +1659,12 @@ export default function PipelinePage() {
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.card, cursor: "pointer", fontSize: 12, fontWeight: 600, color: Z.textSecondary, transition: "all 0.15s" }}
                   >✉️ Email</button>
                 )}
+                {selectedDeal.stage === "won" && (
+                  <button
+                    onClick={() => setShowContractModal(true)}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.violet}`, background: `${Z.violet}12`, cursor: "pointer", fontSize: 12, fontWeight: 700, color: Z.violet, transition: "all 0.15s" }}
+                  >📄 Send Contract</button>
+                )}
               </div>
               {/* Time in stage + heat score in detail panel */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, fontSize: 12, color: Z.textMuted }}>
@@ -2390,6 +2399,74 @@ export default function PipelinePage() {
           onEmailSent={() => showToast("Email sent", true)}
         />
       )}
+
+      {/* BoldSign Send Contract Modal */}
+      <Modal
+        open={showContractModal && !!selectedDeal}
+        onClose={() => setShowContractModal(false)}
+        title="Send Contract"
+      >
+        {selectedDeal && (
+          <div>
+            <div style={{ marginBottom: 16, fontSize: 14, color: Z.textSecondary }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, color: Z.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Contact</span>
+                <div style={{ fontWeight: 700, color: Z.textPrimary, marginTop: 2 }}>
+                  {selectedDeal.contact?.name || selectedDeal.contactName || "—"}
+                </div>
+                <div style={{ color: Z.textSecondary, fontSize: 13 }}>
+                  {selectedDeal.contact?.email || "No email on file"}
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontWeight: 600, color: Z.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Deal</span>
+                <div style={{ fontWeight: 700, color: Z.textPrimary, marginTop: 2 }}>
+                  {selectedDeal.title}
+                </div>
+              </div>
+              <div style={{ padding: "10px 12px", borderRadius: 8, background: `${Z.violet}10`, border: `1px solid ${Z.violet}30`, fontSize: 13, color: Z.textSecondary }}>
+                This will open BoldSign in a new tab. Log in and select your template to send the agreement.
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => setShowContractModal(false)}>Cancel</Btn>
+              <Btn
+                onClick={async () => {
+                  if (contractSending) return;
+                  setContractSending(true);
+                  window.open("https://app.boldsign.com/document/send", "_blank");
+                  try {
+                    if (selectedDeal.contact?.id || selectedDeal.contactId) {
+                      await fetch("/api/activity", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          contactId: selectedDeal.contact?.id || selectedDeal.contactId,
+                          type: "note",
+                          subject: "Contract sent via BoldSign",
+                          metadata: {
+                            source: "manual_boldsign_deeplink",
+                            sentBy: myRepName || undefined,
+                            dealId: selectedDeal.id,
+                          },
+                        }),
+                      });
+                    }
+                  } catch (_) {
+                    // Non-fatal — activity log failure should not block the rep
+                  } finally {
+                    setContractSending(false);
+                    setShowContractModal(false);
+                    showToast("Opened BoldSign — activity logged", true);
+                  }
+                }}
+              >
+                {contractSending ? "Opening..." : "Open in BoldSign"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -209,15 +209,12 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
             html: `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://app.zingwebsitedesign.com/forms/gbp-info">Complete your Google Business Profile info form</a></li><li><a href="https://app.zingwebsitedesign.com/forms/design-brief">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>— ${deal.rep}, ZING Team</p>`,
           });
 
-          // TODO: Trigger BoldSign API to send service agreement — awaiting API key (BOLDSIGN_API_KEY)
-          await prisma.deal.update({ where: { id: deal.id }, data: { boldsignSentAt: new Date() } });
-
           await prisma.activityLog.create({
             data: {
               organizationId: ORG_ID,
               contactId: deal.contactId,
               type: 'note',
-              subject: 'BoldSign service agreement triggered',
+              subject: 'Deal marked Closed Won — contract send pending rep action',
               metadata: { source: 'closed_won_automation' },
             },
           });
