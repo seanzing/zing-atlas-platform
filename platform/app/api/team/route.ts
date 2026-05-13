@@ -17,11 +17,15 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       organizationId: ORG_ID,
-      active: true,
       deletedAt: null,
     };
     if (position) {
       where.position = position;
+    }
+    // If not requesting a specific position (admin user management), include all active/inactive.
+    // If position filter is used (e.g., sales reps for pipeline), only return active.
+    if (position) {
+      where.active = true;
     }
 
     const teamMembers = await prisma.teamMember.findMany({ where });

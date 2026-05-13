@@ -34,6 +34,7 @@ model Contact {
   tickets         Ticket[]
   noteLog         ContactNote[]
   tasks           ContactTask[]
+  formSubmissions FormSubmission[]
 
   deletedAt       DateTime?  @map("deleted_at")
   createdAt       DateTime   @default(now()) @map("created_at")
@@ -419,6 +420,19 @@ model RoundRobinState {
   id           Int @id @default(1)
   lastRepIndex Int @default(0) @map("last_rep_index")
   @@map("round_robin_state")
+}
+
+model FormSubmission {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  contactId      String   @map("contact_id") @db.Uuid
+  formName       String   @map("form_name")
+  formData       Json     @map("form_data")
+  submittedAt    DateTime @default(now()) @map("submitted_at")
+
+  contact        Contact  @relation(fields: [contactId], references: [id])
+
+  @@map("form_submissions")
 }
 
 model EmailTemplate {

@@ -152,7 +152,7 @@ interface StandaloneEntry {
   createdAt: string;
 }
 
-const TABS = ["Customer Info", "Activity", "Pre Sale Comms", "Post Sale Comms", "Cancelled"];
+const TABS = ["Customer Info", "Activity", "Pre Sale Comms", "Form Submissions", "Cancelled"];
 
 const EMAIL_TEMPLATES = [
   {
@@ -337,6 +337,16 @@ export default function ContactDetailPage() {
   );
   const { data: productOptions } = useSWR<ProductOption[]>("/api/products");
   const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
+
+  interface FormSubmission {
+    id: string;
+    formName: string;
+    formData: Record<string, unknown>;
+    submittedAt: string;
+  }
+  const { data: formSubmissions } = useSWR<FormSubmission[]>(
+    activeTab === "Form Submissions" ? `/api/form-submissions?contactId=${id}` : null
+  );
   const { data: contactTasks, mutate: mutateTasks } = useSWR<ContactTask[]>(`/api/contacts/${id}/tasks`);
   const [composeOpen, setComposeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -622,15 +632,12 @@ export default function ContactDetailPage() {
 
   const preSaleCount =
     (contact.deals ? contact.deals.length : 0) + (contact.notes ? 1 : 0) + 1;
-  const postSaleCount =
-    (contact.onboarding ? contact.onboarding.length : 0) +
-    (contact.tickets ? contact.tickets.length : 0);
 
   const tabCounts: Record<string, number | null> = {
     "Customer Info": null,
-    Email: null,
+    Activity: null,
     "Pre Sale Comms": preSaleCount,
-    "Post Sale Comms": postSaleCount || null,
+    "Form Submissions": null,
     Cancelled: null,
   };
 
@@ -1498,8 +1505,64 @@ export default function ContactDetailPage() {
       )}
 
       {/* Timeline tabs: Pre Sale, Post Sale, Cancelled */}
+      {/* Form Submissions tab */}
+      {activeTab === "Form Submissions" && (
+        <div
+          style={{
+            background: Z.card,
+            borderRadius: 16,
+            border: `1px solid ${Z.border}`,
+            padding: "28px 32px",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 24 }}>
+            Form Submissions
+          </div>
+          {!formSubmissions ? (
+            <div style={{ color: Z.textMuted, fontSize: 13 }}>Loading...</div>
+          ) : formSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "40px 0" }}>
+              No form submissions yet.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {formSubmissions.map((sub) => (
+                <div
+                  key={sub.id}
+                  style={{
+                    background: Z.bg,
+                    borderRadius: 12,
+                    border: `1px solid ${Z.borderLight}`,
+                    padding: "16px 20px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary }}>{sub.formName}</div>
+                    <div style={{ fontSize: 11, color: Z.textMuted }}>
+                      {new Date(sub.submittedAt).toLocaleString("en-US", {
+                        month: "short", day: "numeric", year: "numeric",
+                        hour: "numeric", minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {Object.entries(sub.formData as Record<string, unknown>).map(([key, value]) => (
+                      <div key={key} style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                        <span style={{ fontWeight: 600, color: Z.textMuted, minWidth: 160, textTransform: "capitalize", flexShrink: 0 }}>
+                          {key.replace(/_/g, " ")}
+                        </span>
+                        <span style={{ color: Z.textPrimary }}>{String(value ?? "—")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {(activeTab === "Pre Sale Comms" ||
-        activeTab === "Post Sale Comms" ||
         activeTab === "Cancelled") && (
         <div
           style={{

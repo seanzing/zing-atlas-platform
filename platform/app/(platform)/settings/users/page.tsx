@@ -535,7 +535,7 @@ export default function UsersPage() {
       <Modal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        title={`Edit ${fullName(selectedUser!)}`}
+        title={selectedUser ? `Edit ${fullName(selectedUser)}` : "Edit User"}
       >
         <FormField label="First Name">
           <Input value={editFirstName} onChange={setEditFirstName} placeholder="First name" />
@@ -580,7 +580,7 @@ export default function UsersPage() {
         title="Deactivate User"
       >
         <p style={{ fontSize: 14, color: Z.textSecondary, marginBottom: 20, lineHeight: 1.6 }}>
-          Deactivate <strong>{fullName(selectedUser!)}</strong>? They will lose access but their history will be preserved.
+          Deactivate <strong>{selectedUser ? fullName(selectedUser) : "this user"}</strong>? They will lose access but their history will be preserved.
         </p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <Btn variant="secondary" onClick={() => setDeactivateConfirmOpen(false)}>Cancel</Btn>
@@ -595,7 +595,7 @@ export default function UsersPage() {
         title="Delete User"
       >
         <p style={{ fontSize: 14, color: Z.textSecondary, marginBottom: 20, lineHeight: 1.6 }}>
-          Are you sure you want to permanently remove <strong>{fullName(selectedUser!)}</strong>? This cannot be undone.
+          Are you sure you want to permanently remove <strong>{selectedUser ? fullName(selectedUser) : "this user"}</strong>? This cannot be undone.
         </p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <Btn variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Btn>

@@ -7,6 +7,7 @@ import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 import useSWR, { mutate } from "swr";
 import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
+import Link from "next/link";
 import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { NewSaleModal } from "@/components/NewSaleModal";
@@ -1331,15 +1332,33 @@ export default function PipelinePage() {
                         >
                           {deal.title}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: Z.textSecondary,
-                            marginBottom: 2,
-                          }}
-                        >
-                          {deal.contact?.name || deal.contactName || "—"}
-                        </div>
+                        {deal.contactId ? (
+                          <Link
+                            href={`/contacts/${deal.contactId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: 11,
+                              color: Z.textSecondary,
+                              marginBottom: 2,
+                              display: "block",
+                              textDecoration: "none",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; (e.currentTarget as HTMLElement).style.color = Z.ultramarine; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; (e.currentTarget as HTMLElement).style.color = Z.textSecondary; }}
+                          >
+                            {deal.contact?.name || deal.contactName || "—"}
+                          </Link>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: Z.textSecondary,
+                              marginBottom: 2,
+                            }}
+                          >
+                            {deal.contact?.name || deal.contactName || "—"}
+                          </div>
+                        )}
                         <div
                           style={{
                             fontSize: 11,

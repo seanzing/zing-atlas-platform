@@ -33,22 +33,16 @@ interface Contact {
   leadSource: string;
   campaignId: string | null;
   avatar: string | null;
+  industry: string | null;
+  websiteUrl: string | null;
 }
 
-interface Campaign {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  contactCount: number;
-}
 
 const STATUS_FILTERS = ["All", "Live Customer", "Active Lead", "Cancelled", "DNC"];
 
 export default function ContactsPage() {
   const router = useRouter();
   const { data: contacts, mutate } = useSWR<Contact[]>("/api/contacts");
-  const { data: campaigns } = useSWR<Campaign[]>("/api/campaigns");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,7 +63,6 @@ export default function ContactsPage() {
   if (!contacts) return <PageLoader />;
 
   const list = contacts || [];
-  const campaignMap = new Map((campaigns || []).map((c) => [c.id, c]));
 
   // Stats
   const liveCount = list.filter((c) => c.status === "Live Customer").length;
@@ -288,7 +281,7 @@ export default function ContactsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "40px 2fr 2fr 1fr 1fr 1fr 1fr 1fr",
+            gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr",
             padding: "14px 24px",
             borderBottom: `1px solid ${Z.border}`,
             background: Z.bg,
@@ -306,7 +299,7 @@ export default function ContactsPage() {
                 style={{ cursor: "pointer", width: 16, height: 16 }}
               />
             </div>
-          {["Name", "Email", "Company", "Campaign", "Lead Source", "Status", "Value"].map(
+          {["Name", "Email", "Phone", "Company", "Industry", "Lead Source", "Status", "Value"].map(
             (h) => (
               <div
                 key={h}
@@ -326,7 +319,6 @@ export default function ContactsPage() {
 
         {/* Rows */}
         {filtered.map((c, i) => {
-          const campaign = c.campaignId ? campaignMap.get(c.campaignId) : null;
           const isSelected = selectedIds.has(c.id);
           return (
             <div
@@ -336,7 +328,7 @@ export default function ContactsPage() {
               onMouseLeave={() => setHoveredRow(null)}
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px 2fr 2fr 1fr 1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr",
                 padding: "14px 24px",
                 alignItems: "center",
                 borderBottom: `1px solid ${Z.borderLight}`,
@@ -390,6 +382,19 @@ export default function ContactsPage() {
                 {c.email}
               </div>
 
+              {/* Phone */}
+              <div
+                style={{
+                  fontSize: 13,
+                  color: Z.textSecondary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.phone || "—"}
+              </div>
+
               {/* Company */}
               <div
                 style={{
@@ -400,23 +405,20 @@ export default function ContactsPage() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {c.company}
+                {c.company || "—"}
               </div>
 
-              {/* Campaign */}
-              <div>
-                {campaign ? (
-                  <Badge
-                    label={
-                      campaign.name.length > 20
-                        ? campaign.name.slice(0, 20) + "..."
-                        : campaign.name
-                    }
-                    color={Z.bluejeans}
-                  />
-                ) : (
-                  <span style={{ fontSize: 12, color: Z.textMuted }}>--</span>
-                )}
+              {/* Industry */}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: Z.textSecondary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.industry || <span style={{ color: Z.textMuted }}>—</span>}
               </div>
 
               {/* Lead Source */}

@@ -201,7 +201,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
             ? await prisma.designer.findFirst({ where: { name: deal.assignedDesigner, organizationId: ORG_ID } })
             : null;
 
-          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://app.zingwebsitedesign.com/forms/gbp-info">Complete your Google Business Profile info form</a></li><li><a href="https://app.zingwebsitedesign.com/forms/design-brief">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
+          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://share.hsforms.com/1fLdclQZxQ-WPmw_j8KMh4Anoprw">Complete your Google Business Profile info form</a></li><li><a href="https://share.hsforms.com/1Q-icSWyoQreimUSVS2sCUwnoprw">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
           const smtp2goRes = await fetch('https://api.smtp2go.com/v3/email/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
