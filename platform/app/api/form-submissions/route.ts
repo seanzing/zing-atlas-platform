@@ -31,17 +31,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Public POST -- no auth required (forms are publicly accessible)
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    if (auth.error) return auth.error;
-
     const body = await request.json();
     const { contactId, formName, formData } = body;
 
-    if (!contactId || !formName || !formData) {
+    if (!formName || !formData) {
       return NextResponse.json(
-        { error: "contactId, formName, and formData are required" },
+        { error: "formName and formData are required" },
         { status: 400 }
       );
     }
@@ -49,7 +47,7 @@ export async function POST(request: NextRequest) {
     const submission = await prisma.formSubmission.create({
       data: {
         organizationId: ORG_ID,
-        contactId,
+        contactId: contactId || null,
         formName,
         formData,
       },

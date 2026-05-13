@@ -425,12 +425,12 @@ model RoundRobinState {
 model FormSubmission {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
-  contactId      String   @map("contact_id") @db.Uuid
+  contactId      String?  @map("contact_id") @db.Uuid
   formName       String   @map("form_name")
   formData       Json     @map("form_data")
   submittedAt    DateTime @default(now()) @map("submitted_at")
 
-  contact        Contact  @relation(fields: [contactId], references: [id])
+  contact        Contact? @relation(fields: [contactId], references: [id])
 
   @@map("form_submissions")
 }

@@ -201,7 +201,10 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
             ? await prisma.designer.findFirst({ where: { name: deal.assignedDesigner, organizationId: ORG_ID } })
             : null;
 
-          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="https://share.hsforms.com/1fLdclQZxQ-WPmw_j8KMh4Anoprw">Complete your Google Business Profile info form</a></li><li><a href="https://share.hsforms.com/1Q-icSWyoQreimUSVS2sCUwnoprw">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://atlas.zingwebsitedesign.com';
+          const gbpFormUrl = `${appUrl}/forms/gbp-info?contact=${deal.contactId ?? ''}`;
+          const designBriefUrl = `${appUrl}/forms/design-brief?contact=${deal.contactId ?? ''}`;
+          const emailHtml = `<p>Hi ${contact.company || contact.name},</p><p>Welcome to ZING! Here are your next steps:</p><ol><li><a href="${gbpFormUrl}">Complete your Google Business Profile info form</a></li><li><a href="${designBriefUrl}">Complete your website design brief</a></li>${designer?.bookingLink ? `<li><a href="${designer.bookingLink}">Book your onboarding call with your designer</a></li>` : ''}</ol><p>-- ${deal.rep}, ZING Team</p>`;
           const smtp2goRes = await fetch('https://api.smtp2go.com/v3/email/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
