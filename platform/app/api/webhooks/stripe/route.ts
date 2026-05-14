@@ -402,36 +402,21 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update related deal status if there's a matching contact
-      if (arAccount.email) {
-        const contact = await prisma.contact.findFirst({
-          where: { email: arAccount.email, organizationId: ORG_ID, deletedAt: null },
-        });
-
-        if (contact) {
-          await prisma.deal.updateMany({
-            where: {
-              contactId: contact.id,
-              organizationId: ORG_ID,
-              stage: { not: "won" },
-              deletedAt: null,
-            },
-            data: { stage: "won" },
-          });
-        }
-      }
-
-      // Confirm payment on deals linked by stripeSubscriptionId
+      // Update the specific deal tied to this subscription
+      // IMPORTANT: do NOT use updateMany on contactId alone — a contact can have
+      // multiple open deals, and we must only update the one linked to this invoice.
       const subscriptionId = invoice?.subscription as string | undefined;
       if (subscriptionId) {
         await prisma.deal.updateMany({
           where: {
             stripeSubscriptionId: subscriptionId,
             organizationId: ORG_ID,
-            paymentStatus: { not: "confirmed" },
             deletedAt: null,
           },
-          data: { paymentStatus: "confirmed" },
+          data: {
+            stage: "won",
+            paymentStatus: "confirmed",
+          },
         });
       }
 
