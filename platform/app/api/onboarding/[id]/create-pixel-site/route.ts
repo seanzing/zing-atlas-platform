@@ -10,13 +10,9 @@ export const dynamic = "force-dynamic";
 const PIXEL_API_URL = "https://pixel.yourwebsiteexample.com/api/sites";
 const PIXEL_SECRET = process.env.PIXEL_API_SECRET || "";
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
+function generateSiteId(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -42,29 +38,53 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
 
     // Call Pixel API to create site
-    const pixelBody = {
-      business_name: onboarding.businessName ?? "",
-      slug: slugify(onboarding.businessName ?? "site"),
-      owner_email: onboarding.email ?? "",
-      owner_phone: onboarding.phone ?? "",
-      existing_url: onboarding.existingUrl ?? "",
-      atlasOnboardingId: id,
-    };
+    // Attempt site creation with a random ID, retrying on conflict (CF Pages project names are globally unique)
+    let pixelData: Record<string, string> | null = null;
+    let lastError = "";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const siteIdCandidate = generateSiteId();
+      const pixelBody = {
+        id: siteIdCandidate,
+        business_name: onboarding.businessName ?? "",
+        owner_email: onboarding.email ?? "",
+        phone: onboarding.phone ?? "",
+        address: onboarding.existingUrl ?? "",
+        atlasOnboardingId: id,
+      };
 
-    const pixelRes = await fetch(PIXEL_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-pixel-secret": PIXEL_SECRET,
-      },
-      body: JSON.stringify(pixelBody),
-    });
+      const pixelRes = await fetch(PIXEL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-pixel-secret": PIXEL_SECRET,
+        },
+        body: JSON.stringify(pixelBody),
+      });
 
-    if (!pixelRes.ok) {
+      if (pixelRes.ok) {
+        pixelData = await pixelRes.json();
+        break;
+      }
+
       const errText = await pixelRes.text().catch(() => "Unknown error");
-      logger.error({ status: pixelRes.status, body: errText }, "Pixel API create-site failed");
+      lastError = errText;
+
+      // Only retry on conflict (409) — fail fast on other errors
+      if (pixelRes.status !== 409) {
+        logger.error({ status: pixelRes.status, body: errText }, "Pixel API create-site failed");
+        return NextResponse.json(
+          { error: "Could not create site in Pixel. Try again or create manually." },
+          { status: 502 }
+        );
+      }
+
+      logger.warn({ attempt, siteIdCandidate }, "Site ID conflict, retrying with new ID");
+    }
+
+    if (!pixelData) {
+      logger.error({ lastError }, "Pixel API: exhausted retries on ID conflict");
       return NextResponse.json(
-        { error: "Could not create site in Pixel. Try again or create manually." },
+        { error: "Could not generate a unique site ID. Please try again." },
         { status: 502 }
       );
     }
