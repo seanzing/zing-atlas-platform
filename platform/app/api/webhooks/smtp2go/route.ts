@@ -51,27 +51,27 @@ export async function POST(req: NextRequest) {
       }
 
       const entry = entries[0];
-      const existingMeta = (entry.metadata as Record<string, unknown>) ?? {};
+      const existingMeta: Record<string, string | null> =
+        (entry.metadata as Record<string, string | null>) ?? {};
 
       // Only upgrade status — don't downgrade (e.g. opened > delivered)
       const statusRank: Record<string, number> = {
         failed: 0, sent: 1, delivered: 2, opened: 3, clicked: 4,
         bounced: 2, spam: 2, unsubscribed: 2,
       };
-      const currentRank = statusRank[existingMeta.deliveryStatus as string ?? "sent"] ?? 0;
+      const currentRank = statusRank[existingMeta.deliveryStatus ?? "sent"] ?? 0;
       const newRank = statusRank[deliveryStatus] ?? 0;
       const updatedStatus = newRank > currentRank ? deliveryStatus : existingMeta.deliveryStatus;
 
       const timestampKey = `${deliveryStatus}At`;
+      const updatedMeta: Record<string, string | null> = {
+        ...existingMeta,
+        deliveryStatus: updatedStatus ?? null,
+        [timestampKey]: new Date().toISOString(),
+      };
       await prisma.activityLog.update({
         where: { id: entry.id },
-        data: {
-          metadata: {
-            ...existingMeta,
-            deliveryStatus: updatedStatus,
-            [timestampKey]: new Date().toISOString(),
-          },
-        },
+        data: { metadata: updatedMeta },
       });
 
       logger.info({ messageId, eventType, deliveryStatus, activityId: entry.id }, "SMTP2GO webhook processed");
