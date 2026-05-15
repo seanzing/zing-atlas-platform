@@ -79,11 +79,6 @@ interface ProductOption {
   price: number;
 }
 
-interface ContactNote {
-  id: string;
-  body: string;
-  createdAt: string;
-}
 
 interface ContactTask {
   id: string;
@@ -365,7 +360,7 @@ export default function ContactDetailPage() {
   const { data: productOptions } = useSWR<ProductOption[]>("/api/products");
   const { data: teamMembers } = useSWR<{ id: string; firstName: string; lastName: string | null }[]>("/api/team", fetcher);
   const { data: designers } = useSWR<{ id: string; name: string | null }[]>("/api/designers", fetcher);
-  const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
+  // contactNotes removed — pipeline dept notes now used instead
   const { data: dealNotes, mutate: mutateDealNotes } = useSWR<{ id: string; dealId: string; dealTitle: string; department: string; content: string; createdAt: string }[]>(`/api/contacts/${id}/deal-notes`, fetcher);
   const [viewingDeal, setViewingDeal] = useState<Deal | null>(null);
 
@@ -397,7 +392,7 @@ export default function ContactDetailPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editSecondaryEmail, setEditSecondaryEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
-  const [noteInput, setNoteInput] = useState("");
+
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
@@ -523,17 +518,6 @@ export default function ContactDetailPage() {
     } finally {
       setEmailSending(false);
     }
-  };
-
-  const handleAddNote = async () => {
-    if (!noteInput.trim()) return;
-    await fetch(`/api/contacts/${id}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: noteInput.trim() }),
-    });
-    setNoteInput("");
-    mutateNotes();
   };
 
   const submitDeptNote = async () => {
