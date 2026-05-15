@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // SMTP2GO delivery event webhook
 // Configure in SMTP2GO dashboard: Sending > Webhook URLs
-// URL: https://atlas.zingwebsitedesign.com/api/webhooks/smtp2go
+// URL: https://zing-atlas-platform-production.up.railway.app/api/webhooks/smtp2go
 //
 // Events received: delivered, opened, clicked, bounced, spam, unsubscribed
 export async function POST(req: NextRequest) {
