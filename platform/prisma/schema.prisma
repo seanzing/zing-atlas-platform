@@ -103,6 +103,8 @@ model Deal {
   stripeCustomerId    String?   @map("stripe_customer_id")
   stageEnteredAt      DateTime? @map("stage_entered_at")
   boldsignSentAt      DateTime? @map("boldsign_sent_at")
+  domainType          String?   @map("domain_type")
+  domainName          String?   @map("domain_name")
 
   contact          Contact?           @relation(fields: [contactId], references: [id])
   product          Product?           @relation(fields: [productId], references: [id])

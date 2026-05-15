@@ -71,6 +71,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       "productId", "contactId", "wonDate", "lostReason", "notes",
       "paymentStatus", "stripeSubscriptionId", "stripeCustomerId",
       "assignedDesigner", "designerEmail", "launchFeeAmount", "deliveryDate",
+      "domainType", "domainName",
     ];
     for (const key of whitelist) {
       if (key in body) updateData[key] = body[key];

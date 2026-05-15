@@ -32,6 +32,8 @@ interface Deal {
   stage: string;
   createdAt: string;
   productId?: string | null;
+  domainType?: string | null;
+  domainName?: string | null;
 }
 
 interface Ticket {
@@ -1052,6 +1054,7 @@ export default function ContactDetailPage() {
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
+                          marginBottom: deal.domainName ? 8 : 0,
                         }}
                       >
                         <Badge label={deal.stage} color={Z.ultramarine} />
@@ -1062,6 +1065,16 @@ export default function ContactDetailPage() {
                           )}
                         </span>
                       </div>
+                      {deal.domainName && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: deal.domainType === "existing" ? "#eff6ff" : "#f0fdf4", borderRadius: 6, border: `1px solid ${deal.domainType === "existing" ? "#bfdbfe" : "#bbf7d0"}` }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: deal.domainType === "existing" ? "#1d4ed8" : "#15803d" }}>
+                            {deal.domainType === "existing" ? "Existing Domain" : "Requested Domain"}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: deal.domainType === "existing" ? "#1e40af" : "#166534" }}>
+                            {deal.domainName}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

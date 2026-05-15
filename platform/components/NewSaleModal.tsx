@@ -37,6 +37,8 @@ export function NewSaleModal({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [existingUrl, setExistingUrl] = useState("");
+  const [domainType, setDomainType] = useState<"" | "existing" | "new">("");
+  const [domainName, setDomainName] = useState("");
   const [productId, setProductId] = useState("");
   const [rep, setRep] = useState("");
   const [wonDate, setWonDate] = useState(toYMD(new Date()));
@@ -89,6 +91,8 @@ export function NewSaleModal({
     setEmail("");
     setPhone("");
     setExistingUrl("");
+    setDomainType("");
+    setDomainName("");
     setProductId("");
     setRep("");
     setWonDate(toYMD(new Date()));
@@ -108,6 +112,14 @@ export function NewSaleModal({
     }
     if (!businessName.trim()) {
       setError("Business name is required");
+      return;
+    }
+    if (!domainType) {
+      setError("Domain preference is required");
+      return;
+    }
+    if (!domainName.trim()) {
+      setError(domainType === "existing" ? "Existing domain is required" : "Requested domain is required");
       return;
     }
 
@@ -149,6 +161,8 @@ export function NewSaleModal({
           value: dealValue ? Number(dealValue) : undefined,
           wonDate: wonDate || undefined,
           existingUrl: existingUrl.trim() || undefined,
+          domainType: domainType || undefined,
+          domainName: domainName.trim() || undefined,
         }),
       });
 
@@ -170,7 +184,7 @@ export function NewSaleModal({
     } finally {
       setSubmitting(false);
     }
-  }, [customerName, businessName, email, phone, existingUrl, productId, rep, wonDate, dealValue, onSuccess]);
+  }, [customerName, businessName, email, phone, existingUrl, domainType, domainName, productId, rep, wonDate, dealValue, onSuccess]);
 
   return (
     <Modal open={open} onClose={handleClose} title="New Sale">
@@ -195,6 +209,29 @@ export function NewSaleModal({
         <FormField label="Existing Website URL">
           <Input value={existingUrl} onChange={setExistingUrl} placeholder="https://acme.com" />
         </FormField>
+
+        <FormField label="Domain Preference *">
+          <Select
+            value={domainType}
+            onChange={(v) => { setDomainType(v as "" | "existing" | "new"); setDomainName(""); }}
+            options={[
+              { value: "", label: "Select..." },
+              { value: "existing", label: "Customer has an existing domain" },
+              { value: "new", label: "Customer needs a new domain" },
+            ]}
+          />
+        </FormField>
+
+        {domainType === "existing" && (
+          <FormField label="Existing Domain *">
+            <Input value={domainName} onChange={setDomainName} placeholder="acme.com" />
+          </FormField>
+        )}
+        {domainType === "new" && (
+          <FormField label="Requested Domain *">
+            <Input value={domainName} onChange={setDomainName} placeholder="acmeplumbing.com" />
+          </FormField>
+        )}
 
         <FormField label="Product">
           <Select value={productId} onChange={handleProductChange} options={productOptions} />
