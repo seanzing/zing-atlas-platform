@@ -207,9 +207,13 @@ function formatRelative(dateStr: string) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function parseDate(d: string): Date {
+  // Prevent UTC-to-local timezone shift on date-only strings (e.g. "2026-05-15" → May 14 in MDT)
+  return new Date(d.includes("T") ? d : d + "T12:00:00Z");
+}
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
-  const date = new Date(d);
+  const date = parseDate(d);
   return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -742,6 +746,23 @@ export default function ContactDetailPage() {
         >
           ✉ Email
         </button>
+        <button
+          onClick={async () => {
+            if (!confirm(`Delete ${contact.name}? This permanently removes them and all associated data.`)) return;
+            const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+            if (res.ok) { window.location.href = "/contacts"; }
+            else { const err = await res.json(); alert(err.error || "Failed to delete contact"); }
+          }}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "7px 14px",
+            background: "#fff", color: "#ef4444",
+            border: "1px solid #fecaca", borderRadius: 6,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}
+        >
+          🗑 Delete Contact
+        </button>
       </div>
 
       {/* Floating compose window */}
@@ -1231,7 +1252,7 @@ export default function ContactDetailPage() {
                         </div>
                         {ob.wonDate && (
                           <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 2 }}>
-                            Won {new Date(ob.wonDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            Won {fmtDate(ob.wonDate)}
                           </div>
                         )}
                       </div>

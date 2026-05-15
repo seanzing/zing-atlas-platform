@@ -192,7 +192,8 @@ export default function PipelinePage() {
 
       if (d.stage === "won") {
         // Won deals filtered by date range
-        const wonDate = d.wonDate ? new Date(d.wonDate) : d.createdAt ? new Date(d.createdAt) : null;
+        const parseDate = (s: string) => new Date(s.includes("T") ? s : s + "T12:00:00Z");
+        const wonDate = d.wonDate ? parseDate(d.wonDate) : d.createdAt ? new Date(d.createdAt) : null;
         if (!wonDate) return true;
         return wonDate >= from && wonDate <= to;
       }

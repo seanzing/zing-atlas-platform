@@ -444,7 +444,7 @@ export default function OnboardingDetailPage() {
                   if (pixelSiteId) {
                     return (
                       <a
-                        href={`https://pixel.yourwebsiteexample.com/dashboard?site=${pixelSiteId}`}
+                        href={`https://pixel.yourwebsiteexample.com/dashboard/sites/${pixelSiteId}`}
                         target="_blank"
                         rel="noreferrer"
                         style={{
