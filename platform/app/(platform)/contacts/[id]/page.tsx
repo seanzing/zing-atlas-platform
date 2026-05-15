@@ -366,6 +366,8 @@ export default function ContactDetailPage() {
   const { data: teamMembers } = useSWR<{ id: string; firstName: string; lastName: string | null }[]>("/api/team", fetcher);
   const { data: designers } = useSWR<{ id: string; name: string | null }[]>("/api/designers", fetcher);
   const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
+  const { data: dealNotes } = useSWR<{ id: string; dealId: string; dealTitle: string; department: string; content: string; createdAt: string }[]>(`/api/contacts/${id}/deal-notes`, fetcher);
+  const [viewingDeal, setViewingDeal] = useState<Deal | null>(null);
 
   interface FormSubmission {
     id: string;
@@ -1094,6 +1096,13 @@ export default function ContactDetailPage() {
                             {fmt(Number(deal.value) || 0)}
                           </span>
                           <button
+                            onClick={() => setViewingDeal(deal)}
+                            style={{ fontSize: 11, color: Z.ultramarine, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
+                            title="View deal details"
+                          >
+                            📋
+                          </button>
+                          <button
                             onClick={() => openEditDeal(deal)}
                             style={{ fontSize: 11, color: Z.textMuted, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4 }}
                             title="Edit deal"
@@ -1335,6 +1344,27 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Pipeline Notes — deal dept notes from the pipeline panel */}
+          {dealNotes && dealNotes.length > 0 && (
+            <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 20 }}>Pipeline Notes</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {dealNotes.map((note) => (
+                  <div key={note.id} style={{ padding: "12px 14px", background: Z.bg, borderRadius: 8, border: `1px solid ${Z.borderLight}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, background: Z.ultramarine + "18", color: Z.ultramarine, padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{note.department}</span>
+                        <span style={{ fontSize: 11, color: Z.textMuted }}>{note.dealTitle}</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: Z.textMuted, whiteSpace: "nowrap", marginLeft: 8 }}>{formatRelative(note.createdAt)}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.5 }}>{note.content}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Tasks */}
           <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
@@ -1921,6 +1951,35 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </Modal>
+      {/* Deal Detail Modal */}
+      <Modal open={!!viewingDeal} onClose={() => setViewingDeal(null)} title={viewingDeal?.title ?? "Deal Details"}>
+        {viewingDeal && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {([
+              { label: "Deal Type", value: viewingDeal.dealType },
+              { label: "Stage", value: viewingDeal.stage },
+              { label: "Value", value: viewingDeal.value ? fmt(Number(viewingDeal.value)) + "/mo" : null },
+              { label: "Rep", value: viewingDeal.rep },
+              { label: "Domain", value: viewingDeal.domainName ? `${viewingDeal.domainType === "existing" ? "Existing" : "New"}: ${viewingDeal.domainName}` : null },
+              { label: "Designer", value: viewingDeal.assignedDesigner },
+              { label: "Designer Call Date", value: viewingDeal.designerCallDate ? fmtDate(viewingDeal.designerCallDate) : null },
+              { label: "Delivery Date", value: viewingDeal.deliveryDate ? fmtDate(viewingDeal.deliveryDate) : null },
+              { label: "Launch Fee", value: viewingDeal.launchFeeAmount ? fmt(Number(viewingDeal.launchFeeAmount)) : null },
+              { label: "Created", value: fmtDate(viewingDeal.createdAt) },
+            ] as { label: string; value: string | number | null | undefined }[]).filter(f => f.value).map(({ label, value }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${Z.borderLight}` }}>
+                <span style={{ fontSize: 13, color: Z.textMuted, fontWeight: 600 }}>{label}</span>
+                <span style={{ fontSize: 13, color: Z.textPrimary, fontWeight: 600, textAlign: "right", maxWidth: "60%" }}>{String(value)}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+              <Btn variant="secondary" onClick={() => { setViewingDeal(null); openEditDeal(viewingDeal); }}>Edit</Btn>
+              <Btn onClick={() => setViewingDeal(null)}>Close</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Toast toast={toast} />
     </div>
   );
