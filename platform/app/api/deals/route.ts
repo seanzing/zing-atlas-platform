@@ -203,7 +203,8 @@ export async function POST(req: NextRequest) {
     logger.info({ dealId: deal.id }, "POST /api/deals");
     return NextResponse.json(serialize(deal), { status: 201 });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     logger.error({ err: error }, "POST /api/deals failed");
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
