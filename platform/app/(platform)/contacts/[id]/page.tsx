@@ -130,6 +130,12 @@ interface EmailMessage {
     hasHtml?: boolean;
     attachments?: Array<{ name: string; size: number; mimeType: string }>;
     gmailMessageId?: string;
+    deliveryStatus?: string;
+    deliveredAt?: string;
+    openedAt?: string;
+    clickedAt?: string;
+    bouncedAt?: string;
+    source?: string;
   } | null;
 }
 
@@ -1494,8 +1500,28 @@ export default function ContactDetailPage() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: "#ffffff60" }}>{e.subject || "(no subject)"}</span>
                       <span style={{ fontSize: 11, color: "#ffffff25" }}>{formatRelative(e.createdAt)}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "#ffffff35" }}>
-                      {e.type === "email_sent" ? "Sent" : "Received"} &middot; {e.fromEmail} &rarr; {e.toEmail}
+                    <div style={{ fontSize: 11, color: "#ffffff35", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span>{e.type === "email_sent" ? "Sent" : "Received"} &middot; {e.fromEmail} &rarr; {e.toEmail}</span>
+                      {e.metadata?.deliveryStatus && (() => {
+                        const s = e.metadata.deliveryStatus;
+                        const config: Record<string, { label: string; color: string; bg: string }> = {
+                          sent:         { label: "Sent",         color: "#60a5fa", bg: "#1e3a5f" },
+                          delivered:    { label: "Delivered",    color: "#34d399", bg: "#064e3b" },
+                          opened:       { label: "Opened",       color: "#a78bfa", bg: "#2e1065" },
+                          clicked:      { label: "Clicked",      color: "#f472b6", bg: "#500724" },
+                          bounced:      { label: "Bounced",      color: "#f87171", bg: "#450a0a" },
+                          spam:         { label: "Spam",         color: "#fb923c", bg: "#431407" },
+                          failed:       { label: "Failed",       color: "#f87171", bg: "#450a0a" },
+                          unsubscribed: { label: "Unsubscribed", color: "#94a3b8", bg: "#1e293b" },
+                        };
+                        const c = config[s] ?? { label: s, color: "#94a3b8", bg: "#1e293b" };
+                        const ts = e.metadata.openedAt ?? e.metadata.clickedAt ?? e.metadata.deliveredAt ?? e.metadata.bouncedAt;
+                        return (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px", borderRadius: 4, background: c.bg, color: c.color, fontWeight: 700, fontSize: 10 }}>
+                            {c.label}{ts ? ` · ${new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}

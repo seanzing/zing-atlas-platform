@@ -316,20 +316,34 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
               sender: 'ZING <noreply@zing-work.com>',
               subject: 'Welcome to ZING -- Your Next Steps',
               html_body: emailHtml,
+              track_opens: true,
+              track_clicks: true,
             }),
           });
+
+          let smtp2goMessageId: string | null = null;
           if (!smtp2goRes.ok) {
             const errBody = await smtp2goRes.text();
             logger.error({ status: smtp2goRes.status, body: errBody }, 'SMTP2GO send failed');
+          } else {
+            const smtp2goData = await smtp2goRes.json().catch(() => null);
+            smtp2goMessageId = smtp2goData?.data?.email_id ?? smtp2goData?.request_id ?? null;
           }
 
           await prisma.activityLog.create({
             data: {
               organizationId: ORG_ID,
               contactId: deal.contactId,
-              type: 'note',
-              subject: 'Deal marked Closed Won — contract send pending rep action',
-              metadata: { source: 'closed_won_automation' },
+              type: 'email_sent',
+              subject: 'Welcome to ZING — Your Next Steps',
+              toEmail: contact.email,
+              fromEmail: 'noreply@zing-work.com',
+              metadata: {
+                source: 'closed_won_automation',
+                dealId: deal.id,
+                smtp2goMessageId,
+                deliveryStatus: smtp2goMessageId ? 'sent' : 'failed',
+              },
             },
           });
         }
