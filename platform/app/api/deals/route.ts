@@ -196,27 +196,8 @@ export async function POST(req: NextRequest) {
 
       logger.info({ dealId: deal.id, onboardingId: onboarding.id }, "Won deal — onboarding created");
 
-      // Fire-and-forget: auto-create Pixel site for this onboarding
-      // Non-fatal — if Pixel is down, onboarding still succeeds
-      const pixelWebhookUrl = process.env.PIXEL_WEBHOOK_URL;
-      const pixelWebhookSecret = process.env.PIXEL_WEBHOOK_SECRET;
-      if (pixelWebhookUrl && pixelWebhookSecret) {
-        fetch(`${pixelWebhookUrl}/api/webhooks/pixel`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-webhook-secret": pixelWebhookSecret,
-          },
-          body: JSON.stringify({
-            event: "onboarding.created",
-            onboardingId: onboarding.id,
-            businessName: contact?.name ?? deal.contactName ?? "New Customer",
-            contactEmail: contact?.email ?? null,
-            contactPhone: contact?.phone ?? null,
-            tier: deal.productId ?? null,
-          }),
-        }).catch((err: unknown) => logger.error({ err }, "[Pixel webhook] Failed to auto-create site"));
-      }
+      // Pixel site creation is handled manually from the onboarding screen.
+      // Auto-create on deal won is intentionally disabled.
     }
 
     logger.info({ dealId: deal.id }, "POST /api/deals");
