@@ -122,6 +122,8 @@ export default function OnboardingDetailPage() {
   const [linkSiteId, setLinkSiteId] = useState("");
   const [linkingSite, setLinkingSite] = useState(false);
   const [creatingPixelSite, setCreatingPixelSite] = useState(false);
+  const [showPixelModal, setShowPixelModal] = useState(false);
+  const [pixelForm, setPixelForm] = useState({ business_name: "", owner_email: "", phone: "", address: "" });
   const { toast, showToast } = useToast();
 
   if (!ob) return <PageLoader />;
@@ -180,6 +182,16 @@ export default function OnboardingDetailPage() {
     setSavingDesigner(false);
   };
 
+  const openPixelModal = () => {
+    setPixelForm({
+      business_name: ob.businessName ?? "",
+      owner_email: ob.email ?? "",
+      phone: ob.phone ?? "",
+      address: "",
+    });
+    setShowPixelModal(true);
+  };
+
   const createPixelSite = async () => {
     setCreatingPixelSite(true);
     const websiteItem = ob.items.find((i) => i.taskType === "website");
@@ -187,13 +199,21 @@ export default function OnboardingDetailPage() {
     const res = await fetch(`/api/onboarding/${id}/create-pixel-site`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId: websiteItem.id }),
+      body: JSON.stringify({
+        itemId: websiteItem.id,
+        business_name: pixelForm.business_name,
+        owner_email: pixelForm.owner_email,
+        phone: pixelForm.phone,
+        address: pixelForm.address,
+      }),
     });
     if (res.ok) {
+      setShowPixelModal(false);
       mutate();
       showToast("Pixel site created", true);
     } else {
-      showToast("Failed to create Pixel site", false);
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || "Failed to create Pixel site", false);
     }
     setCreatingPixelSite(false);
   };
@@ -448,7 +468,7 @@ export default function OnboardingDetailPage() {
                   return (
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <button
-                        onClick={createPixelSite}
+                        onClick={openPixelModal}
                         disabled={creatingPixelSite}
                         style={{
                           padding: "5px 12px",
@@ -628,6 +648,58 @@ export default function OnboardingDetailPage() {
       )}
 
       <Toast toast={toast} />
+
+      {/* Create Pixel Site Modal */}
+      {showPixelModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "32px 36px", width: "100%", maxWidth: 480, boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: Z.textPrimary, margin: 0 }}>Create Site in Pixel</h2>
+              <button onClick={() => setShowPixelModal(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: Z.textMuted }}>✕</button>
+            </div>
+
+            {([
+              { label: "Business Name", key: "business_name" as const, placeholder: "Acme Plumbing", type: "text", required: true },
+              { label: "Owner Email", key: "owner_email" as const, placeholder: "owner@acme.com", type: "email", required: true },
+              { label: "Phone", key: "phone" as const, placeholder: "(555) 123-4567", type: "text", required: false },
+              { label: "Address", key: "address" as const, placeholder: "123 Main St, Denver CO 80202", type: "text", required: false },
+            ]).map(({ label, key, placeholder, type, required }) => (
+              <div key={key} style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: Z.textSecondary, marginBottom: 4 }}>
+                  {label}{required && " *"}
+                </label>
+                <input
+                  type={type ?? "text"}
+                  value={pixelForm[key]}
+                  onChange={(e) => setPixelForm(f => ({ ...f, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  style={{ width: "100%", padding: "10px 12px", border: `1px solid ${Z.border}`, borderRadius: 8, fontSize: 14, boxSizing: "border-box", outline: "none" }}
+                />
+              </div>
+            ))}
+
+            <p style={{ fontSize: 11, color: Z.textMuted, marginBottom: 20 }}>
+              A unique site ID will be generated automatically. The site will be linked to this onboarding record.
+            </p>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowPixelModal(false)}
+                style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${Z.border}`, background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", color: Z.textSecondary }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createPixelSite}
+                disabled={creatingPixelSite || !pixelForm.business_name.trim() || !pixelForm.owner_email.trim()}
+                style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: (!pixelForm.business_name.trim() || !pixelForm.owner_email.trim()) ? 0.5 : 1 }}
+              >
+                {creatingPixelSite ? "Creating..." : "Create Site"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

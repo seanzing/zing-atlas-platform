@@ -37,18 +37,25 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "No website task found" }, { status: 400 });
     }
 
-    // Call Pixel API to create site
-    // Attempt site creation with a random ID, retrying on conflict (CF Pages project names are globally unique)
+    // Parse form overrides — UI pre-fills from onboarding but allows editing
+    const body = await req.json().catch(() => ({}));
+    const business_name = body.business_name || onboarding.businessName || "";
+    const owner_email   = body.owner_email   || onboarding.email        || "";
+    const phone         = body.phone         || onboarding.phone        || "";
+    const address       = body.address       || onboarding.existingUrl  || "";
+
+    // Attempt site creation with a random ID, retrying on conflict
+    // (CF Pages project names are globally unique)
     let pixelData: Record<string, string> | null = null;
     let lastError = "";
     for (let attempt = 0; attempt < 5; attempt++) {
       const siteIdCandidate = generateSiteId();
       const pixelBody = {
         id: siteIdCandidate,
-        business_name: onboarding.businessName ?? "",
-        owner_email: onboarding.email ?? "",
-        phone: onboarding.phone ?? "",
-        address: onboarding.existingUrl ?? "",
+        business_name,
+        owner_email,
+        phone,
+        address,
         atlasOnboardingId: id,
       };
 
