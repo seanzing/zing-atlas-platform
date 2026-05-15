@@ -156,6 +156,15 @@ interface StandaloneEntry {
   fromEmail: string | null;
   toEmail: string | null;
   createdAt: string;
+  metadata?: {
+    deliveryStatus?: string;
+    deliveredAt?: string;
+    openedAt?: string;
+    clickedAt?: string;
+    bouncedAt?: string;
+    source?: string;
+    [key: string]: unknown;
+  } | null;
 }
 
 const TABS = ["Customer Info", "Activity", "Pre Sale Comms", "Form Submissions", "Cancelled"];

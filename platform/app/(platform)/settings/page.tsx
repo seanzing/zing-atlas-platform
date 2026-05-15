@@ -775,7 +775,7 @@ export default function SettingsPage() {
             description: pbName,
             price: parseFloat(pbPrice) || 0,
             category: pbCategory,
-            commissionType: "subscription",
+            commissionType: pbCategory === "one-time" ? "one-time" : "subscription",
             commissionValue: isNaN(parseFloat(pbCommValue)) ? 0 : parseFloat(pbCommValue),
             launchFeeCommissionRate: isNaN(parseFloat(pbLaunchRate)) ? 0 : parseFloat(pbLaunchRate) / 100,
           }),
@@ -1973,8 +1973,8 @@ export default function SettingsPage() {
                   <FormField label="Product Name">
                     <Input value={pbName} onChange={setPbName} placeholder="e.g. April BOOST Special" />
                   </FormField>
-                  <FormField label="Price per month ($)">
-                    <Input value={pbPrice} onChange={setPbPrice} placeholder="149" type="number" />
+                  <FormField label={pbCategory === "one-time" ? "One-Time Fee ($)" : "Price per month ($)"}>
+                    <Input value={pbPrice} onChange={setPbPrice} placeholder={pbCategory === "one-time" ? "999" : "149"} type="number" />
                   </FormField>
                   <FormField label="Category">
                     <Select value={pbCategory} onChange={setPbCategory} options={[
@@ -1994,12 +1994,20 @@ export default function SettingsPage() {
                       Selecting a base plan pre-selects its components in Step 2. You can add or remove any.
                     </div>
                   </FormField>
-                  <FormField label="Subscription Commission (multiplier)">
-                    <Input value={pbCommValue} onChange={setPbCommValue} placeholder="1" type="number" />
-                  </FormField>
-                  <FormField label="Launch Fee Commission (%)">
-                    <Input value={pbLaunchRate} onChange={setPbLaunchRate} placeholder="20" type="number" />
-                  </FormField>
+                  {pbCategory === "one-time" ? (
+                    <FormField label="Commission (% of sale)">
+                      <Input value={pbLaunchRate} onChange={setPbLaunchRate} placeholder="20" type="number" />
+                    </FormField>
+                  ) : (
+                    <>
+                      <FormField label="Subscription Commission (multiplier)">
+                        <Input value={pbCommValue} onChange={setPbCommValue} placeholder="1" type="number" />
+                      </FormField>
+                      <FormField label="Launch Fee Commission (%)">
+                        <Input value={pbLaunchRate} onChange={setPbLaunchRate} placeholder="20" type="number" />
+                      </FormField>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -2244,11 +2252,11 @@ export default function SettingsPage() {
                     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                       <div>
                         <span style={{ fontSize: 11, color: Z.textMuted, fontWeight: 700, textTransform: "uppercase" }}>Price</span>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: Z.ultramarine }}>{fmt(parseFloat(pbPrice) || 0)}/mo</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: Z.ultramarine }}>{fmt(parseFloat(pbPrice) || 0)}{pbCategory !== "one-time" ? "/mo" : ""}</div>
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: Z.textMuted, fontWeight: 700, textTransform: "uppercase" }}>Commission</span>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: Z.textPrimary }}>{pbCommValue}x sub | {pbLaunchRate}% launch</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: Z.textPrimary }}>{pbCategory === "one-time" ? `${pbLaunchRate}% of sale` : `${pbCommValue}x sub | ${pbLaunchRate}% launch`}</div>
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: Z.textMuted, fontWeight: 700, textTransform: "uppercase" }}>Tasks</span>

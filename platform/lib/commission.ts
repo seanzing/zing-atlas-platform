@@ -25,9 +25,16 @@ export function calcDealCommission(
       ? safeNum(deal.value) * safeNum(product.commissionValue)
       : 0;
 
+  // One-time: commission is launchFeeCommissionRate % of the deal value
+  const oneTimeCommission =
+    product?.commissionType === "one-time"
+      ? safeNum(deal.value) * safeNum(product.launchFeeCommissionRate)
+      : 0;
+
   const launchFeeCommission =
-    safeNum(deal.launchFeeAmount) *
-    safeNum(product?.launchFeeCommissionRate);
+    product?.commissionType === "one-time"
+      ? oneTimeCommission
+      : safeNum(deal.launchFeeAmount) * safeNum(product?.launchFeeCommissionRate);
 
   const total = subscriptionCommission + launchFeeCommission;
 
