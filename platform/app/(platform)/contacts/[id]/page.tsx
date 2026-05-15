@@ -34,6 +34,12 @@ interface Deal {
   productId?: string | null;
   domainType?: string | null;
   domainName?: string | null;
+  rep?: string | null;
+  dealType?: string | null;
+  assignedDesigner?: string | null;
+  launchFeeAmount?: number | null;
+  deliveryDate?: string | null;
+  designerCallDate?: string | null;
 }
 
 interface Ticket {
@@ -357,6 +363,8 @@ export default function ContactDetailPage() {
     "/api/campaigns"
   );
   const { data: productOptions } = useSWR<ProductOption[]>("/api/products");
+  const { data: teamMembers } = useSWR<{ id: string; firstName: string; lastName: string | null }[]>("/api/team", fetcher);
+  const { data: designers } = useSWR<{ id: string; name: string | null }[]>("/api/designers", fetcher);
   const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
 
   interface FormSubmission {
@@ -397,11 +405,19 @@ export default function ContactDetailPage() {
   const [dealValue, setDealValue] = useState("");
   const [dealStage, setDealStage] = useState("call-now");
   const [dealProductId, setDealProductId] = useState("");
-  const [editingDeal, setEditingDeal] = useState<{ id: string; title: string; value: number; stage: string; productId: string | null } | null>(null);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editDealTitle, setEditDealTitle] = useState("");
   const [editDealValue, setEditDealValue] = useState("");
   const [editDealStage, setEditDealStage] = useState("call-now");
   const [editDealProductId, setEditDealProductId] = useState("");
+  const [editDealRep, setEditDealRep] = useState("");
+  const [editDealType, setEditDealType] = useState("new");
+  const [editDomainType, setEditDomainType] = useState<"" | "existing" | "new">("");
+  const [editDomainName, setEditDomainName] = useState("");
+  const [editDeliveryDate, setEditDeliveryDate] = useState("");
+  const [editDesignerCallDate, setEditDesignerCallDate] = useState("");
+  const [editDesigner, setEditDesigner] = useState("");
+  const [editLaunchFee, setEditLaunchFee] = useState("");
 
   // Silent background reply check when Activity tab is opened
   useEffect(() => {
@@ -564,18 +580,34 @@ export default function ContactDetailPage() {
         value: editDealValue ? parseFloat(editDealValue) : 0,
         stage: editDealStage,
         productId: editDealProductId || undefined,
+        rep: editDealRep || undefined,
+        dealType: editDealType || undefined,
+        domainType: editDomainType || undefined,
+        domainName: editDomainName.trim() || undefined,
+        deliveryDate: editDeliveryDate || undefined,
+        designerCallDate: editDesignerCallDate || undefined,
+        assignedDesigner: editDesigner || undefined,
+        launchFeeAmount: editLaunchFee ? parseFloat(editLaunchFee) : undefined,
       }),
     });
     setEditingDeal(null);
     mutate();
   };
 
-  const openEditDeal = (deal: { id: string; title: string; value: number; stage: string; productId?: string | null }) => {
-    setEditingDeal({ id: deal.id, title: deal.title, value: deal.value, stage: deal.stage, productId: deal.productId ?? null });
+  const openEditDeal = (deal: Deal) => {
+    setEditingDeal(deal);
     setEditDealTitle(deal.title);
     setEditDealValue(String(deal.value || 0));
     setEditDealStage(deal.stage || "call-now");
     setEditDealProductId(deal.productId || "");
+    setEditDealRep(deal.rep || "");
+    setEditDealType(deal.dealType || "new");
+    setEditDomainType((deal.domainType as "" | "existing" | "new") || "");
+    setEditDomainName(deal.domainName || "");
+    setEditDeliveryDate(deal.deliveryDate ? deal.deliveryDate.slice(0, 10) : "");
+    setEditDesignerCallDate(deal.designerCallDate ? deal.designerCallDate.slice(0, 10) : "");
+    setEditDesigner(deal.assignedDesigner || "");
+    setEditLaunchFee(deal.launchFeeAmount ? String(deal.launchFeeAmount) : "");
   };
 
   if (contactError) return (
@@ -1792,53 +1824,101 @@ export default function ContactDetailPage() {
         onClose={() => setEditingDeal(null)}
         title="Edit Deal"
       >
-        <FormField label="Product">
-          <Select
-            value={editDealProductId}
-            onChange={(val) => {
-              setEditDealProductId(val);
-              const product = (productOptions || []).find(p => p.id === val);
-              if (product) {
-                setEditDealTitle(product.description);
-                setEditDealValue(String(product.price));
-              }
-            }}
-            options={[
-              { value: "", label: "No product / keep existing" },
-              ...(productOptions || []).map(p => ({
-                value: p.id,
-                label: `${p.description} — $${Number(p.price).toFixed(2)}/mo`,
-              })),
-            ]}
-          />
-        </FormField>
-        <FormField label="Title">
-          <Input value={editDealTitle} onChange={setEditDealTitle} placeholder="Deal title" />
-        </FormField>
-        <FormField label="Value ($)">
-          <Input value={editDealValue} onChange={setEditDealValue} placeholder="0" type="number" />
-        </FormField>
-        <FormField label="Stage">
-          <Select
-            value={editDealStage}
-            onChange={setEditDealStage}
-            options={[
-              { value: "call-now", label: "Call Now" },
-              { value: "call-no-answer", label: "Call No Answer" },
-              { value: "hot-72", label: "Hot 72" },
-              { value: "active", label: "Active" },
-              { value: "appointment", label: "Appointment" },
-              { value: "appt-no-show", label: "Appt No Show" },
-              { value: "marketing-appt", label: "Marketing Appt" },
-              { value: "promo-hot", label: "Promo Hot" },
-              { value: "promo-cold", label: "Promo Cold" },
-              { value: "won", label: "Won" },
-            ]}
-          />
-        </FormField>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-          <Btn variant="secondary" onClick={() => setEditingDeal(null)}>Cancel</Btn>
-          <Btn onClick={handleEditDeal} disabled={!editDealTitle.trim()}>Save Changes</Btn>
+        <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+
+          {/* Deal type */}
+          <FormField label="Deal Type">
+            <div style={{ display: "flex", gap: 8 }}>
+              {["new", "upgrade", "add-on"].map((t) => (
+                <button key={t} onClick={() => setEditDealType(t)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: editDealType === t ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`, background: editDealType === t ? `${Z.ultramarine}10` : "transparent", color: editDealType === t ? Z.ultramarine : Z.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  {t === "add-on" ? "Add-on" : t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </FormField>
+
+          <FormField label="Product">
+            <Select
+              value={editDealProductId}
+              onChange={(val) => {
+                setEditDealProductId(val);
+                const product = (productOptions || []).find(p => p.id === val);
+                if (product) { setEditDealTitle(product.description); setEditDealValue(String(product.price)); }
+              }}
+              options={[
+                { value: "", label: "No product / keep existing" },
+                ...(productOptions || []).map(p => ({ value: p.id, label: `${p.description} — $${Number(p.price).toFixed(2)}/mo` })),
+              ]}
+            />
+          </FormField>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Title">
+              <Input value={editDealTitle} onChange={setEditDealTitle} placeholder="Deal title" />
+            </FormField>
+            <FormField label="Value ($/mo)">
+              <Input value={editDealValue} onChange={setEditDealValue} placeholder="0" type="number" />
+            </FormField>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Stage">
+              <Select value={editDealStage} onChange={setEditDealStage} options={[
+                { value: "call-now", label: "Call Now" }, { value: "call-no-answer", label: "Call No Answer" },
+                { value: "hot-72", label: "Hot 72" }, { value: "active", label: "Active" },
+                { value: "appointment", label: "Appointment" }, { value: "appt-no-show", label: "Appt No Show" },
+                { value: "marketing-appt", label: "Marketing Appt" }, { value: "promo-hot", label: "Promo Hot" },
+                { value: "promo-cold", label: "Promo Cold" }, { value: "won", label: "Won" },
+              ]} />
+            </FormField>
+            <FormField label="Rep">
+              <Select value={editDealRep} onChange={setEditDealRep} options={[
+                { value: "", label: "Unassigned" },
+                ...(teamMembers || []).map(m => ({ value: `${m.firstName} ${m.lastName || ""}`.trim(), label: `${m.firstName} ${m.lastName || ""}`.trim() })),
+              ]} />
+            </FormField>
+          </div>
+
+          {/* Domain */}
+          <FormField label="Domain Preference">
+            <Select value={editDomainType} onChange={(v) => { setEditDomainType(v as "" | "existing" | "new"); setEditDomainName(""); }} options={[
+              { value: "", label: "Not set" },
+              { value: "existing", label: "Customer has an existing domain" },
+              { value: "new", label: "Customer needs a new domain" },
+            ]} />
+          </FormField>
+          {editDomainType !== "" && (
+            <FormField label={editDomainType === "existing" ? "Existing Domain" : "Requested Domain"}>
+              <Input value={editDomainName} onChange={setEditDomainName} placeholder={editDomainType === "existing" ? "acme.com" : "acmeplumbing.com"} />
+            </FormField>
+          )}
+
+          {/* Fulfillment */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, margin: "12px 0 10px" }}>Fulfillment</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Designer Call Date">
+              <Input value={editDesignerCallDate} onChange={setEditDesignerCallDate} type="date" />
+            </FormField>
+            <FormField label="Delivery Date">
+              <Input value={editDeliveryDate} onChange={setEditDeliveryDate} type="date" />
+            </FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Designer">
+              <Select value={editDesigner} onChange={setEditDesigner} options={[
+                { value: "", label: "Unassigned" },
+                ...(designers || []).map(d => ({ value: d.name || d.id, label: d.name || "Unknown" })),
+              ]} />
+            </FormField>
+            <FormField label="Launch Fee ($)">
+              <Input value={editLaunchFee} onChange={setEditLaunchFee} placeholder="0" type="number" />
+            </FormField>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <Btn variant="secondary" onClick={() => setEditingDeal(null)}>Cancel</Btn>
+            <Btn onClick={handleEditDeal} disabled={!editDealTitle.trim()}>Save Changes</Btn>
+          </div>
         </div>
       </Modal>
       <Toast toast={toast} />

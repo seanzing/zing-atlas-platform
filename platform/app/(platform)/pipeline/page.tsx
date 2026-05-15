@@ -98,10 +98,6 @@ function getPresetRange(preset: string): { from: Date; to: Date } {
 type Deal = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TeamMember = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Product = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Designer = any;
 
 const DEPT_TABS = ["Reps", "Designer", "Publishing", "Accounts", "Support", "Marketing", "Referrals"] as const;
 type DeptTab = typeof DEPT_TABS[number];
@@ -168,8 +164,7 @@ export default function PipelinePage() {
   const { data: allDeals } = useSWR<Deal[]>("/api/deals", fetcher);
   const { data: allContacts } = useSWR<ContactSearchResult[]>("/api/contacts", fetcher);
   const { data: teamMembers } = useSWR<TeamMember[]>("/api/team", fetcher);
-  const { data: products } = useSWR<Product[]>("/api/products", fetcher);
-  const { data: designers } = useSWR<Designer[]>("/api/designers", fetcher);
+  // products and designers are fetched inside WonDealModal — not needed here
 
   const salesTeam = useMemo(
     () =>
@@ -454,12 +449,21 @@ export default function PipelinePage() {
   async function submitDeptNote(deal: Deal) {
     if (!deptNoteInput.trim()) return;
     setDeptNoteSaving(true);
+    const noteContent = deptNoteInput.trim();
     try {
       await fetch(`/api/deals/${deal.id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ department: activeDeptTab, content: deptNoteInput.trim() }),
+        body: JSON.stringify({ department: activeDeptTab, content: noteContent }),
       });
+      // Mirror note to contact record so it appears on the contact page
+      if (deal.contactId) {
+        fetch(`/api/contacts/${deal.contactId}/notes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: `[${activeDeptTab}] ${noteContent}` }),
+        }).catch(() => {}); // non-fatal
+      }
       setDeptNoteInput("");
       await loadDeptNotes(deal.id);
     } catch { showToast("Failed to save note", false); }
@@ -1075,6 +1079,12 @@ export default function PipelinePage() {
                         key={deal.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, deal.id)}
+                        onClick={() => {
+                          setSelectedDeal(deal);
+                          loadDeptNotes(deal.id);
+                          setActiveDeptTab("Reps");
+                          setDeptNoteInput("");
+                        }}
                         style={{
                           background: Z.card,
                           borderRadius: 10,
@@ -1083,7 +1093,7 @@ export default function PipelinePage() {
                           border: `1px solid ${Z.borderLight}`,
                           borderLeftWidth: 4,
                           borderLeftColor: prodColor,
-                          cursor: "grab",
+                          cursor: "pointer",
                           transition: "box-shadow 0.2s",
                           position: "relative",
                         }}
@@ -1105,17 +1115,10 @@ export default function PipelinePage() {
                         }}
                       >
                         <div
-                          onClick={() => {
-                            setSelectedDeal(deal);
-                            loadDeptNotes(deal.id);
-                            setActiveDeptTab("Reps");
-                            setDeptNoteInput("");
-                          }}
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
                             color: Z.ultramarine,
-                            cursor: "pointer",
                             marginBottom: 4,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -1411,12 +1414,37 @@ export default function PipelinePage() {
                     style={{
                       fontSize: 13,
                       color: Z.textSecondary,
-                      marginBottom: 2,
+                      marginBottom: 6,
                     }}
                   >
                     {selectedDeal.contact?.name ||
                       selectedDeal.contactName ||
                       "No contact"}
+                  </div>
+                  {/* Contact info block */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 8, fontSize: 12 }}>
+                    {selectedDeal.contact?.email && (
+                      <a href={`mailto:${selectedDeal.contact.email}`} style={{ color: Z.ultramarine, textDecoration: "none" }}>
+                        ✉ {selectedDeal.contact.email}
+                      </a>
+                    )}
+                    {selectedDeal.contact?.phone && (
+                      <a href={`tel:${selectedDeal.contact.phone}`} style={{ color: Z.ultramarine, textDecoration: "none" }}>
+                        📞 {selectedDeal.contact.phone}
+                      </a>
+                    )}
+                    {selectedDeal.contact?.company && (
+                      <span style={{ color: Z.textSecondary }}>🏢 {selectedDeal.contact.company}</span>
+                    )}
+                    {selectedDeal.value != null && (
+                      <span style={{ color: Z.textSecondary }}>💰 {fmt(Number(selectedDeal.value))}</span>
+                    )}
+                    {selectedDeal.stage === "won" && selectedDeal.wonDate && (
+                      <span style={{ color: "#10b981" }}>✓ Won {new Date(selectedDeal.wonDate.includes("T") ? selectedDeal.wonDate : selectedDeal.wonDate + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                    )}
+                    {selectedDeal.domainType && selectedDeal.domainName && (
+                      <span style={{ color: Z.textSecondary }}>🌐 {selectedDeal.domainType === "existing" ? "Existing" : "New"}: {selectedDeal.domainName}</span>
+                    )}
                   </div>
                   <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 12, color: Z.textMuted }}>Rep:</span>

@@ -171,6 +171,7 @@ export function WonDealModal({
   const [dealValue, setDealValue] = useState("");
 
   // ── Fulfillment ──
+  const [designerCallDate, setDesignerCallDate] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [designer, setDesigner] = useState("");
 
@@ -213,7 +214,7 @@ export function WonDealModal({
     setContactSearch(""); setLinkedContactId(""); setCustomerName(""); setBusinessName(""); setEmail(""); setPhone("");
     setRep(""); setWonDate(toYMD(new Date())); setDomainType(""); setDomainName(""); setExistingUrl("");
     setDealType("new"); setProductId(""); setDealValue("");
-    setDeliveryDate(""); setDesigner("");
+    setDesignerCallDate(""); setDeliveryDate(""); setDesigner("");
     setLaunchFee(""); setSplitPayments(false); setSplitCount("2");
     setIndustry(""); setMarketingComments("");
     setSubmitting(false); setError(null); setCreatedDeal(null);
@@ -286,7 +287,8 @@ export function WonDealModal({
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stage: "won", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined,
-            deliveryDate: deliveryDate || undefined, assignedDesigner: designer || undefined,
+            deliveryDate: deliveryDate || undefined, designerCallDate: designerCallDate || undefined,
+            assignedDesigner: designer || undefined,
             launchFeeAmount: launchFee ? Number(launchFee) : undefined, rep: rep || undefined,
             wonDate: wonDate || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined,
           }),
@@ -305,6 +307,7 @@ export function WonDealModal({
             title, contactName: customerName.trim() || undefined, contactId: contactId || undefined,
             stage: "won", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined,
             rep: rep || undefined, wonDate: wonDate || undefined, deliveryDate: deliveryDate || undefined,
+            designerCallDate: designerCallDate || undefined,
             assignedDesigner: designer || undefined, launchFeeAmount: launchFee ? Number(launchFee) : undefined,
             domainType: domainType || undefined, domainName: domainName.trim() || undefined,
           }),
@@ -328,7 +331,7 @@ export function WonDealModal({
     } finally {
       setSubmitting(false);
     }
-  }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, deliveryDate, designer, launchFee]);
+  }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, designerCallDate, deliveryDate, designer, launchFee]);
 
   const activeDeal = createdDeal ?? (existingDeal ? { id: existingDeal.id, contactId: existingDeal.contactId, contactName: existingDeal.contactName, contact: existingDeal.contact } : null);
   const showPayment = !!createdDeal;
@@ -444,6 +447,9 @@ export function WonDealModal({
             {/* Fulfillment */}
             <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, marginTop: 8 }}>Fulfillment</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <FormField label="Designer Call Date">
+                <Input value={designerCallDate} onChange={setDesignerCallDate} type="date" />
+              </FormField>
               <FormField label="Delivery Date">
                 <Input value={deliveryDate} onChange={setDeliveryDate} type="date" />
               </FormField>

@@ -71,7 +71,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       "productId", "contactId", "wonDate",
       "paymentStatus", "stripeSubscriptionId", "stripeCustomerId",
       "assignedDesigner", "launchFeeAmount", "deliveryDate",
-      "domainType", "domainName",
+      "domainType", "domainName", "designerCallDate", "designerCallDate",
     ];
     for (const key of whitelist) {
       if (key in body) updateData[key] = body[key];
@@ -100,6 +100,9 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     }
     if (updateData.deliveryDate) {
       updateData.deliveryDate = new Date(updateData.deliveryDate as string);
+    }
+    if (updateData.designerCallDate) {
+      updateData.designerCallDate = new Date(updateData.designerCallDate as string);
     }
     if (stageChanged) {
       updateData.stageEnteredAt = new Date();
