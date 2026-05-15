@@ -106,7 +106,6 @@ model Deal {
   domainType          String?   @map("domain_type")
   domainName          String?   @map("domain_name")
   designerCallDate    DateTime? @map("designer_call_date") @db.Date
-  designerCallDate    DateTime? @map("designer_call_date") @db.Date
 
   contact          Contact?           @relation(fields: [contactId], references: [id])
   product          Product?           @relation(fields: [productId], references: [id])
