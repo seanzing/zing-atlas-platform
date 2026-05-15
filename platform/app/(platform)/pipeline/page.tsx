@@ -1,16 +1,14 @@
 "use client";
 
 import { Badge, StatCard, Btn, Modal, FormField, Input, Select, FilterBtn } from "@/components/ui";
-import { Z, fmt, STAGES, PRIORITY_COLORS, PRODUCT_COLORS, STRIPE_PRICE_IDS } from "@/lib/constants";
+import { Z, fmt, STAGES, PRIORITY_COLORS, PRODUCT_COLORS } from "@/lib/constants";
 import { useAuthContext } from "@/lib/auth-context";
 import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 import useSWR, { mutate } from "swr";
 import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
 import Link from "next/link";
-import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { NewSaleModal } from "@/components/NewSaleModal";
+import { WonDealModal } from "@/components/WonDealModal";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 
 // Inline contact search for Add Lead modal
@@ -39,10 +37,6 @@ function ContactSearchResults({ query, contacts, onSelect }: {
     </div>
   );
 }
-
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-  : null;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -112,98 +106,6 @@ type Designer = any;
 const DEPT_TABS = ["Reps", "Designer", "Publishing", "Accounts", "Support", "Marketing", "Referrals"] as const;
 type DeptTab = typeof DEPT_TABS[number];
 
-/* ── Take Sale sub-component (must be inside <Elements>) ── */
-
-function TakeSaleForm({
-  billingName, setBillingName, billingEmail, setBillingEmail,
-  amount, priceId, dealId, contactId, phone,
-  loading, setLoading, error, setError, onSuccess,
-}: {
-  billingName: string; setBillingName: (v: string) => void;
-  billingEmail: string; setBillingEmail: (v: string) => void;
-  amount: string; priceId: string | null; dealId: string; contactId?: string; phone?: string;
-  loading: boolean; setLoading: (v: boolean) => void;
-  error: string | null; setError: (v: string | null) => void;
-  onSuccess: (msg: string) => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-
-  const handleCharge = async () => {
-    if (!stripe || !elements) return;
-    if (!priceId) { setError("No Stripe price mapped for this product"); return; }
-    if (!billingEmail) { setError("Billing email is required"); return; }
-
-    setLoading(true);
-    setError(null);
-
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) { setError("Card element not found"); setLoading(false); return; }
-
-    const { error: pmError, paymentMethod } = await stripe.createPaymentMethod({
-      type: "card",
-      card: cardElement,
-      billing_details: { name: billingName, email: billingEmail },
-    });
-
-    if (pmError) { setError(pmError.message || "Card error"); setLoading(false); return; }
-
-    try {
-      const res = await fetch("/api/stripe/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: billingName,
-          email: billingEmail,
-          phone: phone || undefined,
-          priceId,
-          paymentMethodId: paymentMethod.id,
-          dealId,
-          contactId: contactId || undefined,
-        }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        onSuccess(`Subscription active — ${fmt(Number(amount))}/month`);
-      } else if (data.requiresAction && data.clientSecret) {
-        const { error: confirmError } = await stripe.confirmCardPayment(data.clientSecret);
-        if (confirmError) {
-          setError(confirmError.message || "3DS authentication failed");
-        } else {
-          onSuccess(`Subscription active — ${fmt(Number(amount))}/month`);
-        }
-      } else {
-        setError(data.error || "Payment failed");
-      }
-    } catch {
-      setError("Network error");
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div>
-      <div style={{ marginBottom: 12, padding: 12, border: `1px solid ${Z.border}`, borderRadius: 8, background: "#fff" }}>
-        <CardElement options={{ style: { base: { fontSize: "14px", color: Z.textPrimary } } }} />
-      </div>
-      <FormField label="Billing Name">
-        <Input value={billingName} onChange={setBillingName} placeholder="Customer name" />
-      </FormField>
-      <FormField label="Billing Email">
-        <Input value={billingEmail} onChange={setBillingEmail} placeholder="customer@example.com" />
-      </FormField>
-      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{error}</div>}
-      <Btn
-        disabled={loading || !stripe || !priceId}
-        onClick={handleCharge}
-      >
-        {loading ? "Processing..." : `Charge ${amount ? fmt(Number(amount)) : "$0"}/month`}
-      </Btn>
-    </div>
-  );
-}
-
 /* ── main component ── */
 
 export default function PipelinePage() {
@@ -227,7 +129,6 @@ export default function PipelinePage() {
   }, [isSalesRep, myRepName]);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [wonModalDeal, setWonModalDeal] = useState<Deal | null>(null);
-  const [addWonOpen, setAddWonOpen] = useState(false);
   const [newSaleOpen, setNewSaleOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
@@ -243,44 +144,7 @@ export default function PipelinePage() {
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"sms" | "email" | "calendar">("sms");
-  // Won modal state
-  const [wonDealType, setWonDealType] = useState("new");
-  const [wonProductId, setWonProductId] = useState("");
-  const [wonAmount, setWonAmount] = useState("");
-  const [wonDeliveryDate, setWonDeliveryDate] = useState("");
-  const [wonDesigner, setWonDesigner] = useState("");
-  const [wonLaunchFee, setWonLaunchFee] = useState("");
-  const [wonSplitPayments, setWonSplitPayments] = useState(false);
-  const [wonSplitCount, setWonSplitCount] = useState("2");
 
-  // Payment step state
-  const [paymentMethod, setPaymentMethod] = useState<"take-sale" | "send-link" | null>(null);
-  const [paymentBillingName, setPaymentBillingName] = useState("");
-  const [paymentBillingEmail, setPaymentBillingEmail] = useState("");
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [sendLinkEmail, setSendLinkEmail] = useState("");
-
-  // Add Won modal state
-  const [addWonTitle, setAddWonTitle] = useState("");
-  const [addWonContactName, setAddWonContactName] = useState("");
-  const [addWonEmail, setAddWonEmail] = useState("");
-  const [addWonPhone, setAddWonPhone] = useState("");
-  const [addWonRep, setAddWonRep] = useState("");
-  const [addWonDealType, setAddWonDealType] = useState("new");
-  const [addWonProductId, setAddWonProductId] = useState("");
-  const [addWonAmount, setAddWonAmount] = useState("");
-  const [addWonDeliveryDate, setAddWonDeliveryDate] = useState("");
-  const [addWonDesigner, setAddWonDesigner] = useState("");
-  const [addWonLaunchFee, setAddWonLaunchFee] = useState("");
-  const [addWonSplitPayments, setAddWonSplitPayments] = useState(false);
-  const [addWonSplitCount, setAddWonSplitCount] = useState("2");
-  const [addWonIndustry, setAddWonIndustry] = useState("");
-  const [addWonWebsiteUrl, setAddWonWebsiteUrl] = useState("");
-  const [addWonMarketingComments, setAddWonMarketingComments] = useState("");
 
   // Notes state for slide-out panel
   // Department notes tab
@@ -462,11 +326,6 @@ export default function PipelinePage() {
       if (targetStage === "won") {
         // Show won modal instead of direct update
         setWonModalDeal(deal);
-        setWonAmount(deal.value ? String(Number(deal.value)) : "");
-        setWonProductId(deal.productId || "");
-        setPaymentBillingName(deal.contactName || "");
-        setPaymentBillingEmail(deal.contact?.email || "");
-        setSendLinkEmail(deal.contact?.email || "");
         setDragDealId(null);
         return;
       }
@@ -492,11 +351,6 @@ export default function PipelinePage() {
       if (deal.stage === newStage) return;
       if (newStage === "won") {
         setWonModalDeal(deal);
-        setWonAmount(deal.value ? String(Number(deal.value)) : "");
-        setWonProductId(deal.productId || "");
-        setPaymentBillingName(deal.contactName || "");
-        setPaymentBillingEmail(deal.contact?.email || "");
-        setSendLinkEmail(deal.contact?.email || "");
         return;
       }
       try {
@@ -585,142 +439,7 @@ export default function PipelinePage() {
     }
   }, [leadName, leadCompany, leadEmail, leadPhone, leadStage, leadRep, leadContactId, pipelineUrl, showToast]);
 
-  const submitWonDeal = useCallback(async () => {
-    if (!wonModalDeal) return;
-    try {
-      const body: Record<string, unknown> = {
-        stage: "won",
-        dealType: wonDealType,
-        value: wonAmount ? Number(wonAmount) : undefined,
-        deliveryDate: wonDeliveryDate || undefined,
-        assignedDesigner: wonDesigner || undefined,
-        launchFeeAmount: wonLaunchFee ? Number(wonLaunchFee) : undefined,
-      };
-      if (wonProductId) body.productId = wonProductId;
 
-      const res = await fetch(`/api/deals/${wonModalDeal.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast((err as { error?: string }).error || "Failed to move deal to Won", false);
-        return;
-      }
-
-      mutate(pipelineUrl);
-      mutate("/api/deals");
-      setWonModalDeal(null);
-      resetWonForm();
-    } catch {
-      showToast("Failed to submit won deal", false);
-    }
-  }, [wonModalDeal, wonDealType, wonProductId, wonAmount, wonDeliveryDate, wonDesigner, wonLaunchFee, pipelineUrl, showToast]);
-
-  const submitAddWonDeal = useCallback(async () => {
-    try {
-      // Step 1: create or find Contact if email provided
-      let contactId: string | undefined;
-      if (addWonEmail) {
-        const contactRes = await fetch("/api/contacts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: addWonContactName || addWonEmail,
-            email: addWonEmail,
-            phone: addWonPhone || undefined,
-            leadSource: "direct",
-            industry: addWonIndustry || undefined,
-            websiteUrl: addWonWebsiteUrl || undefined,
-            marketingComments: addWonMarketingComments || undefined,
-          }),
-        });
-        if (contactRes.ok) {
-          const c = await contactRes.json();
-          contactId = c.id;
-        }
-      }
-
-      // Step 2: create the deal (with contactId if we have one)
-      const body: Record<string, unknown> = {
-        title: addWonTitle,
-        contactName: addWonContactName || undefined,
-        contactId: contactId || undefined,
-        rep: addWonRep || undefined,
-        stage: "won",
-        dealType: addWonDealType,
-        value: addWonAmount ? Number(addWonAmount) : undefined,
-        deliveryDate: addWonDeliveryDate || undefined,
-        assignedDesigner: addWonDesigner || undefined,
-        launchFeeAmount: addWonLaunchFee ? Number(addWonLaunchFee) : undefined,
-      };
-      if (addWonProductId) body.productId = addWonProductId;
-
-      await fetch("/api/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      mutate(pipelineUrl);
-      mutate("/api/deals");
-      setAddWonOpen(false);
-      resetAddWonForm();
-    } catch {
-      showToast("Failed to create deal", false);
-    }
-  }, [addWonTitle, addWonContactName, addWonEmail, addWonPhone, addWonRep, addWonDealType, addWonProductId, addWonAmount, addWonDeliveryDate, addWonDesigner, addWonLaunchFee, addWonIndustry, addWonWebsiteUrl, addWonMarketingComments, pipelineUrl, showToast]);
-
-  /** Map a product (by description) to its Stripe price ID */
-  function getStripePriceId(productId: string): string | null {
-    const p = (products ?? []).find((pr: Product) => pr.id === productId);
-    if (!p) return null;
-    const desc = (p.description || "").toUpperCase();
-    if (desc.includes("DISCOVER")) return STRIPE_PRICE_IDS.DISCOVER;
-    if (desc.includes("BOOST")) return STRIPE_PRICE_IDS.BOOST;
-    if (desc.includes("DOMINATE")) return STRIPE_PRICE_IDS.DOMINATE;
-    return null;
-  }
-
-  function resetWonForm() {
-    setWonDealType("new");
-    setWonProductId("");
-    setWonAmount("");
-    setWonDeliveryDate("");
-    setWonDesigner("");
-    setWonLaunchFee("");
-    setWonSplitPayments(false);
-    setWonSplitCount("2");
-    setPaymentMethod(null);
-    setPaymentBillingName("");
-    setPaymentBillingEmail("");
-    setPaymentLoading(false);
-    setPaymentSuccess(null);
-    setPaymentError(null);
-    setPaymentLinkUrl(null);
-    setLinkCopied(false);
-    setSendLinkEmail("");
-  }
-
-  function resetAddWonForm() {
-    setAddWonTitle("");
-    setAddWonContactName("");
-    setAddWonEmail("");
-    setAddWonPhone("");
-    setAddWonRep("");
-    setAddWonDealType("new");
-    setAddWonProductId("");
-    setAddWonAmount("");
-    setAddWonDeliveryDate("");
-    setAddWonDesigner("");
-    setAddWonLaunchFee("");
-    setAddWonSplitPayments(false);
-    setAddWonSplitCount("2");
-    setAddWonIndustry("");
-    setAddWonWebsiteUrl("");
-    setAddWonMarketingComments("");
-  }
 
   async function loadDeptNotes(dealId: string) {
     try {
@@ -779,25 +498,6 @@ export default function PipelinePage() {
     [salesTeam]
   );
 
-  // When selecting product, pre-fill amount
-  const handleWonProductChange = useCallback(
-    (pid: string) => {
-      setWonProductId(pid);
-      const p = (products ?? []).find((pr: Product) => pr.id === pid);
-      if (p) setWonAmount(String(Number(p.price)));
-    },
-    [products]
-  );
-
-  const handleAddWonProductChange = useCallback(
-    (pid: string) => {
-      setAddWonProductId(pid);
-      const p = (products ?? []).find((pr: Product) => pr.id === pid);
-      if (p) setAddWonAmount(String(Number(p.price)));
-    },
-    [products]
-  );
-
   const maxProductTotal = useMemo(
     () => Math.max(...productBreakdown.map((p) => p.total), 1),
     [productBreakdown]
@@ -840,7 +540,6 @@ export default function PipelinePage() {
           <div style={{ display: "flex", gap: 8 }}>
             <Btn onClick={() => setNewSaleOpen(true)}>+ New Sale</Btn>
             <Btn variant="secondary" onClick={() => setAddLeadOpen(true)}>+ Add Lead</Btn>
-            <Btn variant="secondary" onClick={() => setAddWonOpen(true)}>+ Add Won Deal</Btn>
           </div>
         </div>
       </div>
@@ -1845,14 +1544,7 @@ export default function PipelinePage() {
                 )}
                 {selectedDeal.stage !== "won" ? (
                   <button
-                    onClick={() => {
-                      setWonModalDeal(selectedDeal);
-                      setWonAmount(selectedDeal.value ? String(Number(selectedDeal.value)) : "");
-                      setWonProductId(selectedDeal.productId || "");
-                      setPaymentBillingName(selectedDeal.contactName || "");
-                      setPaymentBillingEmail(selectedDeal.contact?.email || "");
-                      setSendLinkEmail(selectedDeal.contact?.email || "");
-                    }}
+                    onClick={() => setWonModalDeal(selectedDeal)}
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: "1px solid #10b981", background: "#10b98112", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#10b981", transition: "all 0.15s" }}
                   >✓ Mark as Won</button>
                 ) : (
@@ -2012,571 +1704,6 @@ export default function PipelinePage() {
         </>
       )}
 
-      {/* ── 9. Won Deal Modal ── */}
-      <Modal
-        open={!!wonModalDeal}
-        onClose={() => {
-          setWonModalDeal(null);
-          resetWonForm();
-        }}
-        title="Mark Deal as Won"
-      >
-        {wonModalDeal && (
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: Z.textPrimary,
-                marginBottom: 16,
-              }}
-            >
-              {wonModalDeal.title}
-            </div>
-
-            {/* Deal Type */}
-            <FormField label="Deal Type">
-              <div style={{ display: "flex", gap: 8 }}>
-                {["new", "upgrade", "add-on"].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setWonDealType(t)}
-                    style={{
-                      flex: 1,
-                      padding: "8px 0",
-                      borderRadius: 8,
-                      border:
-                        wonDealType === t
-                          ? `2px solid ${Z.ultramarine}`
-                          : `1px solid ${Z.border}`,
-                      background:
-                        wonDealType === t
-                          ? `${Z.ultramarine}10`
-                          : "transparent",
-                      color:
-                        wonDealType === t
-                          ? Z.ultramarine
-                          : Z.textSecondary,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    {t === "add-on" ? "Add-on" : t.charAt(0).toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </FormField>
-
-            <FormField label="Product">
-              <Select
-                value={wonProductId}
-                onChange={handleWonProductChange}
-                options={productOptions}
-              />
-            </FormField>
-
-            <FormField label="Amount (MRR)">
-              <Input
-                value={wonAmount}
-                onChange={setWonAmount}
-                placeholder="0"
-                type="number"
-              />
-            </FormField>
-
-            <FormField label="Delivery Date">
-              <Input
-                value={wonDeliveryDate}
-                onChange={setWonDeliveryDate}
-                type="date"
-              />
-            </FormField>
-
-            <FormField label="Designer">
-              <Select
-                value={wonDesigner}
-                onChange={setWonDesigner}
-                options={designerOptions}
-              />
-            </FormField>
-
-            {/* Launch Fee */}
-            <FormField label="Launch Fee">
-              <Input
-                value={wonLaunchFee}
-                onChange={setWonLaunchFee}
-                placeholder="0"
-                type="number"
-              />
-            </FormField>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 16,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={wonSplitPayments}
-                onChange={(e) => setWonSplitPayments(e.target.checked)}
-                style={{ accentColor: Z.ultramarine }}
-              />
-              <span style={{ fontSize: 12, color: Z.textSecondary }}>
-                Split into payments
-              </span>
-              {wonSplitPayments && (
-                <input
-                  type="number"
-                  value={wonSplitCount}
-                  onChange={(e) => setWonSplitCount(e.target.value)}
-                  min="2"
-                  max="12"
-                  style={{
-                    width: 60,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: `1px solid ${Z.border}`,
-                    fontSize: 12,
-                    outline: "none",
-                    color: Z.textPrimary,
-                  }}
-                />
-              )}
-            </div>
-
-            {wonSplitPayments && wonLaunchFee && (
-              <div
-                style={{
-                  background: Z.bg,
-                  borderRadius: 8,
-                  padding: 12,
-                  marginBottom: 16,
-                  fontSize: 12,
-                  color: Z.textSecondary,
-                }}
-              >
-                {Number(wonSplitCount) > 0 &&
-                  Array.from({ length: Number(wonSplitCount) }).map(
-                    (_, i) => (
-                      <div key={i} style={{ marginBottom: 4 }}>
-                        Payment {i + 1}:{" "}
-                        <strong>
-                          {fmt(
-                            Number(wonLaunchFee) / (Number(wonSplitCount) || 1)
-                          )}
-                        </strong>
-                      </div>
-                    )
-                  )}
-              </div>
-            )}
-
-            {/* ── Process Payment Section ── */}
-            <div style={{ borderTop: `1px solid ${Z.border}`, paddingTop: 16, marginTop: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary, marginBottom: 12 }}>
-                Process Payment
-              </div>
-
-              {/* Payment method toggle buttons */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button
-                  onClick={() => { setPaymentMethod("take-sale"); setPaymentError(null); setPaymentSuccess(null); setPaymentLinkUrl(null); }}
-                  style={{
-                    flex: 1, padding: "12px 0", borderRadius: 10,
-                    border: paymentMethod === "take-sale" ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`,
-                    background: paymentMethod === "take-sale" ? `${Z.ultramarine}10` : "transparent",
-                    color: paymentMethod === "take-sale" ? Z.ultramarine : Z.textSecondary,
-                    fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  }}
-                >
-                  💳 Take Sale
-                </button>
-                <button
-                  onClick={() => { setPaymentMethod("send-link"); setPaymentError(null); setPaymentSuccess(null); setPaymentLinkUrl(null); }}
-                  style={{
-                    flex: 1, padding: "12px 0", borderRadius: 10,
-                    border: paymentMethod === "send-link" ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`,
-                    background: paymentMethod === "send-link" ? `${Z.ultramarine}10` : "transparent",
-                    color: paymentMethod === "send-link" ? Z.ultramarine : Z.textSecondary,
-                    fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  }}
-                >
-                  🔗 Send Link
-                </button>
-              </div>
-
-              {/* Take Sale panel */}
-              {paymentMethod === "take-sale" && (
-                <div>
-                  {!stripePromise ? (
-                    <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: 12, fontSize: 12, color: "#92400e", marginBottom: 12 }}>
-                      Stripe publishable key not configured — contact admin.
-                    </div>
-                  ) : paymentSuccess ? (
-                    <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 8, padding: 16, textAlign: "center", marginBottom: 12 }}>
-                      <span style={{ fontSize: 20 }}>✓</span>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginTop: 4 }}>{paymentSuccess}</div>
-                    </div>
-                  ) : (
-                    <Elements stripe={stripePromise} options={{ appearance: { theme: "stripe" } } as StripeElementsOptions}>
-                      <TakeSaleForm
-                        billingName={paymentBillingName}
-                        setBillingName={setPaymentBillingName}
-                        billingEmail={paymentBillingEmail}
-                        setBillingEmail={setPaymentBillingEmail}
-                        amount={wonAmount}
-                        priceId={getStripePriceId(wonProductId)}
-                        dealId={wonModalDeal.id}
-                        contactId={wonModalDeal.contactId}
-                        phone={wonModalDeal.contact?.phone}
-                        loading={paymentLoading}
-                        setLoading={setPaymentLoading}
-                        error={paymentError}
-                        setError={setPaymentError}
-                        onSuccess={(msg) => setPaymentSuccess(msg)}
-                      />
-                    </Elements>
-                  )}
-                </div>
-              )}
-
-              {/* Send Link panel */}
-              {paymentMethod === "send-link" && (
-                <div>
-                  {paymentLinkUrl ? (
-                    <div>
-                      <div style={{ fontSize: 12, color: Z.textSecondary, marginBottom: 8 }}>
-                        Share this link with {wonModalDeal.contactName || "the customer"} to complete their subscription.
-                      </div>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                        <input
-                          readOnly
-                          value={paymentLinkUrl}
-                          style={{
-                            flex: 1, padding: "8px 12px", borderRadius: 8,
-                            border: `1px solid ${Z.border}`, fontSize: 12,
-                            color: Z.textPrimary, background: Z.bg, outline: "none",
-                          }}
-                        />
-                        <Btn
-                          variant="secondary"
-                          onClick={() => { navigator.clipboard.writeText(paymentLinkUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
-                        >
-                          {linkCopied ? "Copied!" : "Copy Link"}
-                        </Btn>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <FormField label="Customer Email">
-                        <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" />
-                      </FormField>
-                      {paymentError && (
-                        <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{paymentError}</div>
-                      )}
-                      <Btn
-                        disabled={paymentLoading || !sendLinkEmail || !wonProductId}
-                        onClick={async () => {
-                          setPaymentLoading(true);
-                          setPaymentError(null);
-                          try {
-                            const priceId = getStripePriceId(wonProductId);
-                            if (!priceId) { setPaymentError("No Stripe price mapped for this product"); setPaymentLoading(false); return; }
-                            const p = (products ?? []).find((pr: Product) => pr.id === wonProductId);
-                            const res = await fetch("/api/stripe/payment-link", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                name: wonModalDeal.contactName || "",
-                                email: sendLinkEmail,
-                                priceId,
-                                dealId: wonModalDeal.id,
-                                productName: p?.description || "",
-                              }),
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              setPaymentLinkUrl(data.checkoutUrl);
-                            } else {
-                              setPaymentError(data.error || "Failed to generate link");
-                            }
-                          } catch {
-                            setPaymentError("Network error");
-                          }
-                          setPaymentLoading(false);
-                        }}
-                      >
-                        {paymentLoading ? "Generating..." : "Generate Payment Link"}
-                      </Btn>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                justifyContent: "flex-end",
-                marginTop: 16,
-              }}
-            >
-              <Btn
-                variant="secondary"
-                onClick={() => {
-                  setWonModalDeal(null);
-                  resetWonForm();
-                }}
-              >
-                Cancel
-              </Btn>
-              <Btn onClick={submitWonDeal}>Mark as Won</Btn>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── 10. Add Won Deal Modal ── */}
-      <Modal
-        open={addWonOpen}
-        onClose={() => {
-          setAddWonOpen(false);
-          resetAddWonForm();
-        }}
-        title="Add Won Deal"
-      >
-        <FormField label="Deal Title">
-          <Input
-            value={addWonTitle}
-            onChange={setAddWonTitle}
-            placeholder="Deal title"
-          />
-        </FormField>
-
-        <FormField label="Contact Name">
-          <Input
-            value={addWonContactName}
-            onChange={setAddWonContactName}
-            placeholder="Contact name"
-          />
-        </FormField>
-
-        <FormField label="Email">
-          <Input
-            value={addWonEmail}
-            onChange={setAddWonEmail}
-            placeholder="customer@example.com"
-          />
-        </FormField>
-
-        <FormField label="Phone">
-          <Input
-            value={addWonPhone}
-            onChange={setAddWonPhone}
-            placeholder="(555) 000-0000"
-          />
-        </FormField>
-
-        <FormField label="Industry">
-          <Input
-            value={addWonIndustry}
-            onChange={setAddWonIndustry}
-            placeholder="e.g. Plumbing, HVAC, Landscaping"
-          />
-        </FormField>
-
-        <FormField label="Website URL">
-          <Input
-            value={addWonWebsiteUrl}
-            onChange={setAddWonWebsiteUrl}
-            placeholder="https://example.com"
-          />
-        </FormField>
-
-        <FormField label="Marketing Comments">
-          <Input
-            value={addWonMarketingComments}
-            onChange={setAddWonMarketingComments}
-            placeholder="Any relevant marketing info"
-          />
-        </FormField>
-
-        <FormField label="Sales Rep">
-          <Select
-            value={addWonRep}
-            onChange={setAddWonRep}
-            options={repOptions}
-          />
-        </FormField>
-
-        {/* Deal Type */}
-        <FormField label="Deal Type">
-          <div style={{ display: "flex", gap: 8 }}>
-            {["new", "upgrade", "add-on"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setAddWonDealType(t)}
-                style={{
-                  flex: 1,
-                  padding: "8px 0",
-                  borderRadius: 8,
-                  border:
-                    addWonDealType === t
-                      ? `2px solid ${Z.ultramarine}`
-                      : `1px solid ${Z.border}`,
-                  background:
-                    addWonDealType === t
-                      ? `${Z.ultramarine}10`
-                      : "transparent",
-                  color:
-                    addWonDealType === t
-                      ? Z.ultramarine
-                      : Z.textSecondary,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                }}
-              >
-                {t === "add-on" ? "Add-on" : t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
-        </FormField>
-
-        <FormField label="Product">
-          <Select
-            value={addWonProductId}
-            onChange={handleAddWonProductChange}
-            options={productOptions}
-          />
-        </FormField>
-
-        <FormField label="Amount (MRR)">
-          <Input
-            value={addWonAmount}
-            onChange={setAddWonAmount}
-            placeholder="0"
-            type="number"
-          />
-        </FormField>
-
-        <FormField label="Delivery Date">
-          <Input
-            value={addWonDeliveryDate}
-            onChange={setAddWonDeliveryDate}
-            type="date"
-          />
-        </FormField>
-
-        <FormField label="Designer">
-          <Select
-            value={addWonDesigner}
-            onChange={setAddWonDesigner}
-            options={designerOptions}
-          />
-        </FormField>
-
-        {/* Launch Fee */}
-        <FormField label="Launch Fee">
-          <Input
-            value={addWonLaunchFee}
-            onChange={setAddWonLaunchFee}
-            placeholder="0"
-            type="number"
-          />
-        </FormField>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={addWonSplitPayments}
-            onChange={(e) => setAddWonSplitPayments(e.target.checked)}
-            style={{ accentColor: Z.ultramarine }}
-          />
-          <span style={{ fontSize: 12, color: Z.textSecondary }}>
-            Split into payments
-          </span>
-          {addWonSplitPayments && (
-            <input
-              type="number"
-              value={addWonSplitCount}
-              onChange={(e) => setAddWonSplitCount(e.target.value)}
-              min="2"
-              max="12"
-              style={{
-                width: 60,
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: `1px solid ${Z.border}`,
-                fontSize: 12,
-                outline: "none",
-                color: Z.textPrimary,
-              }}
-            />
-          )}
-        </div>
-
-        {addWonSplitPayments && addWonLaunchFee && (
-          <div
-            style={{
-              background: Z.bg,
-              borderRadius: 8,
-              padding: 12,
-              marginBottom: 16,
-              fontSize: 12,
-              color: Z.textSecondary,
-            }}
-          >
-            {Number(addWonSplitCount) > 0 &&
-              Array.from({ length: Number(addWonSplitCount) }).map(
-                (_, i) => (
-                  <div key={i} style={{ marginBottom: 4 }}>
-                    Payment {i + 1}:{" "}
-                    <strong>
-                      {fmt(
-                        Number(addWonLaunchFee) / (Number(addWonSplitCount) || 1)
-                      )}
-                    </strong>
-                  </div>
-                )
-              )}
-          </div>
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            justifyContent: "flex-end",
-            marginTop: 8,
-          }}
-        >
-          <Btn
-            variant="secondary"
-            onClick={() => {
-              setAddWonOpen(false);
-              resetAddWonForm();
-            }}
-          >
-            Cancel
-          </Btn>
-          <Btn onClick={submitAddWonDeal}>Create Won Deal</Btn>
-        </div>
-      </Modal>
       {/* ── Add Lead Modal ── */}
       <Modal open={addLeadOpen} onClose={() => setAddLeadOpen(false)} title="Add Lead">
         <div>
@@ -2633,13 +1760,16 @@ export default function PipelinePage() {
         </div>
       </Modal>
 
-      <NewSaleModal
+      <WonDealModal
         open={newSaleOpen}
         onClose={() => setNewSaleOpen(false)}
-        onSuccess={(biz) => {
-          setNewSaleOpen(false);
-          showToast(`Onboarding created for ${biz}`, true);
-        }}
+        onSuccess={(title) => { setNewSaleOpen(false); showToast(`Sale created — ${title}`, true); mutate(pipelineUrl); mutate("/api/deals"); }}
+      />
+      <WonDealModal
+        open={!!wonModalDeal}
+        existingDeal={wonModalDeal}
+        onClose={() => setWonModalDeal(null)}
+        onSuccess={() => { setWonModalDeal(null); showToast("Deal marked as won", true); mutate(pipelineUrl); mutate("/api/deals"); }}
       />
       <Toast toast={toast} />
       {showEmailCompose && emailComposeTo && (
