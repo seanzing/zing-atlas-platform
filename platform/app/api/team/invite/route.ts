@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, firstName, lastName, position } = body;
+    const { email, firstName, lastName, position, department } = body;
 
     if (!email || !firstName || !lastName) {
       return NextResponse.json(
@@ -55,13 +55,9 @@ export async function POST(request: NextRequest) {
 
     const supabaseUserId = inviteData.user?.id ?? null;
 
-    // Upsert TeamMember: if email exists, update; otherwise create
+    // Upsert TeamMember: include soft-deleted so re-inviting a removed user restores them
     const existing = await prisma.teamMember.findFirst({
-      where: {
-        organizationId: ORG_ID,
-        email,
-        deletedAt: null,
-      },
+      where: { organizationId: ORG_ID, email },
     });
 
     let member;
@@ -72,7 +68,10 @@ export async function POST(request: NextRequest) {
           firstName,
           lastName,
           position: position || undefined,
+          department: department || undefined,
           supabaseUserId,
+          deletedAt: null,
+          active: true,
         },
       });
     } else {
@@ -83,6 +82,7 @@ export async function POST(request: NextRequest) {
           lastName,
           email,
           position: position || undefined,
+          department: department || undefined,
           supabaseUserId,
         },
       });

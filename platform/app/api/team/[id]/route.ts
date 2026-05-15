@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -40,7 +41,20 @@ export async function DELETE(
       return NextResponse.json({ error: "Team member not found" }, { status: 404 });
     }
 
-    // Soft delete
+    // Delete from Supabase Auth so the email can be re-invited
+    if (existing.supabaseUserId) {
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existing.supabaseUserId);
+      if (deleteError) {
+        logger.warn({ err: deleteError, supabaseUserId: existing.supabaseUserId }, "Supabase user delete failed — continuing with soft delete");
+      }
+    }
+
+    // Soft delete in Prisma
     await prisma.teamMember.update({
       where: { id },
       data: { deletedAt: new Date(), active: false },
