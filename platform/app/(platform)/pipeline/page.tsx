@@ -1302,10 +1302,10 @@ export default function PipelinePage() {
           style={{
             display: "flex",
             gap: 12,
-            minWidth: STAGES.length * 212,
+            minWidth: (STAGES.length - 1) * 212, // won excluded from kanban
           }}
         >
-          {STAGES.map((stage) => {
+          {STAGES.filter((stage) => stage.key !== "won").map((stage) => {
             const deals = dealsByStage[stage.key] || [];
             return (
               <div
@@ -1783,7 +1783,7 @@ export default function PipelinePage() {
                   marginTop: 8,
                 }}
               >
-                {STAGES.map((s) => (
+                {STAGES.filter((s) => s.key !== "won").map((s) => (
                   <button
                     key={s.key}
                     onClick={() => handleStageChange(selectedDeal, s.key)}
@@ -1837,7 +1837,19 @@ export default function PipelinePage() {
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.card, cursor: "pointer", fontSize: 12, fontWeight: 600, color: Z.textSecondary, transition: "all 0.15s" }}
                   >✉️ Email</button>
                 )}
-                {selectedDeal.stage === "won" && (
+                {selectedDeal.stage !== "won" ? (
+                  <button
+                    onClick={() => {
+                      setWonModalDeal(selectedDeal);
+                      setWonAmount(selectedDeal.value ? String(Number(selectedDeal.value)) : "");
+                      setWonProductId(selectedDeal.productId || "");
+                      setPaymentBillingName(selectedDeal.contactName || "");
+                      setPaymentBillingEmail(selectedDeal.contact?.email || "");
+                      setSendLinkEmail(selectedDeal.contact?.email || "");
+                    }}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: "1px solid #10b981", background: "#10b98112", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#10b981", transition: "all 0.15s" }}
+                  >✓ Mark as Won</button>
+                ) : (
                   <button
                     onClick={() => setShowContractModal(true)}
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: `1px solid ${Z.violet}`, background: `${Z.violet}12`, cursor: "pointer", fontSize: 12, fontWeight: 700, color: Z.violet, transition: "all 0.15s" }}
