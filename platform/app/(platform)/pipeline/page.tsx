@@ -13,6 +13,33 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import { NewSaleModal } from "@/components/NewSaleModal";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 
+// Inline contact search for Add Lead modal
+type ContactSearchResult = { id: string; name: string | null; company: string | null; email: string | null };
+function ContactSearchResults({ query, contacts, onSelect }: {
+  query: string;
+  contacts: ContactSearchResult[];
+  onSelect: (id: string, name: string) => void;
+}) {
+  const q = query.toLowerCase();
+  const results = contacts.filter((c) =>
+    c.name?.toLowerCase().includes(q) ||
+    c.company?.toLowerCase().includes(q) ||
+    c.email?.toLowerCase().includes(q)
+  ).slice(0, 6);
+  if (!results.length) return <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 4 }}>No matches found</div>;
+  return (
+    <div style={{ border: `1px solid ${Z.border}`, borderRadius: 8, marginTop: 4, overflow: "hidden", background: "#fff", position: "absolute", zIndex: 50, width: "100%" }}>
+      {results.map((c) => (
+        <button key={c.id} onClick={() => onSelect(c.id, c.name || c.company || "")} style={{ width: "100%", textAlign: "left", padding: "8px 12px", fontSize: 13, background: "none", border: "none", borderBottom: `1px solid ${Z.borderLight}`, cursor: "pointer" }}>
+          <span style={{ fontWeight: 600 }}>{c.name || "—"}</span>
+          {c.company && <span style={{ color: Z.textMuted, marginLeft: 6 }}>{c.company}</span>}
+          {c.email && <span style={{ color: Z.textMuted, marginLeft: 6, fontSize: 11 }}>{c.email}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
@@ -202,6 +229,18 @@ export default function PipelinePage() {
   const [wonModalDeal, setWonModalDeal] = useState<Deal | null>(null);
   const [addWonOpen, setAddWonOpen] = useState(false);
   const [newSaleOpen, setNewSaleOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+
+  // Add Lead modal state
+  const [leadName, setLeadName] = useState("");
+  const [leadCompany, setLeadCompany] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadStage, setLeadStage] = useState("call-now");
+  const [leadRep, setLeadRep] = useState("");
+  const [leadContactSearch, setLeadContactSearch] = useState("");
+  const [leadContactId, setLeadContactId] = useState("");
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"sms" | "email" | "calendar">("sms");
   // Won modal state
@@ -263,6 +302,7 @@ export default function PipelinePage() {
   // Pipeline API available but we use allDeals with client-side filtering for Kanban
   useSWR<Deal[]>(pipelineUrl, fetcher); // warm cache
   const { data: allDeals } = useSWR<Deal[]>("/api/deals", fetcher);
+  const { data: allContacts } = useSWR<ContactSearchResult[]>("/api/contacts", fetcher);
   const { data: teamMembers } = useSWR<TeamMember[]>("/api/team", fetcher);
   const { data: products } = useSWR<Product[]>("/api/products", fetcher);
   const { data: designers } = useSWR<Designer[]>("/api/designers", fetcher);
@@ -476,6 +516,68 @@ export default function PipelinePage() {
     },
     [pipelineUrl, selectedDeal, showToast]
   );
+
+  const handleRepAssign = useCallback(async (dealId: string, rep: string) => {
+    await fetch(`/api/deals/${dealId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rep }),
+    });
+    mutate(pipelineUrl);
+    mutate("/api/deals");
+    if (selectedDeal?.id === dealId) setSelectedDeal((d: Deal | null) => d ? { ...d, rep } : d);
+  }, [pipelineUrl, selectedDeal]);
+
+  const submitAddLead = useCallback(async () => {
+    if (!leadName.trim() && !leadCompany.trim()) return;
+    setLeadSubmitting(true);
+    try {
+      let contactId = leadContactId || undefined;
+
+      // Create new contact if not linking existing
+      if (!contactId && (leadName.trim() || leadEmail.trim())) {
+        const cRes = await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: leadName.trim() || leadCompany.trim(),
+            company: leadCompany.trim() || undefined,
+            email: leadEmail.trim() || undefined,
+            phone: leadPhone.trim() || undefined,
+          }),
+        });
+        if (cRes.ok) {
+          const c = await cRes.json();
+          contactId = c.id;
+        }
+      }
+
+      await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: leadCompany.trim() || leadName.trim(),
+          contactName: leadName.trim() || undefined,
+          company: leadCompany.trim() || undefined,
+          contactId: contactId || undefined,
+          stage: leadStage,
+          rep: leadRep || undefined,
+        }),
+      });
+
+      mutate(pipelineUrl);
+      mutate("/api/deals");
+      mutate("/api/contacts");
+      setAddLeadOpen(false);
+      setLeadName(""); setLeadCompany(""); setLeadEmail(""); setLeadPhone("");
+      setLeadStage("call-now"); setLeadRep(""); setLeadContactSearch(""); setLeadContactId("");
+      showToast("Lead added", true);
+    } catch {
+      showToast("Failed to add lead", false);
+    } finally {
+      setLeadSubmitting(false);
+    }
+  }, [leadName, leadCompany, leadEmail, leadPhone, leadStage, leadRep, leadContactId, pipelineUrl, showToast]);
 
   const submitWonDeal = useCallback(async () => {
     if (!wonModalDeal) return;
@@ -731,6 +833,7 @@ export default function PipelinePage() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn onClick={() => setNewSaleOpen(true)}>+ New Sale</Btn>
+            <Btn variant="secondary" onClick={() => setAddLeadOpen(true)}>+ Add Lead</Btn>
             <Btn variant="secondary" onClick={() => setAddWonOpen(true)}>+ Add Won Deal</Btn>
           </div>
         </div>
@@ -1631,10 +1734,20 @@ export default function PipelinePage() {
                       selectedDeal.contactName ||
                       "No contact"}
                   </div>
-                  <div
-                    style={{ fontSize: 12, color: Z.textMuted, marginBottom: 8 }}
-                  >
-                    Rep: {selectedDeal.rep || "Unassigned"}
+                  <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12, color: Z.textMuted }}>Rep:</span>
+                    <select
+                      value={selectedDeal.rep || ""}
+                      onChange={(e) => handleRepAssign(selectedDeal.id, e.target.value)}
+                      style={{ fontSize: 12, color: Z.textPrimary, border: `1px solid ${Z.border}`, borderRadius: 6, padding: "2px 6px", background: Z.bg, cursor: "pointer" }}
+                    >
+                      <option value="">Unassigned</option>
+                      {(teamMembers ?? []).map((m) => (
+                        <option key={m.id} value={`${m.firstName} ${m.lastName || ""}`.trim()}>
+                          {m.firstName} {m.lastName || ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {selectedDeal.stage && (
                     <Badge
@@ -2446,6 +2559,62 @@ export default function PipelinePage() {
           <Btn onClick={submitAddWonDeal}>Create Won Deal</Btn>
         </div>
       </Modal>
+      {/* ── Add Lead Modal ── */}
+      <Modal open={addLeadOpen} onClose={() => setAddLeadOpen(false)} title="Add Lead">
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Contact Name">
+              <Input value={leadName} onChange={setLeadName} placeholder="Jane Smith" />
+            </FormField>
+            <FormField label="Company">
+              <Input value={leadCompany} onChange={setLeadCompany} placeholder="Acme Corp" />
+            </FormField>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Email">
+              <Input value={leadEmail} onChange={setLeadEmail} placeholder="jane@acme.com" type="email" />
+            </FormField>
+            <FormField label="Phone">
+              <Input value={leadPhone} onChange={setLeadPhone} placeholder="(555) 123-4567" />
+            </FormField>
+          </div>
+          <FormField label="Stage">
+            <Select
+              value={leadStage}
+              onChange={setLeadStage}
+              options={STAGES.filter(s => s.key !== "won").map(s => ({ value: s.key, label: s.label }))}
+            />
+          </FormField>
+          <FormField label="Rep">
+            <Select value={leadRep} onChange={setLeadRep} options={repOptions} />
+          </FormField>
+          <FormField label="Link to Existing Contact (optional)">
+            <div style={{ position: "relative" }}>
+              <Input value={leadContactSearch} onChange={(v) => { setLeadContactSearch(v); setLeadContactId(""); }} placeholder="Search by name or email..." />
+              {leadContactSearch.length >= 2 && !leadContactId && (
+                <ContactSearchResults
+                  query={leadContactSearch}
+                  contacts={allContacts ?? []}
+                  onSelect={(id, name) => { setLeadContactId(id); setLeadContactSearch(name); }}
+                />
+              )}
+            </div>
+            {leadContactId && (
+              <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>✓ Linked to existing contact — <button onClick={() => { setLeadContactId(""); setLeadContactSearch(""); }} style={{ background: "none", border: "none", color: Z.textMuted, cursor: "pointer", fontSize: 11 }}>clear</button></div>
+            )}
+          </FormField>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+            <Btn variant="secondary" onClick={() => setAddLeadOpen(false)}>Cancel</Btn>
+            <Btn
+              onClick={submitAddLead}
+              disabled={leadSubmitting || (!leadName.trim() && !leadCompany.trim())}
+            >
+              {leadSubmitting ? "Adding..." : "Add Lead"}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
       <NewSaleModal
         open={newSaleOpen}
         onClose={() => setNewSaleOpen(false)}
