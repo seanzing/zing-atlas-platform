@@ -80,9 +80,8 @@ export async function POST(req: NextRequest) {
 
     // Whitelist allowed fields to prevent mass assignment
     const whitelist = [
-      "title", "stage", "value", "rep", "contactName", "company", "dealType",
-      "productId", "contactId", "lostReason", "notes",
-      "designer", "designerEmail", "launchFeeAmount",
+      "title", "stage", "value", "rep", "contactName", "dealType",
+      "productId", "contactId", "assignedDesigner", "launchFeeAmount",
       "domainType", "domainName",
     ];
     const dealData: Record<string, unknown> = { organizationId: ORG_ID };
@@ -203,8 +202,7 @@ export async function POST(req: NextRequest) {
     logger.info({ dealId: deal.id }, "POST /api/deals");
     return NextResponse.json(serialize(deal), { status: 201 });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
     logger.error({ err: error }, "POST /api/deals failed");
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

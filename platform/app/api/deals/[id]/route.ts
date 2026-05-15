@@ -67,10 +67,10 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     // Whitelist allowed fields to prevent mass assignment
     const updateData: Record<string, unknown> = {};
     const whitelist = [
-      "title", "stage", "value", "rep", "contactName", "company", "dealType",
-      "productId", "contactId", "wonDate", "lostReason", "notes",
+      "title", "stage", "value", "rep", "contactName", "dealType",
+      "productId", "contactId", "wonDate",
       "paymentStatus", "stripeSubscriptionId", "stripeCustomerId",
-      "assignedDesigner", "designerEmail", "launchFeeAmount", "deliveryDate",
+      "assignedDesigner", "launchFeeAmount", "deliveryDate",
       "domainType", "domainName",
     ];
     for (const key of whitelist) {
