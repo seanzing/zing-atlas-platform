@@ -366,8 +366,16 @@ export default function ContactDetailPage() {
   const { data: teamMembers } = useSWR<{ id: string; firstName: string; lastName: string | null }[]>("/api/team", fetcher);
   const { data: designers } = useSWR<{ id: string; name: string | null }[]>("/api/designers", fetcher);
   const { data: contactNotes, mutate: mutateNotes } = useSWR<ContactNote[]>(`/api/contacts/${id}/notes`);
-  const { data: dealNotes } = useSWR<{ id: string; dealId: string; dealTitle: string; department: string; content: string; createdAt: string }[]>(`/api/contacts/${id}/deal-notes`, fetcher);
+  const { data: dealNotes, mutate: mutateDealNotes } = useSWR<{ id: string; dealId: string; dealTitle: string; department: string; content: string; createdAt: string }[]>(`/api/contacts/${id}/deal-notes`, fetcher);
   const [viewingDeal, setViewingDeal] = useState<Deal | null>(null);
+
+  // Pipeline notes state (mirrors the pipeline panel)
+  const DEPT_TABS = ["Reps", "Designer", "Publishing", "Accounts", "Support", "Marketing", "Referrals"] as const;
+  type DeptTab = typeof DEPT_TABS[number];
+  const [activeDeptTab, setActiveDeptTab] = useState<DeptTab>("Reps");
+  const [deptNoteInput, setDeptNoteInput] = useState("");
+  const [deptNoteSaving, setDeptNoteSaving] = useState(false);
+  const [selectedNotesDeal, setSelectedNotesDeal] = useState<string>(""); // dealId to post notes to
 
   interface FormSubmission {
     id: string;
@@ -526,6 +534,26 @@ export default function ContactDetailPage() {
     });
     setNoteInput("");
     mutateNotes();
+  };
+
+  const submitDeptNote = async () => {
+    if (!deptNoteInput.trim()) return;
+    // Determine which deal to attach the note to
+    const deals = contact?.deals ?? [];
+    const targetDealId = selectedNotesDeal || deals[0]?.id;
+    if (!targetDealId) { showToast("No deal found to attach note to", false); return; }
+    setDeptNoteSaving(true);
+    const content = deptNoteInput.trim();
+    try {
+      await fetch(`/api/deals/${targetDealId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ department: activeDeptTab, content }),
+      });
+      setDeptNoteInput("");
+      mutateDealNotes();
+    } catch { showToast("Failed to save note", false); }
+    setDeptNoteSaving(false);
   };
 
   const handleAddTask = async () => {
@@ -1318,53 +1346,80 @@ export default function ContactDetailPage() {
             </div>
           )}
 
-          {/* Notes */}
+          {/* Pipeline Notes — department notes, identical to the pipeline panel */}
           <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 16 }}>Notes</div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-              <input
-                value={noteInput}
-                onChange={e => setNoteInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && noteInput.trim()) handleAddNote(); }}
-                placeholder="Add a note..."
-                style={{ flex: 1, padding: "10px 14px", background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 8, color: Z.textPrimary, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-              />
-              <Btn onClick={handleAddNote} disabled={!noteInput.trim()}>Add Note</Btn>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Pipeline Notes</div>
+              {/* Deal selector when contact has multiple deals */}
+              {(contact.deals ?? []).length > 1 && (
+                <select
+                  value={selectedNotesDeal || (contact.deals ?? [])[0]?.id || ""}
+                  onChange={(e) => setSelectedNotesDeal(e.target.value)}
+                  style={{ fontSize: 12, color: Z.textSecondary, border: `1px solid ${Z.border}`, borderRadius: 6, padding: "4px 8px", background: Z.bg }}
+                >
+                  {(contact.deals ?? []).map((d) => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </select>
+              )}
             </div>
-            {(!contactNotes || contactNotes.length === 0) ? (
-              <div style={{ textAlign: "center", color: Z.textMuted, fontSize: 13, padding: "24px 0" }}>No notes yet. Add the first one above.</div>
-            ) : (
-              <div>
-                {contactNotes.map((note, i) => (
-                  <div key={note.id} style={{ paddingBottom: 14, marginBottom: 14, borderBottom: i < contactNotes.length - 1 ? `1px solid ${Z.borderLight}` : "none" }}>
-                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.5, marginBottom: 4 }}>{note.body}</div>
-                    <div style={{ fontSize: 11, color: Z.textMuted }}>{formatRelative(note.createdAt)}</div>
+
+            {/* Department tab bar */}
+            <div style={{ display: "flex", gap: 4, overflowX: "auto", marginBottom: 12, paddingBottom: 4 }}>
+              {DEPT_TABS.map((tab) => {
+                const count = (dealNotes ?? []).filter((n) => n.department === tab && (!selectedNotesDeal || n.dealId === (selectedNotesDeal || (contact.deals ?? [])[0]?.id))).length;
+                const isActive = activeDeptTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveDeptTab(tab)}
+                    style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: isActive ? "none" : `1px solid ${Z.borderLight}`, background: isActive ? Z.ultramarine : "transparent", color: isActive ? "#fff" : Z.textMuted, cursor: "pointer" }}
+                  >
+                    {tab}
+                    {count > 0 && (
+                      <span style={{ marginLeft: 4, background: isActive ? "rgba(255,255,255,0.3)" : "#ef4444", color: "#fff", borderRadius: 10, padding: "0 5px", fontSize: 10, fontWeight: 800 }}>{count}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Notes list for active department */}
+            <div style={{ minHeight: 60, marginBottom: 12 }}>
+              {(() => {
+                const activeDealId = selectedNotesDeal || (contact.deals ?? [])[0]?.id;
+                const filtered = (dealNotes ?? []).filter((n) => n.department === activeDeptTab && (!activeDealId || n.dealId === activeDealId));
+                if (filtered.length === 0) return (
+                  <div style={{ fontSize: 12, color: Z.textMuted, padding: "8px 0" }}>No {activeDeptTab} notes yet.</div>
+                );
+                return filtered.map((n) => (
+                  <div key={n.id} style={{ background: Z.bg, borderRadius: 8, padding: "8px 12px", marginBottom: 6, fontSize: 12, color: Z.textPrimary }}>
+                    <div style={{ fontWeight: 600 }}>{n.content}</div>
+                    <div style={{ fontSize: 10, color: Z.textMuted, marginTop: 2 }}>
+                      {n.dealTitle} · {formatRelative(n.createdAt)}
+                    </div>
                   </div>
-                ))}
-              </div>
+                ));
+              })()}
+            </div>
+
+            {/* Note input */}
+            {(contact.deals ?? []).length > 0 ? (
+              <>
+                <textarea
+                  value={deptNoteInput}
+                  onChange={(e) => setDeptNoteInput(e.target.value)}
+                  placeholder={`Add ${activeDeptTab} note...`}
+                  style={{ width: "100%", minHeight: 60, padding: 10, borderRadius: 8, border: `1px solid ${Z.border}`, background: Z.bg, fontSize: 12, color: Z.textPrimary, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
+                />
+                <Btn onClick={submitDeptNote} disabled={deptNoteSaving || !deptNoteInput.trim()}>
+                  {deptNoteSaving ? "Saving..." : "Add Note"}
+                </Btn>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: Z.textMuted }}>Add a deal to this contact to enable pipeline notes.</div>
             )}
           </div>
-
-          {/* Pipeline Notes — deal dept notes from the pipeline panel */}
-          {dealNotes && dealNotes.length > 0 && (
-            <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary, marginBottom: 20 }}>Pipeline Notes</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {dealNotes.map((note) => (
-                  <div key={note.id} style={{ padding: "12px 14px", background: Z.bg, borderRadius: 8, border: `1px solid ${Z.borderLight}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, background: Z.ultramarine + "18", color: Z.ultramarine, padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{note.department}</span>
-                        <span style={{ fontSize: 11, color: Z.textMuted }}>{note.dealTitle}</span>
-                      </div>
-                      <span style={{ fontSize: 11, color: Z.textMuted, whiteSpace: "nowrap", marginLeft: 8 }}>{formatRelative(note.createdAt)}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.5 }}>{note.content}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Tasks */}
           <div style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, padding: "28px 32px", marginTop: 20 }}>
