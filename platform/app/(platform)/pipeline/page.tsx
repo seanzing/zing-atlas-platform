@@ -406,7 +406,7 @@ export default function PipelinePage() {
   /* ── team leaderboard data ── */
   const leaderboard = useMemo(() => {
     return salesTeam.map((m: TeamMember, idx: number) => {
-      const repName = m.firstName;
+      const repName = `${m.firstName} ${m.lastName || ""}`.trim();
       const repDeals = visibleDeals.filter((d: Deal) => d.rep === repName);
       const wonDeals = repDeals.filter((d: Deal) => d.stage === "won");
       const totalRevenue = wonDeals.reduce(
@@ -552,7 +552,7 @@ export default function PipelinePage() {
         }
       }
 
-      await fetch("/api/deals", {
+      const dealRes = await fetch("/api/deals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -565,15 +565,21 @@ export default function PipelinePage() {
         }),
       });
 
+      if (!dealRes.ok) {
+        const err = await dealRes.json().catch(() => ({}));
+        showToast((err as { error?: string }).error || `Failed to create lead (${dealRes.status})`, false);
+        return;
+      }
+
+      await mutate("/api/deals");
       mutate(pipelineUrl);
-      mutate("/api/deals");
       mutate("/api/contacts");
       setAddLeadOpen(false);
       setLeadName(""); setLeadCompany(""); setLeadEmail(""); setLeadPhone("");
       setLeadStage("call-now"); setLeadRep(""); setLeadContactSearch(""); setLeadContactId("");
       showToast("Lead added", true);
-    } catch {
-      showToast("Failed to add lead", false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to add lead", false);
     } finally {
       setLeadSubmitting(false);
     }
@@ -766,7 +772,7 @@ export default function PipelinePage() {
     () => [
       { value: "", label: "Select rep..." },
       ...salesTeam.map((m: TeamMember) => ({
-        value: m.firstName,
+        value: `${m.firstName} ${m.lastName || ""}`.trim(),
         label: `${m.firstName} ${m.lastName || ""}`.trim(),
       })),
     ],
@@ -850,7 +856,7 @@ export default function PipelinePage() {
           scrollbarWidth: "thin",
         }}
       >
-        {["All", ...salesTeam.map((m: TeamMember) => m.firstName)].map(
+        {["All", ...salesTeam.map((m: TeamMember) => `${m.firstName} ${m.lastName || ""}`.trim())].map(
           (name: string) => {
             const isActive = activeRep === name;
             const count = repDealCounts[name] || 0;
@@ -1070,7 +1076,7 @@ export default function PipelinePage() {
             {leaderboard.map((rep: typeof leaderboard[0]) => (
               <div
                 key={rep.id}
-                onClick={() => setActiveRep(rep.firstName)}
+                onClick={() => setActiveRep(`${rep.firstName} ${rep.lastName || ""}`.trim())}
                 style={{
                   background: Z.bg,
                   borderRadius: 12,
