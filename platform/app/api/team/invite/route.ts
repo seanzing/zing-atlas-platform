@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Invite user via Supabase Auth — redirect to /auth/reset so user can set password
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://zing-atlas-platform-production.up.railway.app";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://atlas.zingwebsitedesign.com";
     const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: { firstName, lastName },

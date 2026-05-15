@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = getStripe();
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://atlas.zingwebsitedesign.com";
 
     // 1. Create Stripe Checkout Session (idempotency key prevents duplicate sessions on retry)
     const session = await stripe.checkout.sessions.create(
