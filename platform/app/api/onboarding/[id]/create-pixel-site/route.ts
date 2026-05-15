@@ -89,7 +89,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const pixelData = await pixelRes.json();
     const siteId = pixelData.siteId ?? pixelData.id ?? "";
 
     // Update the website OnboardingItem
