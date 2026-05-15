@@ -1432,7 +1432,6 @@ export default function PipelinePage() {
                         </div>
 
                         {/* Quick action buttons */}
-                        {(deal.contact?.phone || deal.contact?.email) && (
                         <div
                           data-quick-actions
                           style={{
@@ -1522,8 +1521,29 @@ export default function PipelinePage() {
                               ✉️
                             </button>
                           )}
+                          {/* Delete deal */}
+                          <button
+                            title="Delete deal"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Delete "${deal.title}"? This cannot be undone.`)) return;
+                              await fetch(`/api/deals/${deal.id}`, { method: "DELETE" });
+                              mutate(pipelineUrl);
+                              mutate("/api/deals");
+                            }}
+                            style={{
+                              width: 28, height: 28, borderRadius: 6,
+                              border: `1px solid ${Z.borderLight}`,
+                              background: Z.card, cursor: "pointer",
+                              display: "flex", alignItems: "center",
+                              justifyContent: "center", padding: 0,
+                              fontSize: 14, lineHeight: 1, marginLeft: "auto",
+                              color: "#ef4444",
+                            }}
+                          >
+                            🗑
+                          </button>
                         </div>
-                        )}
                       </div>
                     );
                   })}
