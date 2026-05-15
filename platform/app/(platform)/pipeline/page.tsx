@@ -465,28 +465,6 @@ export default function PipelinePage() {
     setDeptNoteSaving(false);
   }
 
-  const productOptions = useMemo(
-    () => [
-      { value: "", label: "Select product..." },
-      ...(products ?? []).map((p: Product) => ({
-        value: p.id,
-        label: `${p.description} — ${fmt(Number(p.price))}`,
-      })),
-    ],
-    [products]
-  );
-
-  const designerOptions = useMemo(
-    () => [
-      { value: "", label: "Select designer..." },
-      ...(designers ?? []).map((d: Designer) => ({
-        value: d.name || d.id,
-        label: d.name || "Unknown",
-      })),
-    ],
-    [designers]
-  );
-
   const repOptions = useMemo(
     () => [
       { value: "", label: "Select rep..." },
