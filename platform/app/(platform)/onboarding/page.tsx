@@ -82,7 +82,7 @@ function getStatusLabel(options: { value: string; label: string }[] | null, valu
 }
 
 const NAV_TABS = [
-  { label: "By Customer", href: "/onboarding" },
+  { label: "By Rep", href: "/onboarding" },
   { label: "By Task", href: "/onboarding/by-task" },
   { label: "Full View", href: "/onboarding/full" },
   { label: "Work Funnel", href: "/onboarding/funnel" },
@@ -93,6 +93,7 @@ export default function OnboardingByCustomerPage() {
   const { data: teamMembers } = useSWR<TeamMember[]>("/api/team");
   const [search, setSearch] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [repFilter, setRepFilter] = useState<string>("all");
   const [selectedOb, setSelectedOb] = useState<Onboarding | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [, setSavingNote] = useState<string | null>(null);
@@ -115,8 +116,14 @@ export default function OnboardingByCustomerPage() {
     (i) => i.taskType === "publishing" && i.completedAt && new Date(i.completedAt) >= monthStart
   ).length;
 
+  // Unique reps for filter pills
+  const uniqueReps = Array.from(
+    new Set(list.map((o) => o.rep).filter(Boolean) as string[])
+  ).sort();
+
   // Filter
   const filtered = list.filter((o) => {
+    if (repFilter !== "all" && o.rep !== repFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (
@@ -330,6 +337,44 @@ export default function OnboardingByCustomerPage() {
       {/* Search */}
       <div style={{ marginBottom: 20 }}>
         <SearchBar value={search} onChange={setSearch} placeholder="Search by business, customer, or rep..." />
+      </div>
+
+      {/* Rep filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginRight: 4 }}>Rep</span>
+        {["all", ...uniqueReps].map((rep) => {
+          const count = rep === "all" ? list.length : list.filter((o) => o.rep === rep).length;
+          return (
+            <button
+              key={rep}
+              onClick={() => setRepFilter(rep)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: 99,
+                border: `1px solid ${repFilter === rep ? Z.ultramarine : Z.border}`,
+                background: repFilter === rep ? `${Z.ultramarine}15` : "transparent",
+                color: repFilter === rep ? Z.ultramarine : Z.textSecondary,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {rep === "all" ? "All Reps" : rep}
+              <span style={{
+                fontSize: 11,
+                background: repFilter === rep ? Z.ultramarine : Z.borderLight,
+                color: repFilter === rep ? "#fff" : Z.textMuted,
+                borderRadius: 99,
+                padding: "1px 7px",
+                fontWeight: 700,
+              }}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Assignee filter */}
