@@ -10,6 +10,7 @@ import { useState, useMemo, useCallback, useEffect, DragEvent } from "react";
 import Link from "next/link";
 import { WonDealModal } from "@/components/WonDealModal";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
+import ContactLink from "@/components/ContactLink";
 
 // Inline contact search for Add Lead modal
 type ContactSearchResult = { id: string; name: string | null; company: string | null; email: string | null };
@@ -1413,13 +1414,13 @@ export default function PipelinePage() {
                   <div
                     style={{
                       fontSize: 13,
-                      color: Z.textSecondary,
                       marginBottom: 6,
                     }}
                   >
-                    {selectedDeal.contact?.name ||
-                      selectedDeal.contactName ||
-                      "No contact"}
+                    <ContactLink
+                      contactId={selectedDeal?.contact?.id || selectedDeal?.contactId}
+                      name={selectedDeal?.contact?.name || selectedDeal?.contactName}
+                    />
                   </div>
                   {/* Contact info block */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 8, fontSize: 12 }}>

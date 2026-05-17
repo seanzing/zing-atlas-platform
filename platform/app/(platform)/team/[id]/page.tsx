@@ -5,10 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 import { PageLoader } from "@/components/PageLoader";
+import ContactLink from "@/components/ContactLink";
 import { Z, fmt, AVATAR_COLORS } from "@/lib/constants";
 
 interface DealRow {
   id: string;
+  contactId: string | null;
   customerName: string;
   wonDate: string;
   status: "live" | "cancelled" | "pending";
@@ -381,8 +383,8 @@ export default function TeamMemberDetailPage() {
                   }}
                 >
                   {/* Customer */}
-                  <div style={{ fontSize: 14, fontWeight: 600, color: Z.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {deal.customerName}
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <ContactLink contactId={deal.contactId} name={deal.customerName} style={{ fontSize: 13 }} />
                   </div>
 
                   {/* Sold On */}

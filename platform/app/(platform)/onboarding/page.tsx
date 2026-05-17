@@ -8,6 +8,7 @@ import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 import { NewSaleModal } from "@/components/NewSaleModal";
 import { Z } from "@/lib/constants";
+import ContactLink from "@/components/ContactLink";
 import { mutate } from "swr";
 
 interface OnboardingItem {
@@ -47,6 +48,7 @@ interface Onboarding {
   status: string | null;
   items: OnboardingItem[];
   product?: { description: string } | null;
+  deal?: { contactId: string | null } | null;
 }
 
 const WEBSITE_STATUSES = [
@@ -398,7 +400,9 @@ export default function OnboardingByCustomerPage() {
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <div style={{ fontWeight: 700 }}>{ob.businessName ?? "—"}</div>
-              <div style={{ color: Z.textSecondary }}>{ob.customerName ?? "—"}</div>
+              <div>
+                <ContactLink contactId={ob.deal?.contactId} name={ob.customerName} style={{ color: Z.textSecondary, fontSize: 13 }} />
+              </div>
               <div><Badge label={ob.product?.description?.split(" - ")[0] ?? "—"} color={Z.ultramarine} /></div>
               <div onClick={(e) => e.stopPropagation()}>
                 {(() => {
@@ -492,7 +496,9 @@ export default function OnboardingByCustomerPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>{selectedOb.businessName}</div>
-                <div style={{ fontSize: 13, color: Z.textSecondary }}>{selectedOb.customerName}</div>
+                <div style={{ fontSize: 13 }}>
+                  <ContactLink contactId={selectedOb.deal?.contactId} name={selectedOb.customerName} />
+                </div>
               </div>
               <button
                 onClick={() => setPanelOpen(false)}

@@ -73,6 +73,7 @@ export async function GET(
 
       return {
         id: d.id,
+        contactId: d.contactId,
         customerName: d.contact?.name || d.contactName || "Unknown",
         wonDate: d.wonDate,
         status,

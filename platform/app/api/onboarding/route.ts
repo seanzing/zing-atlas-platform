@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         items: { orderBy: { dueDate: "asc" } },
         webOwners: true,
         product: { select: { description: true } },
+        deal: { select: { contactId: true } },
       },
     });
 

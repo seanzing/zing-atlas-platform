@@ -14,6 +14,7 @@ import {
   FilterBtn,
 } from "@/components/ui";
 import { PageLoader } from "@/components/PageLoader";
+import ContactLink from "@/components/ContactLink";
 import { Toast, useToast } from "@/components/Toast";
 import {
   Z,
@@ -388,7 +389,7 @@ export default function SupportPage() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {t.contactName || t.contact?.name || "--"}
+                <ContactLink contactId={t.contactId || t.contact?.id} name={t.contactName || t.contact?.name} style={{ fontSize: 13 }} />
               </div>
               <div>
                 <Badge
