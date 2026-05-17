@@ -365,25 +365,33 @@ export async function POST(request: NextRequest) {
     if (eventType === "invoice.paid") {
       const invoice = eventObject;
       const customerEmail = invoice?.customer_email as string | undefined;
+      const stripeCustomerId = invoice?.customer as string | undefined;
       const amountPaid = ((invoice?.amount_paid as number) || 0) / 100;
 
-      if (!customerEmail) {
-        logger.warn({ eventId }, "invoice.paid: no customer_email on invoice");
-        return NextResponse.json({ received: true, skipped: "no_email" });
-      }
+      // Find AR record — try stripeCustomerId first (most reliable), then fall back to email
+      let arAccount = stripeCustomerId
+        ? await prisma.arAccount.findFirst({
+            where: {
+              stripeCustomerId,
+              organizationId: ORG_ID,
+              deletedAt: null,
+            },
+          })
+        : null;
 
-      // Find AR record by customer email (scoped to org)
-      const arAccount = await prisma.arAccount.findFirst({
-        where: {
-          email: customerEmail,
-          organizationId: ORG_ID,
-          deletedAt: null,
-        },
-      });
+      if (!arAccount && customerEmail) {
+        arAccount = await prisma.arAccount.findFirst({
+          where: {
+            email: customerEmail,
+            organizationId: ORG_ID,
+            deletedAt: null,
+          },
+        });
+      }
 
       if (!arAccount) {
         logger.info(
-          { eventId, customerEmail },
+          { eventId, customerEmail, stripeCustomerId },
           "invoice.paid: no matching AR account"
         );
         return NextResponse.json({ received: true, skipped: "no_ar_account" });
