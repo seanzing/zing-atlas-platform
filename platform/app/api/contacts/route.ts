@@ -30,20 +30,24 @@ export async function GET(request: NextRequest) {
           select: { deals: true },
         },
         deals: {
-          where: { stage: "won", deletedAt: null },
-          select: { rep: true, value: true },
-          take: 1,
+          where: { deletedAt: null },
+          select: { rep: true, value: true, stage: true },
           orderBy: { wonDate: "desc" },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const mapped = contacts.map((c) => ({
-      ...c,
-      rep: c.deals[0]?.rep ?? c.assignedRep ?? null,
-      dealValue: c.deals[0]?.value ?? null,
-    }));
+    const mapped = contacts.map((c) => {
+      const wonDeal = c.deals.find((d) => d.stage === "won");
+      const hasActiveDeal = c.deals.some((d) => d.stage !== "won");
+      return {
+        ...c,
+        rep: wonDeal?.rep ?? c.assignedRep ?? null,
+        dealValue: wonDeal?.value ?? null,
+        hasActiveDeal,
+      };
+    });
 
     return NextResponse.json(serialize(mapped), { status: 200 });
   } catch (error) {

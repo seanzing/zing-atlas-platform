@@ -37,6 +37,7 @@ interface Contact {
   websiteUrl: string | null;
   rep: string | null;
   dealValue: string | null;
+  hasActiveDeal: boolean;
 }
 
 
@@ -68,13 +69,20 @@ export default function ContactsPage() {
 
   // Stats
   const liveCount = list.filter((c) => c.status === "Live Customer").length;
-  const activeCount = list.filter((c) => c.status === "Active Lead").length;
+  const activeCount = list.filter((c) => c.hasActiveDeal).length;
   const cancelledCount = list.filter((c) => c.status === "Cancelled").length;
   const dncCount = list.filter((c) => c.status === "DNC").length;
 
   // Filtered list
   const filtered = list.filter((c) => {
-    if (statusFilter !== "All" && c.status !== statusFilter) return false;
+    if (statusFilter !== "All") {
+      if (statusFilter === "Active Lead") {
+        // Show any contact with a deal in the pipeline (any non-won stage)
+        if (!c.hasActiveDeal) return false;
+      } else if (c.status !== statusFilter) {
+        return false;
+      }
+    }
     if (search) {
       const q = search.toLowerCase();
       return (
