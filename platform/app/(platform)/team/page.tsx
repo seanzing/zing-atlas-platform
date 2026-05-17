@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
@@ -89,12 +90,14 @@ function MemberCard({
   index: number;
   onEdit: (m: TeamMemberPerf) => void;
 }) {
+  const router = useRouter();
   const initials = getInitials(member.firstName, member.lastName);
   const avatarColor = getAvatarColor(index);
   const fullName = `${member.firstName || ""} ${member.lastName || ""}`.trim();
 
   return (
     <div
+      onClick={() => router.push(`/team/${member.id}`)}
       style={{
         background: Z.card,
         border: `1px solid ${Z.border}`,
@@ -103,6 +106,7 @@ function MemberCard({
         display: "flex",
         flexDirection: "column",
         gap: 16,
+        cursor: "pointer",
       }}
     >
       {/* Header */}
@@ -183,7 +187,7 @@ function MemberCard({
           </div>
           </div>
           <button
-            onClick={() => onEdit(member)}
+            onClick={(e) => { e.stopPropagation(); onEdit(member); }}
             title="Edit"
             style={{
               background: "none",
