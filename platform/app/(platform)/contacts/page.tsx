@@ -36,6 +36,7 @@ interface Contact {
   industry: string | null;
   websiteUrl: string | null;
   rep: string | null;
+  dealValue: string | null;
 }
 
 
@@ -446,7 +447,7 @@ export default function ContactsPage() {
                   color: Z.textPrimary,
                 }}
               >
-                {fmt(Number(c.value) || 0)}
+                {c.dealValue ? fmt(Number(c.dealValue)) : <span style={{ color: Z.textMuted }}>—</span>}
               </div>
 
               {/* Rep */}

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         },
         deals: {
           where: { stage: "won", deletedAt: null },
-          select: { rep: true },
+          select: { rep: true, value: true },
           take: 1,
           orderBy: { wonDate: "desc" },
         },
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     const mapped = contacts.map((c) => ({
       ...c,
       rep: c.deals[0]?.rep ?? c.assignedRep ?? null,
+      dealValue: c.deals[0]?.value ?? null,
     }));
 
     return NextResponse.json(serialize(mapped), { status: 200 });

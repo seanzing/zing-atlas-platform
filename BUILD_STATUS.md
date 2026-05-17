@@ -43,6 +43,22 @@ npm run build → ✅ PASSES (verified locally 2026-05-15)
 npx tsc --noEmit → ✅ CLEAN
 ```
 
+---
+
+## 2026-05-17 — Contacts Cleanup + Rep Column (Amy)
+
+### Changes
+- Soft-deleted all test/junk contacts and their deals (Test contacts, "hi", "2522299887", duplicate Paul Martinez, Sean Meadows test data + onboarding record)
+- Added **Rep** column to contacts list — pulls rep from the contact's most recent won deal; falls back to `assignedRep` on the contact if no won deal
+- API updated: `GET /api/contacts` now includes `deals` (won only) in the Prisma query and maps `rep` onto each contact response
+
+### Build
+```
+npm run build → ✅ PASSES
+```
+
+---
+
 ### Open Work
 - [ ] SMTP2GO webhook needs to be configured in SMTP2GO dashboard (URL: https://zing-atlas-platform-production.up.railway.app/api/webhooks/smtp2go)
 - [ ] Supabase custom SMTP should be wired to SMTP2GO to remove email rate limits
