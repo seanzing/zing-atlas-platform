@@ -253,10 +253,11 @@ export default function PipelinePage() {
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [visibleDeals]);
 
-  /* ── rep deal counts ── */
+  /* ── rep deal counts — active pipeline only (excludes won) ── */
   const repDealCounts = useMemo(() => {
-    const map: Record<string, number> = { All: (allDeals ?? []).length };
-    (allDeals ?? []).forEach((d: Deal) => {
+    const pipelineDeals = (allDeals ?? []).filter((d: Deal) => d.stage !== "won");
+    const map: Record<string, number> = { All: pipelineDeals.length };
+    pipelineDeals.forEach((d: Deal) => {
       if (d.rep) {
         map[d.rep] = (map[d.rep] || 0) + 1;
       }
