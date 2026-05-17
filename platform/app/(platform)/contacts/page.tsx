@@ -35,6 +35,7 @@ interface Contact {
   avatar: string | null;
   industry: string | null;
   websiteUrl: string | null;
+  rep: string | null;
 }
 
 
@@ -281,7 +282,7 @@ export default function ContactsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr",
+            gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr",
             padding: "14px 24px",
             borderBottom: `1px solid ${Z.border}`,
             background: Z.bg,
@@ -299,7 +300,7 @@ export default function ContactsPage() {
                 style={{ cursor: "pointer", width: 16, height: 16 }}
               />
             </div>
-          {["Name", "Email", "Phone", "Company", "Industry", "Lead Source", "Status", "Value"].map(
+          {["Name", "Email", "Phone", "Company", "Industry", "Lead Source", "Status", "Value", "Rep"].map(
             (h) => (
               <div
                 key={h}
@@ -328,7 +329,7 @@ export default function ContactsPage() {
               onMouseLeave={() => setHoveredRow(null)}
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr",
                 padding: "14px 24px",
                 alignItems: "center",
                 borderBottom: `1px solid ${Z.borderLight}`,
@@ -446,6 +447,19 @@ export default function ContactsPage() {
                 }}
               >
                 {fmt(Number(c.value) || 0)}
+              </div>
+
+              {/* Rep */}
+              <div
+                style={{
+                  fontSize: 13,
+                  color: Z.textSecondary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.rep || <span style={{ color: Z.textMuted }}>—</span>}
               </div>
             </div>
           );
