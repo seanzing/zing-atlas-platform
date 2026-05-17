@@ -83,9 +83,11 @@ function ProgressBar({ value, target }: { value: number; target: number }) {
 function MemberCard({
   member,
   index,
+  onEdit,
 }: {
   member: TeamMemberPerf;
   index: number;
+  onEdit: (m: TeamMemberPerf) => void;
 }) {
   const initials = getInitials(member.firstName, member.lastName);
   const avatarColor = getAvatarColor(index);
@@ -122,7 +124,7 @@ function MemberCard({
         >
           {initials}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div
             style={{
               fontSize: 16,
@@ -133,6 +135,7 @@ function MemberCard({
           >
             {fullName || "Unknown"}
           </div>
+          <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {member.role && (
               <span
@@ -178,6 +181,27 @@ function MemberCard({
               {member.active ? "Active" : "Inactive"}
             </span>
           </div>
+          </div>
+          <button
+            onClick={() => onEdit(member)}
+            title="Edit"
+            style={{
+              background: "none",
+              border: `1px solid ${Z.border}`,
+              borderRadius: 8,
+              cursor: "pointer",
+              color: Z.textMuted,
+              padding: "5px 8px",
+              fontSize: 13,
+              lineHeight: 1,
+              flexShrink: 0,
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = Z.textPrimary; e.currentTarget.style.borderColor = Z.ultramarine; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = Z.textMuted; e.currentTarget.style.borderColor = Z.border; }}
+          >
+            ✏️
+          </button>
         </div>
       </div>
 
@@ -291,14 +315,68 @@ export default function TeamPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()); // 0-indexed
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editMember, setEditMember] = useState<TeamMemberPerf | null>(null);
 
-  // Form state
+  // Add form state
   const [formFirst, setFormFirst] = useState("");
   const [formLast, setFormLast] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formTarget, setFormTarget] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Edit form state
+  const [editFirst, setEditFirst] = useState("");
+  const [editLast, setEditLast] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editTarget, setEditTarget] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(m: TeamMemberPerf) {
+    setEditMember(m);
+    setEditFirst(m.firstName || "");
+    setEditLast(m.lastName || "");
+    setEditEmail(m.email || "");
+    setEditPhone(m.phone || "");
+    setEditTarget(m.monthlyTarget ? String(m.monthlyTarget) : "");
+    setEditActive(m.active);
+  }
+
+  async function handleEditSave() {
+    if (!editMember) return;
+    if (!editFirst.trim() || !editLast.trim()) {
+      showToast("First and last name are required", false);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/team/${editMember.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: editFirst.trim(),
+          lastName: editLast.trim(),
+          email: editEmail.trim() || undefined,
+          phone: editPhone.trim() || undefined,
+          monthlyTarget: editTarget ? Number(editTarget) : undefined,
+          active: editActive,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to save");
+      }
+      await mutate();
+      setEditMember(null);
+      showToast("Team member updated", true);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Error saving", false);
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   const { toast, showToast } = useToast();
 
@@ -539,11 +617,67 @@ export default function TeamPage() {
             }}
           >
             {members.map((m, i) => (
-              <MemberCard key={m.id} member={m} index={i} />
+              <MemberCard key={m.id} member={m} index={i} onEdit={openEdit} />
             ))}
           </div>
         )}
       </div>
+
+      {/* Edit Team Member Modal */}
+      <Modal
+        open={!!editMember}
+        onClose={() => setEditMember(null)}
+        title="Edit Team Member"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="First Name *">
+              <Input value={editFirst} onChange={setEditFirst} placeholder="First name" />
+            </FormField>
+            <FormField label="Last Name *">
+              <Input value={editLast} onChange={setEditLast} placeholder="Last name" />
+            </FormField>
+          </div>
+          <FormField label="Email">
+            <Input value={editEmail} onChange={setEditEmail} placeholder="email@example.com" type="email" />
+          </FormField>
+          <FormField label="Phone">
+            <Input value={editPhone} onChange={setEditPhone} placeholder="+1 (555) 000-0000" type="tel" />
+          </FormField>
+          <FormField label="Monthly Target ($)">
+            <Input value={editTarget} onChange={setEditTarget} placeholder="e.g. 5000" type="number" />
+          </FormField>
+          <FormField label="Status">
+            <div style={{ display: "flex", gap: 10 }}>
+              {[{ label: "Active", value: true }, { label: "Inactive", value: false }].map((opt) => (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => setEditActive(opt.value)}
+                  style={{
+                    padding: "7px 20px",
+                    borderRadius: 8,
+                    border: `1px solid ${editActive === opt.value ? Z.ultramarine : Z.border}`,
+                    background: editActive === opt.value ? `${Z.ultramarine}15` : "transparent",
+                    color: editActive === opt.value ? Z.ultramarine : Z.textSecondary,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </FormField>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <Btn variant="secondary" onClick={() => setEditMember(null)}>Cancel</Btn>
+            <Btn onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? "Saving..." : "Save Changes"}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add Team Member Modal */}
       <Modal
