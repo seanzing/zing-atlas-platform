@@ -41,9 +41,11 @@ export async function GET(request: NextRequest) {
     const mapped = contacts.map((c) => {
       const wonDeal = c.deals.find((d) => d.stage === "won");
       const hasActiveDeal = c.deals.some((d) => d.stage !== "won");
+      // Use won deal rep first, then any deal rep, then contact assignedRep
+      const rep = wonDeal?.rep ?? c.deals[0]?.rep ?? c.assignedRep ?? null;
       return {
         ...c,
-        rep: wonDeal?.rep ?? c.assignedRep ?? null,
+        rep,
         dealValue: wonDeal?.value ?? null,
         hasActiveDeal,
       };
