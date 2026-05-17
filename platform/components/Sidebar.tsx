@@ -97,7 +97,8 @@ export default function Sidebar() {
             pathname === item.href ||
             (item.key === "contacts" && pathname.startsWith("/contacts")) ||
             (item.key === "onboarding" && pathname.startsWith("/onboarding")) ||
-            (item.key === "tasks" && pathname === "/onboarding/by-task");
+            (item.key === "tasks" && pathname === "/onboarding/by-task") ||
+            (item.key === "team" && pathname.startsWith("/team"));
           const isOnboardingSection = item.key === "onboarding" && pathname.startsWith("/onboarding");
 
           return (
