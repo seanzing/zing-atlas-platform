@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         deals: {
           where: { deletedAt: null },
           select: { rep: true, value: true, stage: true },
-          orderBy: { wonDate: "desc" },
+          orderBy: { createdAt: "desc" },
         },
       },
       orderBy: { createdAt: "desc" },
