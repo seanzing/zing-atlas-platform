@@ -157,13 +157,126 @@ export async function GET(req: NextRequest) {
       .map(([rep, { total, count }]) => ({ rep, total_revenue: total, deal_count: count }))
       .sort((a, b) => b.total_revenue - a.total_revenue);
 
+    // ─── NEW: All-time / live metrics ───────────────────────────────────────
+
+    // 7. Live customers — all-time won + confirmed + stripeCustomerId
+    const liveDeals = await prisma.deal.findMany({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        stage: "won",
+        paymentStatus: "confirmed",
+        stripeCustomerId: { not: null },
+      },
+      select: { value: true, productId: true },
+    });
+
+    const mrr = liveDeals.reduce(
+      (sum, d) => sum + (d.value ? Number(d.value) : 0),
+      0
+    );
+    const arr = mrr * 12;
+    const live_customers = liveDeals.length;
+    const arpu = live_customers > 0 ? mrr / live_customers : 0;
+
+    // 8. Churn rate
+    const cancelledCount = await prisma.contact.count({
+      where: {
+        organizationId: ORG_ID,
+        status: "Cancelled",
+      },
+    });
+
+    const churn_rate =
+      live_customers + cancelledCount > 0
+        ? Math.round(
+            (cancelledCount / (live_customers + cancelledCount)) * 100 * 10
+          ) / 10
+        : 0;
+
+    // 9. Active leads (in pipeline, not won)
+    const active_leads = await prisma.deal.count({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        stage: { not: "won" },
+      },
+    });
+
+    // 10. Product tier breakdown (group by product.description for live deals)
+    const liveDealsWithProduct = await prisma.deal.findMany({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        stage: "won",
+        paymentStatus: "confirmed",
+        stripeCustomerId: { not: null },
+      },
+      select: {
+        value: true,
+        product: { select: { description: true } },
+      },
+    });
+
+    const tierMap: Record<string, { count: number; mrr: number }> = {};
+    for (const d of liveDealsWithProduct) {
+      const tier = d.product?.description ?? "Unknown";
+      if (!tierMap[tier]) tierMap[tier] = { count: 0, mrr: 0 };
+      tierMap[tier].count += 1;
+      tierMap[tier].mrr += d.value ? Number(d.value) : 0;
+    }
+
+    const product_tier_breakdown = Object.entries(tierMap).map(
+      ([tier, { count, mrr: tierMrr }]) => ({ tier, count, mrr: tierMrr })
+    );
+
+    // 11. Onboarding in queue (deletedAt=null and websiteStatus != 'published')
+    const onboarding_in_queue = await prisma.onboarding.count({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        websiteStatus: { not: "published" },
+      },
+    });
+
+    // 12. Open tickets
+    const open_tickets = await prisma.ticket.count({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        status: { in: ["open", "in-progress"] },
+      },
+    });
+
+    // 13. AR at risk
+    const ar_at_risk = await prisma.arAccount.count({
+      where: {
+        organizationId: ORG_ID,
+        deletedAt: null,
+        status: { in: ["past-due", "unpaid"] },
+      },
+    });
+
     return NextResponse.json({
+      // Period metrics
       period_revenue,
       today_revenue,
       nrr,
       deal_type_breakdown,
       daily_revenue_chart,
       rep_leaderboard,
+      // All-time / live metrics
+      mrr,
+      arr,
+      live_customers,
+      arpu,
+      churn_rate,
+      active_leads,
+      product_tier_breakdown,
+      // Operational
+      onboarding_in_queue,
+      open_tickets,
+      ar_at_risk,
     });
   } catch (err) {
     logger.error({ err }, "GET /api/dashboard error");

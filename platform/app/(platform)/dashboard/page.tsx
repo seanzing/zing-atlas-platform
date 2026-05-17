@@ -1,247 +1,798 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Z } from "@/lib/constants";
 import { useAuthContext } from "@/lib/auth-context";
+import { Z, fmt } from "@/lib/constants";
 import { PageLoader } from "@/components/PageLoader";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface DashboardData {
+  period_revenue: number;
+  today_revenue: number;
+  nrr: number;
+  deal_type_breakdown: { type: string; count: number; revenue: number }[];
+  daily_revenue_chart: { date: string; revenue: number; deal_count: number }[];
+  rep_leaderboard: { rep: string; total_revenue: number; deal_count: number }[];
+  mrr: number;
+  arr: number;
+  live_customers: number;
+  arpu: number;
+  churn_rate: number;
+  active_leads: number;
+  product_tier_breakdown: { tier: string; count: number; mrr: number }[];
+  onboarding_in_queue: number;
+  open_tickets: number;
+  ar_at_risk: number;
+}
+
+type Period = "this_month" | "last_month" | "ytd" | "custom";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const WEBSITE_STATUSES: Record<string, { label: string; color: string }> = {
-  not_started: { label: "Not Started", color: "#6b7280" },
-  building: { label: "Building", color: Z.ultramarine },
-  draft_sent: { label: "Draft Sent", color: "#f59e0b" },
-  in_revision: { label: "In Revision", color: "#f97316" },
-  customer_approved: { label: "Customer Approved", color: "#22c55e" },
-  in_qa: { label: "In QA", color: Z.violet },
-  published: { label: "Published", color: Z.turquoise },
-};
-
-interface OnboardingRow {
-  onboardingId: string;
-  customerName: string | null;
-  businessName: string | null;
-  email: string | null;
-  contactId: string | null;
-  websiteStatus: string | null;
-  designer: string | null;
-  wonDate: string | null;
-  product: string | null;
-  items: { id: string; taskType: string | null; stage: string | null; dueDate: string | null; currentStatus: string | null }[];
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-interface ActivityEntry {
-  id: string;
-  type: string;
-  subject: string | null;
-  toEmail: string | null;
-  fromEmail: string | null;
-  metadata: Record<string, string> | null;
-  createdAt: string;
+function getPeriodDates(period: Period, customFrom: string, customTo: string) {
+  const now = new Date();
+  if (period === "this_month") {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+      to: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10),
+      label: "This Month",
+    };
+  }
+  if (period === "last_month") {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10),
+      to: new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10),
+      label: "Last Month",
+    };
+  }
+  if (period === "ytd") {
+    return {
+      from: new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10),
+      to: now.toISOString().slice(0, 10),
+      label: "Year to Date",
+    };
+  }
+  return {
+    from: customFrom || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+    to: customTo || now.toISOString().slice(0, 10),
+    label: `${customFrom} → ${customTo}`,
+  };
 }
 
-function StatBox({ label, value, color, href }: { label: string; value: number | string; color: string; href?: string }) {
-  const inner = (
-    <div style={{
-      background: Z.card,
-      border: `1px solid ${Z.border}`,
-      borderRadius: 14,
-      padding: "20px 24px",
-      flex: 1,
-      minWidth: 140,
-      transition: "border-color 0.15s",
-    }}>
-      <div style={{ fontSize: 28, fontWeight: 800, color, marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 12, color: Z.textMuted, fontWeight: 600 }}>{label}</div>
+function pct(n: number): string {
+  return `${n.toFixed(1)}%`;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function AccentBar({ color }: { color: string }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        background: color,
+        borderRadius: "16px 16px 0 0",
+      }}
+    />
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: "1.2px",
+        textTransform: "uppercase",
+        color: Z.textMuted,
+        marginBottom: 8,
+      }}
+    >
+      {children}
     </div>
   );
-  if (href) {
-    return (
-      <Link href={href} style={{ textDecoration: "none", flex: 1, minWidth: 140 }}
-        onMouseEnter={(e) => { (e.currentTarget.firstChild as HTMLElement).style.borderColor = color; }}
-        onMouseLeave={(e) => { (e.currentTarget.firstChild as HTMLElement).style.borderColor = Z.border; }}
-      >
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
 }
+
+function BigNum({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 34,
+        fontWeight: 700,
+        letterSpacing: "-0.5px",
+        color: Z.textPrimary,
+        lineHeight: 1.1,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SubNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        color: Z.textMuted,
+        marginTop: 4,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  accent: string;
+}) {
+  return (
+    <div
+      style={{
+        background: Z.card,
+        border: `1px solid ${Z.border}`,
+        borderRadius: 16,
+        padding: "28px 24px 24px",
+        position: "relative",
+        overflow: "hidden",
+        flex: 1,
+        minWidth: 0,
+      }}
+    >
+      <AccentBar color={accent} />
+      <Label>{label}</Label>
+      <BigNum>{value}</BigNum>
+      {sub && <SubNote>{sub}</SubNote>}
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "1.4px",
+        textTransform: "uppercase",
+        color: Z.textMuted,
+        marginBottom: 16,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { user } = useAuthContext();
-  const { data: rows } = useSWR<OnboardingRow[]>("/api/onboarding/full", fetcher);
-  const { data: activityData } = useSWR<{ activity: ActivityEntry[] }>(
-    "/api/dashboard/activity",
-    fetcher
-  );
+  const firstName =
+    user?.teamMember?.firstName || user?.email?.split("@")[0] || "there";
+  const greeting = getGreeting();
 
-  const firstName = user?.teamMember?.firstName || user?.email?.split("@")[0] || "there";
-  const role = user?.teamMember?.role || "";
+  const [period, setPeriod] = useState<Period>("this_month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
-  const stats = useMemo(() => {
-    if (!rows) return null;
-    const active = rows.filter((r) => r.websiteStatus !== "published");
-    const overdue = rows.filter((r) => {
-      const ws = r.websiteStatus || "not_started";
-      if (ws === "published") return false;
-      return r.items.some((i) => i.dueDate && new Date(i.dueDate) < new Date() && i.stage !== "complete");
-    });
-    const inDesign = rows.filter((r) => ["not_started", "building", "draft_sent", "in_revision"].includes(r.websiteStatus || "not_started"));
-    const inPublish = rows.filter((r) => ["customer_approved", "in_qa"].includes(r.websiteStatus || "not_started"));
-    const published = rows.filter((r) => r.websiteStatus === "published");
-    return { active: active.length, overdue: overdue.length, inDesign: inDesign.length, inPublish: inPublish.length, published: published.length };
-  }, [rows]);
+  const { from, to, label: periodLabel } = getPeriodDates(period, customFrom, customTo);
+  const apiUrl = `/api/dashboard?from=${from}&to=${to}`;
 
-  // Role-based "my queue" — items relevant to this user's role
-  const myQueue = useMemo(() => {
-    if (!rows) return [];
-    if (role.startsWith("designer")) {
-      return rows.filter((r) => ["building", "draft_sent", "in_revision"].includes(r.websiteStatus || ""));
+  const { data, isLoading } = useSWR<DashboardData>(apiUrl, fetcher, {
+    refreshInterval: 60000,
+  });
+
+  if (isLoading || !data) return <PageLoader />;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const maxRevenue = Math.max(...data.daily_revenue_chart.map((d) => d.revenue), 1);
+  const top5Reps = data.rep_leaderboard.slice(0, 5);
+  const topRepRevenue = top5Reps[0]?.total_revenue || 1;
+  const totalMrr = data.mrr || 1;
+
+  // Deal type colors
+  const dealTypeColor: Record<string, string> = {
+    new: Z.ultramarine,
+    upgrade: Z.violet,
+    "add-on": "#22d3ee",
+  };
+
+  // Tier colors
+  const tierColor: Record<string, string> = {
+    DISCOVER: "#10b981",
+    BOOST: "#3b82f6",
+    DOMINATE: Z.violet,
+  };
+  function getTierColor(tier: string): string {
+    const upper = tier.toUpperCase();
+    for (const [key, val] of Object.entries(tierColor)) {
+      if (upper.includes(key)) return val;
     }
-    if (role === "publishing") {
-      return rows.filter((r) => ["customer_approved", "in_qa"].includes(r.websiteStatus || ""));
-    }
-    // Default: show active items for sales/admin/others
-    return rows.filter((r) => r.websiteStatus !== "published").slice(0, 10);
-  }, [rows, role]);
-
-  const activity = activityData?.activity ?? [];
-
-  if (!rows) return <PageLoader />;
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    return Z.grey;
+  }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-      {/* Greeting */}
+    <div
+      style={{
+        minHeight: "100vh",
+        background: Z.bg,
+        padding: "32px 40px 60px",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif",
+      }}
+    >
+      {/* ─── Header ─────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: Z.textPrimary, margin: 0 }}>
-          {greeting}, {firstName}
-        </h1>
-        <p style={{ fontSize: 14, color: Z.textSecondary, margin: "4px 0 0" }}>
-          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-        </p>
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: Z.textPrimary,
+            marginBottom: 4,
+          }}
+        >
+          {greeting}, {firstName} ⚡
+        </div>
+        <div style={{ fontSize: 13, color: Z.textMuted }}>
+          ZING Command Centre · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </div>
       </div>
 
-      {/* Stats row */}
-      {stats && (
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 32 }}>
-          <StatBox label="Active Customers" value={stats.active} color={Z.ultramarine} href="/onboarding/production" />
-          <StatBox label="In Design" value={stats.inDesign} color={Z.bluejeans} href="/onboarding/production" />
-          <StatBox label="In Publishing" value={stats.inPublish} color="#22c55e" href="/onboarding/production" />
-          <StatBox label="Overdue" value={stats.overdue} color={stats.overdue > 0 ? "#ef4444" : Z.textMuted} href="/onboarding/production" />
-          <StatBox label="Published (Total)" value={stats.published} color={Z.turquoise} />
-        </div>
-      )}
+      {/* ─── Period Selector ─────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 28, alignItems: "center", flexWrap: "wrap" }}>
+        {(["this_month", "last_month", "ytd", "custom"] as Period[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            style={{
+              padding: "7px 16px",
+              borderRadius: 999,
+              border: `1px solid ${period === p ? Z.ultramarine : Z.border}`,
+              background: period === p ? Z.ultramarine : Z.card,
+              color: period === p ? "#fff" : Z.textSecondary,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s",
+            }}
+          >
+            {p === "this_month" ? "This Month" : p === "last_month" ? "Last Month" : p === "ytd" ? "YTD" : "Custom"}
+          </button>
+        ))}
+        {period === "custom" && (
+          <>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: `1px solid ${Z.border}`,
+                fontSize: 13,
+                color: Z.textPrimary,
+                background: Z.card,
+                outline: "none",
+              }}
+            />
+            <span style={{ color: Z.textMuted, fontSize: 13 }}>→</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: `1px solid ${Z.border}`,
+                fontSize: 13,
+                color: Z.textPrimary,
+                background: Z.card,
+                outline: "none",
+              }}
+            />
+          </>
+        )}
+      </div>
 
-      {/* Two column: my queue + recent activity */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "start" }}>
-        {/* My Queue */}
+      {/* ─── Section 1: Core SaaS KPIs ───────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+        <KpiCard
+          label="Monthly Recurring Revenue"
+          value={fmt(data.mrr)}
+          sub={`×12 = ${fmt(data.arr)}`}
+          accent={`linear-gradient(90deg, ${Z.ultramarine}, ${Z.ultramarineLight})`}
+        />
+        <KpiCard
+          label="Annual Run Rate"
+          value={fmt(data.arr)}
+          sub="Based on current MRR"
+          accent={`linear-gradient(90deg, ${Z.violet}, ${Z.violetLight})`}
+        />
+        <KpiCard
+          label="Avg Revenue Per User"
+          value={fmt(data.arpu)}
+          sub="per customer / mo"
+          accent="linear-gradient(90deg, #10b981, #6ee7b7)"
+        />
+        <KpiCard
+          label="Live Customers"
+          value={data.live_customers.toLocaleString()}
+          sub={`${data.active_leads} leads in pipeline`}
+          accent="linear-gradient(90deg, #22d3ee, #99f0e8)"
+        />
+        <KpiCard
+          label="Net Revenue Retention"
+          value={`${data.nrr}%`}
+          sub={`Churn rate: ${pct(data.churn_rate)}`}
+          accent="linear-gradient(90deg, #f59e0b, #fcd34d)"
+        />
+      </div>
+
+      {/* ─── Period Revenue Banner ────────────────────────────────────────── */}
+      <div
+        style={{
+          background: Z.card,
+          border: `1px solid ${Z.border}`,
+          borderRadius: 12,
+          padding: "14px 24px",
+          marginBottom: 24,
+          display: "flex",
+          alignItems: "center",
+          gap: 32,
+        }}
+      >
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: Z.textPrimary }}>
-              {role.startsWith("designer") ? "Design Queue" : role === "publishing" ? "Publishing Queue" : "Active Customers"}
-            </div>
-            <Link href="/onboarding/production" style={{ fontSize: 12, color: Z.ultramarine, textDecoration: "none", fontWeight: 600 }}>
-              View all →
-            </Link>
+          <Label>{periodLabel} Revenue</Label>
+          <span style={{ fontSize: 24, fontWeight: 700, color: Z.textPrimary }}>
+            {fmt(data.period_revenue)}
+          </span>
+        </div>
+        <div style={{ width: 1, height: 40, background: Z.border }} />
+        <div>
+          <Label>Today</Label>
+          <span style={{ fontSize: 24, fontWeight: 700, color: Z.textPrimary }}>
+            {fmt(data.today_revenue)}
+          </span>
+        </div>
+      </div>
+
+      {/* ─── Section 2: Chart + Leaderboard ──────────────────────────────── */}
+      <div style={{ display: "flex", gap: 20, marginBottom: 24 }}>
+        {/* Bar Chart */}
+        <div
+          style={{
+            flex: "0 0 65%",
+            background: Z.card,
+            border: `1px solid ${Z.border}`,
+            borderRadius: 16,
+            padding: "24px 28px",
+          }}
+        >
+          <SectionTitle>Daily New Revenue</SectionTitle>
+          <div style={{ fontSize: 12, color: Z.textMuted, marginBottom: 16 }}>
+            {periodLabel}
           </div>
-          <div style={{ background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 14, overflow: "hidden" }}>
-            {myQueue.length === 0 ? (
-              <div style={{ padding: "32px 20px", textAlign: "center", color: Z.textMuted, fontSize: 13 }}>
-                Nothing in your queue right now
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 4,
+              height: 180,
+              paddingBottom: 8,
+              overflowX: "auto",
+            }}
+          >
+            {data.daily_revenue_chart.map((day, i) => {
+              const isToday = day.date === todayStr;
+              const barHeight =
+                day.revenue > 0
+                  ? Math.max((day.revenue / maxRevenue) * 160, 4)
+                  : 2;
+              const dayNum = parseInt(day.date.slice(8, 10));
+              const showLabel = i === 0 || dayNum % 5 === 0;
+              return (
+                <div
+                  key={day.date}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    flex: "1 0 auto",
+                    minWidth: 12,
+                    maxWidth: 28,
+                  }}
+                  title={`${day.date}: ${fmt(day.revenue)} (${day.deal_count} deals)`}
+                >
+                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: barHeight,
+                        background:
+                          day.revenue === 0
+                            ? Z.borderLight
+                            : isToday
+                            ? "#6366f1"
+                            : "linear-gradient(180deg, #818cf8, #4f46e5)",
+                        borderRadius: "4px 4px 0 0",
+                        opacity: day.revenue === 0 ? 0.5 : 1,
+                        transition: "height 0.3s",
+                      }}
+                    />
+                  </div>
+                  {showLabel && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: Z.textMuted,
+                        marginTop: 4,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {dayNum}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Rep Leaderboard */}
+        <div
+          style={{
+            flex: "0 0 35%",
+            background: Z.card,
+            border: `1px solid ${Z.border}`,
+            borderRadius: 16,
+            padding: "24px 28px",
+          }}
+        >
+          <SectionTitle>Sales Leaderboard</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {top5Reps.length === 0 && (
+              <div style={{ fontSize: 13, color: Z.textMuted }}>No data for this period.</div>
+            )}
+            {top5Reps.map((rep, idx) => (
+              <div
+                key={rep.rep}
+                style={{
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  background: idx === 0 ? "#fbbf2415" : "transparent",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: idx === 0 ? "#f59e0b" : Z.textMuted,
+                        width: 16,
+                      }}
+                    >
+                      #{idx + 1}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: Z.textPrimary }}>
+                      {rep.rep}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        background: Z.borderLight,
+                        color: Z.textMuted,
+                        borderRadius: 999,
+                        padding: "1px 8px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {rep.deal_count}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>
+                    {fmt(rep.total_revenue)}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 4,
+                    borderRadius: 2,
+                    background: Z.borderLight,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${(rep.total_revenue / topRepRevenue) * 100}%`,
+                      background: `linear-gradient(90deg, ${Z.ultramarine}, ${Z.violet})`,
+                      borderRadius: 2,
+                      transition: "width 0.4s",
+                    }}
+                  />
+                </div>
               </div>
-            ) : (
-              myQueue.slice(0, 12).map((row, idx) => {
-                const ws = row.websiteStatus || "not_started";
-                const wsInfo = WEBSITE_STATUSES[ws] || WEBSITE_STATUSES.not_started;
-                const hasOverdue = row.items.some(
-                  (i) => i.dueDate && new Date(i.dueDate) < new Date() && i.stage !== "complete"
-                );
-                return (
-                  <Link
-                    key={row.onboardingId}
-                    href={`/onboarding/${row.onboardingId}`}
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Section 3: Deal Type | Tier Breakdown | Operational Health ─── */}
+      <div style={{ display: "flex", gap: 20 }}>
+        {/* Column 1 — Deal Type */}
+        <div
+          style={{
+            flex: 1,
+            background: Z.card,
+            border: `1px solid ${Z.border}`,
+            borderRadius: 16,
+            padding: "24px 28px",
+          }}
+        >
+          <SectionTitle>Revenue by Deal Type</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {data.deal_type_breakdown.length === 0 && (
+              <div style={{ fontSize: 13, color: Z.textMuted }}>No deals this period.</div>
+            )}
+            {data.deal_type_breakdown.map((dt) => (
+              <div
+                key={dt.type}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  background: Z.borderLight,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: dealTypeColor[dt.type] ?? Z.grey,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: Z.textPrimary,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {dt.type}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: Z.textMuted,
+                      background: Z.border,
+                      borderRadius: 999,
+                      padding: "1px 8px",
+                    }}
+                  >
+                    {dt.count}
+                  </span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>
+                  {fmt(dt.revenue)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Column 2 — Tier Breakdown */}
+        <div
+          style={{
+            flex: 1,
+            background: Z.card,
+            border: `1px solid ${Z.border}`,
+            borderRadius: 16,
+            padding: "24px 28px",
+          }}
+        >
+          <SectionTitle>Revenue by Tier</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {data.product_tier_breakdown.length === 0 && (
+              <div style={{ fontSize: 13, color: Z.textMuted }}>No tier data yet.</div>
+            )}
+            {data.product_tier_breakdown.map((tier) => {
+              const color = getTierColor(tier.tier);
+              const pctMrr = totalMrr > 0 ? (tier.mrr / totalMrr) * 100 : 0;
+              return (
+                <div key={tier.tier}>
+                  <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "13px 20px",
-                      borderBottom: idx < myQueue.length - 1 ? `1px solid ${Z.borderLight}` : "none",
-                      textDecoration: "none",
-                      transition: "background 0.12s",
+                      alignItems: "center",
+                      marginBottom: 6,
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = Z.bg; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary, display: "flex", alignItems: "center", gap: 8 }}>
-                        {row.businessName || row.customerName || "\u2014"}
-                        {hasOverdue && <span style={{ fontSize: 10, color: "#ef4444", fontWeight: 800 }}>OVERDUE</span>}
-                      </div>
-                      <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 2 }}>
-                        {row.customerName && row.businessName ? row.customerName : ""}
-                        {row.product && <span style={{ marginLeft: 8, color: Z.violet }}>{row.product}</span>}
-                      </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 2,
+                          background: color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: Z.textPrimary,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        {tier.tier}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: Z.textMuted,
+                          background: Z.borderLight,
+                          borderRadius: 999,
+                          padding: "1px 8px",
+                        }}
+                      >
+                        {tier.count} customers
+                      </span>
                     </div>
-                    <span style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: "3px 10px",
-                      borderRadius: 20,
-                      background: `${wsInfo.color}18`,
-                      color: wsInfo.color,
-                      border: `1px solid ${wsInfo.color}35`,
-                      whiteSpace: "nowrap",
-                    }}>
-                      {wsInfo.label}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: Z.textPrimary }}>
+                      {fmt(tier.mrr)}/mo
                     </span>
-                  </Link>
-                );
-              })
-            )}
+                  </div>
+                  <div
+                    style={{
+                      height: 4,
+                      borderRadius: 2,
+                      background: Z.borderLight,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${pctMrr}%`,
+                        background: color,
+                        borderRadius: 2,
+                        transition: "width 0.4s",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: Z.textPrimary, marginBottom: 14 }}>
-            Recent Activity
-          </div>
-          <div style={{ background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 14, overflow: "hidden" }}>
-            {activity.length === 0 ? (
-              <div style={{ padding: "24px 16px", color: Z.textMuted, fontSize: 13 }}>No recent activity.</div>
-            ) : (
-              activity.slice(0, 15).map((entry, idx) => (
-                <div key={entry.id} style={{
-                  padding: "11px 16px",
-                  borderBottom: idx < activity.length - 1 ? `1px solid ${Z.borderLight}` : "none",
-                }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 13, marginTop: 1 }}>
-                      {entry.type === "email_sent" ? "\u2709" : "\u2195"}
+        {/* Column 3 — Operational Health */}
+        <div
+          style={{
+            flex: 1,
+            background: Z.card,
+            border: `1px solid ${Z.border}`,
+            borderRadius: 16,
+            padding: "24px 28px",
+          }}
+        >
+          <SectionTitle>Operational Health</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              {
+                icon: "🔁",
+                label: "Active Leads",
+                value: data.active_leads,
+                href: "/pipeline",
+                danger: false,
+              },
+              {
+                icon: "📋",
+                label: "In Onboarding",
+                value: data.onboarding_in_queue,
+                href: "/onboarding",
+                danger: false,
+              },
+              {
+                icon: "🎫",
+                label: "Open Tickets",
+                value: data.open_tickets,
+                href: "/support",
+                danger: data.open_tickets > 0,
+              },
+              {
+                icon: "⚠️",
+                label: "AR at Risk",
+                value: data.ar_at_risk,
+                href: "/ar",
+                danger: data.ar_at_risk > 0,
+              },
+            ].map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                style={{ textDecoration: "none" }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 16px",
+                    borderRadius: 10,
+                    border: `1px solid ${Z.border}`,
+                    background: Z.card,
+                    cursor: "pointer",
+                    transition: "border-color 0.15s",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{item.icon}</span>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: Z.textSecondary,
+                      }}
+                    >
+                      {item.label}
                     </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: Z.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {entry.type === "email_sent"
-                          ? entry.subject || "(no subject)"
-                          : `Status: ${entry.metadata?.from || "?"} \u2192 ${entry.metadata?.to || "?"}`}
-                      </div>
-                      {entry.type === "email_sent" && (
-                        <div style={{ fontSize: 10, color: Z.textMuted, marginTop: 1 }}>To: {entry.toEmail}</div>
-                      )}
-                      <div style={{ fontSize: 10, color: Z.textMuted, marginTop: 2 }}>
-                        {new Date(entry.createdAt).toLocaleString()}
-                      </div>
-                    </div>
                   </div>
+                  <span
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: item.danger ? "#ef4444" : Z.textPrimary,
+                    }}
+                  >
+                    {item.value.toLocaleString()}
+                  </span>
                 </div>
-              ))
-            )}
+              </Link>
+            ))}
           </div>
         </div>
       </div>
