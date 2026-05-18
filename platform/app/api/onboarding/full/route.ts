@@ -35,6 +35,23 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    // Batch-fetch designer notes for all deals in one query
+    const dealIds = onboardings.map((ob) => ob.dealId).filter(Boolean) as string[];
+    const allDesignerNotes = dealIds.length > 0
+      ? await prisma.dealNote.findMany({
+          where: { dealId: { in: dealIds }, department: "Designer" },
+          orderBy: { createdAt: "asc" },
+          select: { dealId: true, content: true, createdAt: true, id: true },
+        })
+      : [];
+
+    // Group notes by dealId
+    const notesByDeal: Record<string, { id: string; content: string; createdAt: Date }[]> = {};
+    for (const note of allDesignerNotes) {
+      if (!notesByDeal[note.dealId]) notesByDeal[note.dealId] = [];
+      notesByDeal[note.dealId].push({ id: note.id, content: note.content, createdAt: note.createdAt });
+    }
+
     const result = onboardings.map((ob) => {
       const websiteItem = ob.items.find((i) => i.taskType === "website");
       return {
@@ -58,7 +75,9 @@ export async function GET() {
         designBrief: ob.designBrief ?? null,
         googleAccess: ob.googleAccess ?? null,
         launchFeeCollected: ob.launchFeeCollected ?? null,
+        dealId: ob.dealId ?? null,
         designerNotes: ob.designerNotes ?? null,
+        designerDealNotes: ob.dealId ? (notesByDeal[ob.dealId] ?? []) : [],
         items: ob.items.map((i) => ({
           id: i.id,
           taskType: i.taskType,

@@ -26,6 +26,12 @@ const NAV_TABS = [
   { label: "Work Funnel", href: "/onboarding/funnel" },
 ];
 
+interface DealNote {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
 interface FullRow {
   onboardingId: string;
   customerName: string | null;
@@ -46,7 +52,9 @@ interface FullRow {
   designBrief: string | null;
   googleAccess: string | null;
   launchFeeCollected: string | null;
+  dealId: string | null;
   designerNotes: string | null;
+  designerDealNotes: DealNote[];
   items: {
     id: string;
     taskType: string | null;
@@ -442,9 +450,9 @@ export default function OnboardingFullPage() {
                   {/* Notes for Designer */}
                   <td style={{ ...cellSt, cursor: "pointer" }} onClick={() => { setNotesPanel(r.onboardingId); setNotesDraft(""); }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: 140 }}>
-                      {r.designerNotes ? (
+                      {r.designerDealNotes.length > 0 ? (
                         <span style={{ fontSize: 11, color: Z.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
-                          {r.designerNotes}
+                          {r.designerDealNotes[r.designerDealNotes.length - 1].content}
                         </span>
                       ) : (
                         <span style={{ fontSize: 11, color: Z.textMuted, fontStyle: "italic" }}>Add notes...</span>
@@ -633,20 +641,26 @@ export default function OnboardingFullPage() {
             <div style={{ padding: "20px 24px", borderBottom: `1px solid ${Z.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 15, color: Z.textPrimary }}>{row.businessName ?? row.customerName}</div>
-                <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 2 }}>Notes for Designer</div>
+                <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 2 }}>Designer Notes — synced with customer profile</div>
               </div>
               <button onClick={() => setNotesPanel(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: Z.textMuted }}>×</button>
             </div>
-            <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-              {row.designerNotes && (
-                <div style={{ marginBottom: 16, padding: "12px 14px", background: Z.bg, borderRadius: 8, fontSize: 13, color: Z.textPrimary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                  {row.designerNotes}
-                </div>
+            <div style={{ flex: 1, padding: 24, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+              {row.designerDealNotes.length === 0 && (
+                <p style={{ fontSize: 13, color: Z.textMuted, fontStyle: "italic", margin: 0 }}>No designer notes yet.</p>
               )}
+              {row.designerDealNotes.map((n) => (
+                <div key={n.id} style={{ padding: "10px 14px", background: Z.bg, borderRadius: 8, fontSize: 13, color: Z.textPrimary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  <div style={{ fontSize: 11, color: Z.textMuted, marginBottom: 4 }}>
+                    {new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                  {n.content}
+                </div>
+              ))}
               <textarea
                 value={notesDraft}
                 onChange={(e) => setNotesDraft(e.target.value)}
-                placeholder="Add a note for the designer..."
+                placeholder="Add a designer note..."
                 rows={4}
                 style={{
                   width: "100%", padding: "10px 12px", borderRadius: 8,
@@ -658,13 +672,20 @@ export default function OnboardingFullPage() {
             </div>
             <div style={{ padding: "16px 24px", borderTop: `1px solid ${Z.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Btn variant="secondary" onClick={() => { setNotesPanel(null); setNotesDraft(""); }}>Cancel</Btn>
-              <Btn onClick={async () => {
-                const existing = row.designerNotes ?? "";
-                const combined = existing ? `${existing}\n${notesDraft}` : notesDraft;
-                await saveField(notesPanel, "designerNotes", combined);
-                setNotesDraft("");
-                setNotesPanel(null);
-              }}>Save Note</Btn>
+              <Btn
+                disabled={!notesDraft.trim() || !row.dealId}
+                onClick={async () => {
+                  if (!row.dealId || !notesDraft.trim()) return;
+                  await fetch(`/api/deals/${row.dealId}/notes`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ department: "Designer", content: notesDraft.trim() }),
+                  });
+                  setNotesDraft("");
+                  setNotesPanel(null);
+                  refresh();
+                }}
+              >Save Note</Btn>
             </div>
           </div>
         );
