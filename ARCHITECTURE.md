@@ -1,5 +1,5 @@
 # Atlas Architecture
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-05-18
 **Written by:** Max (Chief of Staff) — capturing full session context for agent handoff
 
 ---
@@ -105,7 +105,7 @@ atlas/
 | `team_members` | Staff records (firstName, lastName, role, department) |
 | `ar_accounts` | Accounts receivable — Stripe subscription tracking |
 | `activity_log` | Email sent/received, notes, deal changes |
-| `deal_notes` | Notes on deals (dept-specific) |
+| `deal_notes` | Notes on deals (dept-specific) — shared source of truth for designer notes across onboarding By View and contact profile |
 | `contact_notes` | Notes on contacts |
 | `launch_fee_payments` | Launch fee installment tracking |
 | `deployments` | (Not in Atlas — in Pixel's Supabase) |
@@ -115,6 +115,8 @@ atlas/
 - `deals.title` is `String` (required, NOT nullable) — Prisma enforces this
 - `deals.rep` stores **full name** ("Elizabeth Adams") — must match TeamMember full name
 - `deals.domain_type` and `deals.domain_name` — added 2026-05-15 via manual migration
+- `onboarding` table: `existingSite`, `colourScheme`, `services`, `designerNotes` fields — design brief captured at sale
+- `onboarding` table: `publishedDate` — editable date selector in By View table
 - `onboarding_items.notes` stores JSON (e.g. `{ pixelSiteId: "abc123" }`)
 - All tables have `deleted_at` for soft deletes (except `onboarding_items`)
 - `organization_id` is hardcoded as `ORG_ID` constant — single-tenant for now
@@ -146,26 +148,44 @@ The `prisma generate` step in the Dockerfile regenerates the client from the sch
 
 ## Deal Flow (Critical — Read This)
 
-### Won Deal Trigger
-When `stage` is set to `"won"` on a deal (POST or PUT to `/api/deals`):
-1. Creates an `onboarding` record
-2. Creates `onboarding_items` from `product_task_templates` (or falls back to constants)
-3. Sends the "Welcome to ZING — Your Next Steps" email via SMTP2GO
-4. Logs an `activity_log` entry with `type: "email_sent"`
-5. SMTP2GO tracking enabled (open + click)
-6. Pixel site creation is **NOT** automatic — done manually from onboarding screen
+### Sale Flow ("Raise a Sale")
+
+**Terminology:** All UI says "Raise a Sale" (formerly "Mark as Won").
+
+**WonDealModal (accessed from deal detail panel):**
+1. Two primary actions: **Take Payment** (Stripe card entry inline) or **Send Link** (emails checkout URL to customer)
+2. Includes Design Brief: existing site Y/N, colour scheme, services, designer notes
+3. Designer dropdown: pulls from `team_members WHERE department = 'Design'`
+
+**Send Link flow:**
+- Emails checkout URL to customer
+- Deal moves to `link-sent` stage (not won)
+- Onboarding is NOT created yet
+
+**Take Payment / Stripe payment confirmed flow:**
+- `invoice.paid` Stripe webhook fires
+- **ONLY** at this point: deal moves to `won`, onboarding record created, onboarding items created from templates, welcome email sent
+- This is the critical architectural rule: **onboarding is only created after Stripe payment confirmed**
+
+**Won deal email:**
+- "Welcome to ZING — Your Next Steps" via SMTP2GO
+- Tracking: open + click via SMTP2GO webhooks
+- Activity log entry: `type: "email_sent"`
+- Pixel site creation: NOT automatic — done manually from onboarding screen
 
 ### Deal Stages (Pipeline)
 Defined in `lib/constants.ts` → `STAGES`:
-`call-now`, `call-no-answer`, `hot-72`, `active`, `appointment`, `appt-no-show`, `marketing-appt`, `promo-hot`, `promo-cold`, `won`
+`call-now`, `call-no-answer`, `hot-72`, `active`, `appointment`, `appt-no-show`, `marketing-appt`, `promo-hot`, `promo-cold`, `link-sent`, `won`
 
-**"won" does NOT appear in the pipeline kanban** (removed 2026-05-15). Won deals are accessed via contact cards and onboarding screen. Use the "✓ Mark as Won" button in the deal detail panel.
+**`link-sent`** — new stage (2026-05-17): customer has been sent a checkout link but not yet paid.
+**`won`** does NOT appear in the pipeline kanban. Won deals are accessed via contact cards and onboarding screen.
 
 ### Rep Assignment
 - `deals.rep` stores full name (e.g. "Elizabeth Adams")
 - Pipeline tabs filter by full name
 - Leaderboard and commissions use full name matching
 - Rep dropdown in deal panel: saves immediately on change
+- Contacts list: rep column pulls from ANY deal (not just won) so pipeline leads show their owner
 
 ---
 
@@ -175,6 +195,14 @@ Defined in `lib/constants.ts`:
 - `COMPONENT_LIBRARY` — all available service components with taskType, ownerRole, daysOffset, statusOptions
 - `PRODUCT_BUNDLES` — DISCOVER / BOOST / DOMINATE component sets
 - `COMPONENT_GROUPS` — visual grouping for the picker UI
+
+### Design Brief Fields (added 2026-05-17)
+Captured at point of sale in WonDealModal, stored on onboarding record:
+- `existingSite` (boolean) — customer has existing website
+- `colourScheme` (text) — brand colours
+- `services` (text) — services to promote
+- `designerNotes` (text) — notes for the designer
+Also visible/editable on the customer contact profile page (saves on blur).
 
 Social media options (added 2026-05-15):
 - `social_1` — 1 post/week · 2 weeks

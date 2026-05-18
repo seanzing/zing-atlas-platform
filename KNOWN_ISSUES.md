@@ -1,5 +1,5 @@
 # Atlas — Known Issues & Decisions
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-05-18
 
 This file tracks open issues, design decisions, and things to watch out for.
 Any agent working on Atlas should read this before starting.
@@ -15,11 +15,11 @@ Any agent working on Atlas should read this before starting.
 **Proper fix:** Add `rep_id` FK to deals table, migrate existing data.
 **Risk:** Low for now — small team.
 
-### HIGH — `invoice.paid` moves ALL open deals to won
+### HIGH — `invoice.paid` deal matching
 **File:** `app/api/webhooks/stripe/route.ts`
-**Issue:** When a Stripe invoice is paid, ALL open deals for that contact become "won" — not just the one being paid.
-**Status:** Amy needs to define the business rule here.
-**Risk:** Medium — could create phantom onboardings.
+**Issue:** When a Stripe invoice is paid, the webhook needs to identify WHICH deal to mark won. Current logic matches by `stripeCustomerId` (primary) then email (fallback). May still match the wrong deal if a customer has multiple open deals.
+**Status:** Works for single-deal customers (all current customers). Needs refinement for multi-product customers.
+**Risk:** Low for now — no multi-deal customers yet.
 
 ### MEDIUM — No unique constraint on contact email
 **Issue:** Two contacts can be created with the same email address.
@@ -94,7 +94,8 @@ You can push a commit with new fields in `schema.prisma` and the app will compil
 
 ## Decisions Pending (Need Amy Input)
 
-- [ ] When a Stripe invoice is paid, which deal gets marked won? (currently: all open deals)
 - [ ] What happens to commissions on refunded payments?
 - [ ] Should there be a unique email constraint on contacts?
 - [ ] How should rep attribution work long-term? (first name string vs rep_id FK)
+- [ ] Dummy/test data cleanup on onboarding screen — Amy requested, not yet done
+- [ ] Elizabeth Adams has "5" next to her name in team/leaderboard — likely old test deals attributed to her. Need to identify and clean.

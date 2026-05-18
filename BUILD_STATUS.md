@@ -59,11 +59,76 @@ npm run build → ✅ PASSES
 
 ---
 
+---
+
+## 2026-05-17 — Weekend Sprint (Sage)
+
+### Changes Shipped
+
+#### Critical Architecture Change — Sale Flow
+- **Onboarding trigger changed** — onboarding record is now ONLY created after Stripe payment confirmed (`invoice.paid` webhook). Deal stage `won` no longer triggers onboarding creation directly. This prevents phantom onboardings before payment.
+- **"Raise a Sale" terminology** — all "Mark as Won" language replaced with "Raise a Sale" throughout the UI (button labels, modals, logs)
+- **New pipeline stage: `link-sent`** — added between `active` and `won`. Send Link button moves deal to `link-sent`; payment confirmation moves it to `won`.
+- **WonDealModal redesigned** — replaced single "Mark as Won" button with two primary actions: "Take Payment" (opens Stripe card entry inline) and "Send Link" (emails checkout URL to customer)
+
+#### Design Brief
+- Design brief fields added to WonDealModal (Raise a Sale flow): existing site Y/N, colour scheme, services, designer notes
+- Design brief always visible and editable on customer contact profile — saves on blur
+- Designer dropdown in modal pulls from `team_members WHERE department = 'Design'`
+
+#### Onboarding — By View Table
+- New "By View" tab: 24-column table with inline editing for all active onboarding records
+- Fields: business, customer name, rep, status, designer, designer notes, website status, published date (editable date selector), trial start/end, next billing, days since started, and per-task status columns
+- DB migration: new fields added via Supabase SQL migration
+- Designer notes: shared source of truth via `deal_notes` table (department='Designer') — same data in By View and customer contact page
+
+#### Team Section — Full Build
+- "Team" added to sidebar nav (after Pipeline)
+- `/team` page: month selector, summary stats, per-rep cards with avatar, target progress bar, revenue, commission, deals won, live customer count
+- `/api/team/performance` endpoint: full-name matching, wonDate range filter, Stripe live customer count, commission via `calcDealCommission`
+- Team member edit modal: pencil button on each card, PUT to `/api/team/[id]`, active toggle
+- Department field added to Add Team Member modal and Edit modal
+- `/team/[id]` rep detail page: date range selector, 4 summary cards (Total Revenue, Total Commission, Deals Sold, Launch Fees), deals table with commission breakdown
+- `/api/team/[id]/deals` endpoint
+- Commission full-name matching fixed (was first-name-only)
+
+#### Dashboard — Full Rebuild
+- Replaced onboarding-queue dashboard with SaaS command centre
+- 5 KPI cards with colored gradient top-accent bars: MRR, ARR, ARPU, Active Customers, Churn Rate
+- Period selector pills: This Month / Last Month / YTD / Custom
+- CSS gradient bar chart for revenue history
+- Rep leaderboard, tier breakdown (DISCOVER/BOOST/DOMINATE), operational health pills (Active Leads, In Onboarding, Open Tickets, AR at Risk)
+- All 10 SaaS valuation metrics: Churn Rate, LTV, CAC, LTV:CAC, Expansion Revenue, etc.
+- Fixed churn rate counting soft-deleted cancelled contacts
+
+#### Navigation Restructure
+- Products → standalone page (removed from Settings)
+- Marketing → standalone page
+- Team Members removed from Settings (now under Team nav section)
+
+#### Contacts
+- Rep column: pulls from any deal (not just won deal) — fixes pipeline leads showing no owner
+- Deal Value column: pulls from won deal
+- Active Leads filter: shows all contacts with any pipeline deal (not just `status="Active Lead"`)
+- ContactLink component: clickable customer names throughout pipeline, team, onboarding, support
+
+#### UX / Other
+- Clickable customer names throughout (ContactLink component)
+- Rep deal count badge on pipeline tabs: active pipeline only, not won deals
+- Health: uses `RAILWAY_GIT_COMMIT_SHA` env var so deploy tracking works
+- Stripe webhook: matches AR accounts by `stripeCustomerId` first, then email fallback
+
+### Build
+```
+npm run build → ✅ PASSES
+```
+
+---
+
 ### Open Work
 - [ ] SMTP2GO webhook needs to be configured in SMTP2GO dashboard (URL: https://zing-atlas-platform-production.up.railway.app/api/webhooks/smtp2go)
 - [ ] Supabase custom SMTP should be wired to SMTP2GO to remove email rate limits
-- [ ] Atlas agent needs to be wired to Amy's Discord channel for direct access
-- [ ] Sage should be built to own Atlas/Pixel engineering going forward
+- [ ] Dummy/test data cleanup on onboarding screen (Amy requested)
 
 ---
 
