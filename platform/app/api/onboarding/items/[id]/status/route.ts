@@ -15,10 +15,10 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     if (auth.error) return auth.error;
     const { id } = await params;
     const body = await req.json();
-    const { status, ownerName } = body as { status: string; ownerName?: string };
+    const { status, ownerName, dueDate } = body as { status?: string; ownerName?: string; dueDate?: string };
 
-    if (!status) {
-      return NextResponse.json({ error: "status is required" }, { status: 400 });
+    if (!status && dueDate === undefined) {
+      return NextResponse.json({ error: "status or dueDate is required" }, { status: 400 });
     }
 
     const item = await prisma.onboardingItem.findUnique({
@@ -41,9 +41,18 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       ? (item.statusOptions as unknown as StatusOption[])
       : [];
 
-    const matchedOption = statusOptions.find((o) => o.value === status);
+    // Handle dueDate-only update
+    if (!status && dueDate !== undefined) {
+      const updated = await prisma.onboardingItem.update({
+        where: { id },
+        data: { dueDate: dueDate ? new Date(dueDate) : null },
+      });
+      return NextResponse.json(updated);
+    }
+
+    const matchedOption = statusOptions.find((o) => o.value === status!);
     const isLastOption = statusOptions.length > 0 && statusOptions[statusOptions.length - 1].value === status;
-    const isComplete = status.includes("completed") || status.includes("published") || isLastOption;
+    const isComplete = status!.includes("completed") || status!.includes("published") || isLastOption;
 
     // Update the item
     const updated = await prisma.onboardingItem.update({
@@ -52,6 +61,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
         currentStatus: status,
         stage: isComplete ? "complete" : "in_progress",
         completedAt: isComplete ? new Date() : null,
+        ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
       },
     });
 

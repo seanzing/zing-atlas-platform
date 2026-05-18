@@ -66,7 +66,7 @@ export async function PUT(
 
     // Whitelist allowed fields to prevent mass assignment
     const allowedFields: Record<string, unknown> = {};
-    const whitelist = ["status", "customerName", "businessName", "phone", "email", "rep", "value", "wonDate", "notes", "offshoreDesigner", "usDesigner"];
+    const whitelist = ["status", "customerName", "businessName", "phone", "email", "rep", "value", "wonDate", "notes", "offshoreDesigner", "usDesigner", "websiteStatus", "newUrl", "domainType", "designBrief", "googleAccess", "launchFeeCollected", "designerNotes"];
     for (const key of whitelist) {
       if (key in body) allowedFields[key] = body[key];
     }
@@ -81,4 +81,12 @@ export async function PUT(
     logger.error({ err: error }, "PUT /api/onboarding/[id] error");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return PUT(request, { params });
 }

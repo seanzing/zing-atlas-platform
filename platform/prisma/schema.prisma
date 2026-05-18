@@ -225,6 +225,10 @@ model Onboarding {
   status           String?
 
   websiteStatus    String?   @default("not_started") @map("website_status")
+  designBrief         String?   @map("design_brief")
+  googleAccess        String?   @map("google_access")
+  launchFeeCollected  String?   @map("launch_fee_collected")
+  designerNotes       String?   @map("designer_notes")
 
   deal             Deal?     @relation(fields: [dealId], references: [id])
   product          Product?  @relation(fields: [productId], references: [id])

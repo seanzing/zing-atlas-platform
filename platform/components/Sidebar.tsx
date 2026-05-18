@@ -151,7 +151,7 @@ export default function Sidebar() {
                   {[
                     { label: "By Rep", href: "/onboarding" },
                     { label: "By Task", href: "/onboarding/by-task" },
-                    { label: "Full View", href: "/onboarding/full" },
+                    { label: "By View", href: "/onboarding/full" },
                     { label: "Work Funnel", href: "/onboarding/funnel" },
                     { label: "Work Queue", href: "/onboarding/production" },
                   ].map((sub) => {

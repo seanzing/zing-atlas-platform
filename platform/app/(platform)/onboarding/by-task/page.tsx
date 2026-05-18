@@ -35,9 +35,9 @@ interface TeamMember {
 }
 
 const NAV_TABS = [
-  { label: "By Customer", href: "/onboarding" },
+  { label: "By Rep", href: "/onboarding" },
   { label: "By Task", href: "/onboarding/by-task" },
-  { label: "Full View", href: "/onboarding/full" },
+  { label: "By View", href: "/onboarding/full" },
   { label: "Work Funnel", href: "/onboarding/funnel" },
 ];
 
