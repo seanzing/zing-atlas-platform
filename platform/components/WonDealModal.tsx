@@ -139,7 +139,7 @@ export function WonDealModal({
   // ── Submission / payment state ──
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // createdDeal removed — no longer needed (payment flows use Stripe Checkout)
+  // createdDeal removed - no longer needed (payment flows use Stripe Checkout)
   const [sendLinkEmail, setSendLinkEmail] = useState("");
 
   // Pre-fill from existingDeal (raise-sale mode) or prefillContact (new sale from contact page)
@@ -176,9 +176,16 @@ export function WonDealModal({
 
   // Options
   const productOptions = useMemo(() => {
-    const prods = (products ?? []).filter((p) => ["DISCOVER","BOOST","DOMINATE"].some((t) => (p.description ?? "").toUpperCase().includes(t)));
-    prods.sort((a, b) => Number(a.price) - Number(b.price));
-    return [{ value: "", label: "Select product..." }, ...prods.map((p) => ({ value: p.id, label: `${p.description} - $${Number(p.price)}/mo` }))];
+    const prods = [...(products ?? [])].sort((a, b) => Number(a.price) - Number(b.price));
+    return [
+      { value: "", label: "Select product..." },
+      ...prods.map((p) => ({
+        value: p.id,
+        label: p.category === "one-time"
+          ? `${p.description} — $${Number(p.price)} (one-time)`
+          : `${p.description} — $${Number(p.price)}/mo`,
+      })),
+    ];
   }, [products]);
 
   const repOptions = useMemo(() => [
@@ -194,7 +201,7 @@ export function WonDealModal({
     })),
   ], [team]);
 
-  // Stable ref — defined outside callbacks so exhaustive-deps is happy
+  // Stable ref - defined outside callbacks so exhaustive-deps is happy
   const getStripePriceId = useCallback((pid: string): string | null => {
     const p = (products ?? []).find((pr) => pr.id === pid);
     if (!p) return null;
@@ -244,7 +251,7 @@ export function WonDealModal({
     setSubmitting(true); setError(null);
     try {
       const priceId = getStripePriceId(productId);
-      if (!priceId) { setError("No Stripe price configured for this product. Select DISCOVER, BOOST, or DOMINATE."); setSubmitting(false); return; }
+      if (!priceId) { setError("No Stripe Price ID configured for this product. Add one in Settings → Products."); setSubmitting(false); return; }
       const p = (products ?? []).find((pr) => pr.id === productId);
       const dealInfo = await ensureDeal();
       if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
@@ -271,7 +278,7 @@ export function WonDealModal({
     setSubmitting(true); setError(null);
     try {
       const priceId = getStripePriceId(productId);
-      if (!priceId) { setError("No Stripe price configured for this product. Select DISCOVER, BOOST, or DOMINATE."); setSubmitting(false); return; }
+      if (!priceId) { setError("No Stripe Price ID configured for this product. Add one in Settings → Products."); setSubmitting(false); return; }
       const p = (products ?? []).find((pr) => pr.id === productId);
       const dealInfo = await ensureDeal();
       if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
@@ -295,7 +302,7 @@ export function WonDealModal({
     } finally { setSubmitting(false); }
   }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId, getBillingType]);
 
-  // Payment Taken — finds existing Stripe subscription by email, links it, marks as won, creates onboarding
+  // Payment Taken - finds existing Stripe subscription by email, links it, marks as won, creates onboarding
   const handlePaymentTaken = useCallback(async () => {
     if (!productId) { setError("Select a product first"); return; }
     const targetEmail = sendLinkEmail || email.trim();
@@ -315,7 +322,7 @@ export function WonDealModal({
         await fetch(`/api/deals/${existingDeal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rep: rep || undefined }) });
       }
       mutate("/api/deals"); mutate("/api/contacts"); mutate("/api/onboarding?status=active");
-      setLinkSentSuccess(`Payment confirmed — subscription linked ($${data.mrr}/mo). Onboarding created.`);
+      setLinkSentSuccess(`Payment confirmed - subscription linked ($${data.mrr}/mo). Onboarding created.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally { setSubmitting(false); }
@@ -512,7 +519,7 @@ export function WonDealModal({
               </div>
             ) : (
               <>
-                {/* Customer email — pre-filled from contact if available */}
+                {/* Customer email - pre-filled from contact if available */}
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Customer Email</div>
                   <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" type="email" />
@@ -552,7 +559,7 @@ export function WonDealModal({
                   </button>
                 </div>
 
-                {/* Payment Taken — looks up existing Stripe subscription */}
+                {/* Payment Taken - looks up existing Stripe subscription */}
                 <button
                   disabled={submitting}
                   onClick={handlePaymentTaken}
@@ -580,7 +587,7 @@ export function WonDealModal({
           </>
         )}
 
-        {/* Payment section removed — both flows use Stripe Checkout via handleTakePayment / handleSendLink */}
+        {/* Payment section removed - both flows use Stripe Checkout via handleTakePayment / handleSendLink */}
       </div>
     </Modal>
   );
