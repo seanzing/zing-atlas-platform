@@ -128,7 +128,7 @@ export default function ProductsPage() {
   // Product Builder modal
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderStep, setBuilderStep] = useState(1);
-  const [builderMode, setBuilderMode] = useState<"new" | "clone" | "edit-tasks">("new");
+  const [builderMode, setBuilderMode] = useState<"new" | "clone" | "edit-tasks" | "edit">("new");
   const [editProductId, setEditProductId] = useState<string | null>(null);
 
   // Product details (Step 1)
@@ -251,8 +251,8 @@ export default function ProductsPage() {
     setBuilderOpen(true);
   };
 
-  const openEditTasks = async (p: Product) => {
-    setBuilderMode("edit-tasks");
+  const openFullEdit = async (p: Product) => {
+    setBuilderMode("edit");
     setEditProductId(p.id);
     setPbName(p.description);
     setPbPrice(String(p.price));
@@ -261,41 +261,17 @@ export default function ProductsPage() {
     setPbCommValue(String(p.commissionValue ?? 1));
     setPbLaunchRate(String(Math.round((p.launchFeeCommissionRate ?? 0.2) * 100)));
     setPbStripePriceId((p as Product & { stripePriceId?: string }).stripePriceId || "");
-    setBuilderStep(2);
+    setBuilderStep(1);
     setShowCustomTasks(false);
-
     const res = await fetch(`/api/products/${p.id}/tasks`);
     if (res.ok) {
       const tasks = await res.json();
       const loadedTasks = tasks.map((t: TaskTemplateRow & { id: string }) => ({
-        id: t.id,
-        taskType: t.taskType,
-        taskName: t.taskName,
-        taskOrder: t.taskOrder,
-        ownerRole: t.ownerRole || "designer",
-        daysOffset: t.daysOffset,
-        isConditional: t.isConditional,
-        statusOptions: (t.statusOptions || []) as StatusOption[],
+        id: t.id, taskType: t.taskType, taskName: t.taskName, taskOrder: t.taskOrder,
+        ownerRole: t.ownerRole, daysOffset: t.daysOffset, isConditional: t.isConditional, statusOptions: t.statusOptions,
       }));
       setPbTasks(loadedTasks);
-
-      const compKeys = new Set<ComponentKey>();
-      const customs: TaskTemplateRow[] = [];
-      for (const task of loadedTasks) {
-        const matchKey = (Object.keys(COMPONENT_LIBRARY) as ComponentKey[]).find(
-          (k) => COMPONENT_LIBRARY[k].name === task.taskName
-        );
-        if (matchKey) {
-          compKeys.add(matchKey);
-        } else {
-          customs.push(task);
-        }
-      }
-      setSelectedComponents(compKeys);
-      setCustomTasks(customs);
-      if (customs.length > 0) setShowCustomTasks(true);
     }
-
     setBuilderOpen(true);
   };
 
@@ -331,7 +307,23 @@ export default function ProductsPage() {
   const handleSaveBuilder = async () => {
     setSaving(true);
     try {
-      if (builderMode === "edit-tasks" && editProductId) {
+      if ((builderMode === "edit-tasks" || builderMode === "edit") && editProductId) {
+        // For full edit mode, also update the product details
+        if (builderMode === "edit") {
+          await fetch(`/api/products/${editProductId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: pbName,
+              price: parseFloat(pbPrice) || 0,
+              category: pbCategory,
+              commissionType: pbCategory === "one-time" ? "one-time" : "subscription",
+              commissionValue: isNaN(parseFloat(pbCommValue)) ? 0 : parseFloat(pbCommValue),
+              launchFeeCommissionRate: isNaN(parseFloat(pbLaunchRate)) ? 0 : parseFloat(pbLaunchRate) / 100,
+              stripePriceId: pbStripePriceId.trim() || null,
+            }),
+          });
+        }
         const existingRes = await fetch(`/api/products/${editProductId}/tasks`);
         const existingTasks: (TaskTemplateRow & { id: string })[] = existingRes.ok ? await existingRes.json() : [];
         const existingIds = new Set(existingTasks.map((t) => t.id));
@@ -558,8 +550,8 @@ export default function ProductsPage() {
                 <Badge label={`${taskCount} tasks`} color={Z.bluejeans} />
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn small variant="secondary" onClick={() => openEditTasks(p)}>
-                  Edit
+                <Btn small variant="secondary" onClick={() => openFullEdit(p)}>
+                  Edit Product
                 </Btn>
                 <Btn small variant="secondary" onClick={() => openCloneProduct(p)}>
                   Clone
@@ -692,6 +684,8 @@ export default function ProductsPage() {
                 <div style={{ fontSize: 20, fontWeight: 800, color: Z.textPrimary }}>
                   {builderMode === "edit-tasks"
                     ? `Edit Tasks — ${pbName}`
+                    : builderMode === "edit"
+                    ? `Edit Product — ${pbName}`
                     : builderMode === "clone"
                     ? "Clone Product"
                     : "New Product"}
@@ -1411,6 +1405,16 @@ export default function ProductsPage() {
                   <Btn onClick={handleSaveBuilder} style={{ opacity: saving ? 0.6 : 1 }}>
                     {saving ? "Saving..." : "Save Tasks"}
                   </Btn>
+                ) : builderMode === "edit" ? (
+                  builderStep < 3 ? (
+                    <Btn onClick={() => setBuilderStep((s) => s + 1)}>
+                      {builderStep === 1 ? "Next: Tasks" : "Next: Review"}
+                    </Btn>
+                  ) : (
+                    <Btn onClick={handleSaveBuilder} style={{ opacity: saving ? 0.6 : 1 }}>
+                      {saving ? "Saving..." : "Save Changes"}
+                    </Btn>
+                  )
                 ) : builderStep < 3 ? (
                   <Btn onClick={() => setBuilderStep((s) => s + 1)}>
                     {builderStep === 1 ? "Next: Tasks" : "Next: Review"}
