@@ -367,7 +367,10 @@ export default function OnboardingFullPage() {
                     onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
                     onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
                   >
-                    {r.businessName ?? r.customerName ?? "—"}
+                    <div>{r.businessName ?? r.customerName ?? "—"}</div>
+                    {r.businessName && r.customerName && r.businessName !== r.customerName && (
+                      <div style={{ fontSize: 10, fontWeight: 500, color: Z.textMuted, marginTop: 2 }}>{r.customerName}</div>
+                    )}
                   </td>
 
                   {/* Deal Type */}
