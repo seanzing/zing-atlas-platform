@@ -313,7 +313,7 @@ export function WonDealModal({
             designerNotes: designerBriefNotes.trim() || undefined,
           }),
         });
-        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to mark deal as won"); }
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to raise sale"); }
         dealId = existingDeal.id;
         dealContactId = existingDeal.contactId;
         dealContactName = existingDeal.contactName;
@@ -402,7 +402,7 @@ export function WonDealModal({
   const showPayment = !!createdDeal;
 
   return (
-    <Modal open={open} onClose={handleClose} title={isMarkWon ? `Mark as Won — ${existingDeal?.title ?? ""}` : "New Sale"}>
+    <Modal open={open} onClose={handleClose} title={isMarkWon ? `Raise Sale — ${existingDeal?.title ?? ""}` : "New Sale"}>
       <div style={{ maxHeight: "75vh", overflowY: "auto", paddingRight: 4 }}>
 
         {/* ── SECTION: Contact ── */}
@@ -636,7 +636,7 @@ export function WonDealModal({
         {showPayment && activeDeal && (
           <div>
             <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, fontWeight: 700, color: "#065f46" }}>
-              ✓ Deal marked as won — onboarding created
+              ✓ Sale raised — onboarding created
             </div>
 
             {!paymentSuccess ? (

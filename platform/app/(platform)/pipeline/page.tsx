@@ -1555,7 +1555,7 @@ export default function PipelinePage() {
                   <button
                     onClick={() => setWonModalDeal(selectedDeal)}
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 8, border: "1px solid #10b981", background: "#10b98112", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#10b981", transition: "all 0.15s" }}
-                  >✓ Mark as Won</button>
+                  >✓ Raise Sale</button>
                 ) : (
                   <button
                     onClick={() => setShowContractModal(true)}
@@ -1778,7 +1778,7 @@ export default function PipelinePage() {
         open={!!wonModalDeal}
         existingDeal={wonModalDeal}
         onClose={() => setWonModalDeal(null)}
-        onSuccess={() => { setWonModalDeal(null); showToast("Deal marked as won", true); mutate(pipelineUrl); mutate("/api/deals"); }}
+        onSuccess={() => { setWonModalDeal(null); showToast("Sale raised", true); mutate(pipelineUrl); mutate("/api/deals"); }}
       />
       <Toast toast={toast} />
       {showEmailCompose && emailComposeTo && (
