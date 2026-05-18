@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { ORG_ID, ONBOARDING_TASK_TEMPLATES, PRODUCT_TASK_MAP, addDays } from "@/lib/constants";
+import { ORG_ID } from "@/lib/constants";
 import { requireAuth } from "@/lib/api-auth";
 import { serialize } from "@/lib/serialize";
 import { computeHeatScore } from "@/lib/heat-score";
@@ -108,98 +108,10 @@ export async function POST(req: NextRequest) {
 
     const deal = await prisma.deal.create({ data: dealData as Parameters<typeof prisma.deal.create>[0]["data"] });
 
-    if (isWon) {
-      // Fetch contact if contactId provided
-      const contact = deal.contactId
-        ? await prisma.contact.findUnique({ where: { id: deal.contactId } })
-        : null;
-
-      const effectiveWonDate = wonDate ?? new Date();
-
-      const onboarding = await prisma.onboarding.create({
-        data: {
-          organizationId: ORG_ID,
-          dealId: deal.id,
-          customerName: contact?.name ?? deal.contactName ?? null,
-          businessName: contact?.company ?? null,
-          phone: contact?.phone ?? null,
-          email: contact?.email ?? null,
-          rep: deal.rep ?? null,
-          productId: deal.productId ?? null,
-          value: deal.value ?? null,
-          wonDate: effectiveWonDate,
-          status: "active",
-          // Design brief fields from body
-          ...(body.existingUrl && { existingUrl: body.existingUrl }),
-          ...(body.colourSchemeNotes && { colourSchemeNotes: body.colourSchemeNotes }),
-          ...(body.service1 && { service1: body.service1 }),
-          ...(body.service2 && { service2: body.service2 }),
-          ...(body.service3 && { service3: body.service3 }),
-          ...(body.service4 && { service4: body.service4 }),
-          ...(body.service5 && { service5: body.service5 }),
-          ...(body.service6 && { service6: body.service6 }),
-          ...(body.designerNotes && { designerNotes: body.designerNotes }),
-        },
-      });
-
-      // Try DB-based task templates first, fall back to constants
-      const dbTemplates = deal.productId
-        ? await prisma.productTaskTemplate.findMany({
-            where: { productId: deal.productId, deletedAt: null },
-            orderBy: { taskOrder: "asc" },
-          })
-        : [];
-
-      if (dbTemplates.length > 0) {
-        await prisma.onboardingItem.createMany({
-          data: dbTemplates.map((t, idx) => ({
-            onboardingId: onboarding.id,
-            itemName: t.taskName,
-            taskType: t.taskType,
-            ownerRole: t.ownerRole,
-            stage: "pending",
-            currentStatus: Array.isArray(t.statusOptions) ? (t.statusOptions as Array<{value: string}>)[0]?.value ?? "not_started" : "not_started",
-            statusOptions: t.statusOptions ?? [],
-            isConditional: t.isConditional,
-            isActive: idx === 0,
-            owner: null,
-            dueDate: addDays(effectiveWonDate, t.daysOffset),
-          })),
-        });
-      } else {
-        // Fallback: constants-based templates
-        const product = deal.productId
-          ? await prisma.product.findUnique({ where: { id: deal.productId } })
-          : null;
-        const productDesc = product?.description?.toUpperCase() ?? '';
-        const productKey = Object.keys(PRODUCT_TASK_MAP).find(k => productDesc.includes(k)) ?? 'DISCOVER';
-        const taskTypes = PRODUCT_TASK_MAP[productKey];
-
-        await prisma.onboardingItem.createMany({
-          data: taskTypes.map((taskType, idx) => {
-            const template = ONBOARDING_TASK_TEMPLATES[taskType];
-            return {
-              onboardingId: onboarding.id,
-              itemName: template.itemName,
-              taskType: template.taskType,
-              ownerRole: template.ownerRole,
-              stage: "pending",
-              currentStatus: template.statusOptions[0]?.value ?? "not_started",
-              statusOptions: JSON.parse(JSON.stringify(template.statusOptions)),
-              isConditional: template.isConditional,
-              isActive: idx === 0,
-              owner: null,
-              dueDate: addDays(effectiveWonDate, template.daysOffset),
-            };
-          }),
-        });
-      }
-
-      logger.info({ dealId: deal.id, onboardingId: onboarding.id }, "Won deal — onboarding created");
-
-      // Pixel site creation is handled manually from the onboarding screen.
-      // Auto-create on deal won is intentionally disabled.
-    }
+    // NOTE: Onboarding is NOT created here.
+    // It is created by the Stripe webhook (customer.subscription.created / invoice.paid)
+    // ONLY after payment is confirmed. A deal marked as won without confirmed payment
+    // does NOT trigger onboarding.
 
     logger.info({ dealId: deal.id }, "POST /api/deals");
     return NextResponse.json(serialize(deal), { status: 201 });

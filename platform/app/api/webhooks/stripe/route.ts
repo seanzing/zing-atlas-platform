@@ -287,16 +287,23 @@ export async function POST(request: NextRequest) {
       const dealId = metadata.dealId;
 
       if (dealId) {
+        // Confirm payment + set Stripe IDs on deal
         await prisma.deal.update({
           where: { id: dealId },
           data: {
+            stage: "won",
             paymentStatus: "confirmed",
             stripeSubscriptionId: subscription?.id as string,
+            stripeCustomerId: subscription?.customer as string | undefined,
+            wonDate: new Date(),
           },
         });
-        logger.info({ eventId, dealId, subscriptionId: subscription?.id }, "customer.subscription.created: deal payment confirmed");
+        // Create onboarding now that payment is confirmed
+        const { createOnboardingForDeal } = await import("@/lib/create-onboarding");
+        await createOnboardingForDeal(dealId);
+        logger.info({ eventId, dealId, subscriptionId: subscription?.id }, "customer.subscription.created: deal won, onboarding created");
       } else {
-        logger.info({ eventId }, "customer.subscription.created: no dealId in metadata, skipping deal update");
+        logger.info({ eventId }, "customer.subscription.created: no dealId in metadata, skipping");
       }
 
       return NextResponse.json({ received: true, processed: "subscription_created" });
