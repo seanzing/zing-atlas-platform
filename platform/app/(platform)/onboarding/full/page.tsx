@@ -74,6 +74,8 @@ function fmtDate(d: string | Date | null): string {
 
 export default function OnboardingFullPage() {
   const { data: rows, mutate: refresh } = useSWR<FullRow[]>("/api/onboarding/full");
+  const { data: teamMembers } = useSWR<{ id: string; firstName: string | null; lastName: string | null; department: string | null }[]>("/api/team");
+  const designers = (teamMembers ?? []).filter((m) => m.department === "Design" || m.department === "design").map((m) => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim()).filter(Boolean);
   const { toast, showToast } = useToast();
   const router = useRouter();
 
@@ -146,7 +148,9 @@ export default function OnboardingFullPage() {
     return true;
   });
 
-  const uniqueDesigners = Array.from(new Set(rows.map((r) => r.offshoreDesigner).filter(Boolean) as string[])).sort();
+  const uniqueDesigners = designers.length > 0
+    ? designers
+    : Array.from(new Set(rows.map((r) => r.offshoreDesigner).filter(Boolean) as string[])).sort();
   const uniqueOwners = Array.from(new Set(rows.map((r) => r.rep).filter(Boolean) as string[])).sort();
 
   const statusOpts = [{ value: "completed", label: "Completed" }, { value: "outstanding", label: "Outstanding" }];
@@ -415,17 +419,21 @@ export default function OnboardingFullPage() {
 
                   {/* Assigned Designer */}
                   <td style={cellSt}>
-                    <input
-                      type="text"
-                      defaultValue={r.offshoreDesigner ?? ""}
-                      onBlur={(e) => saveField(r.onboardingId, "offshoreDesigner", e.target.value)}
-                      placeholder="Designer..."
+                    <select
+                      value={r.offshoreDesigner ?? ""}
+                      onChange={(e) => saveField(r.onboardingId, "offshoreDesigner", e.target.value)}
                       style={{
-                        width: 100, padding: "4px 6px", borderRadius: 5, fontSize: 11,
+                        padding: "4px 6px", borderRadius: 5, fontSize: 11, fontWeight: 600,
                         border: `1px solid ${Z.border}`, background: "transparent",
-                        color: Z.textPrimary, outline: "none",
+                        color: r.offshoreDesigner ? Z.textPrimary : Z.textMuted,
+                        outline: "none", cursor: "pointer", minWidth: 120,
                       }}
-                    />
+                    >
+                      <option value="">— Assign —</option>
+                      {designers.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </td>
 
                   {/* Notes for Designer */}
