@@ -77,6 +77,7 @@ export async function GET() {
         launchFeeCollected: ob.launchFeeCollected ?? null,
         dealId: ob.dealId ?? null,
         designerNotes: ob.designerNotes ?? null,
+        publishedDate: ob.publishedDate ? ob.publishedDate.toISOString().split("T")[0] : null,
         designerDealNotes: ob.dealId ? (notesByDeal[ob.dealId] ?? []) : [],
         items: ob.items.map((i) => ({
           id: i.id,

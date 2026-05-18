@@ -54,6 +54,7 @@ interface FullRow {
   launchFeeCollected: string | null;
   dealId: string | null;
   designerNotes: string | null;
+  publishedDate: string | null;
   designerDealNotes: DealNote[];
   items: {
     id: string;
@@ -360,7 +361,6 @@ export default function OnboardingFullPage() {
               const smStatus = taskStatus(r.items, "social_media");
               const ecStatus = taskStatus(r.items, "ecommerce");
               const draftDue = websiteItem?.dueDate ?? null;
-              const publishedDate = publishingItem?.completedAt ?? null;
               const publishedBy = publishingItem?.owner ?? null;
 
               return (
@@ -525,7 +525,18 @@ export default function OnboardingFullPage() {
                   </td>
 
                   {/* Published Date */}
-                  <td style={cellSt}>{publishedDate ? fmtDate(publishedDate) : "—"}</td>
+                  <td style={cellSt}>
+                    <input
+                      type="date"
+                      defaultValue={r.publishedDate ?? ""}
+                      onBlur={(e) => saveField(r.onboardingId, "publishedDate", e.target.value)}
+                      style={{
+                        padding: "4px 6px", borderRadius: 5, fontSize: 11,
+                        border: `1px solid ${Z.border}`, background: "transparent",
+                        color: Z.textPrimary, outline: "none",
+                      }}
+                    />
+                  </td>
 
                   {/* Published By */}
                   <td style={cellSt}>{publishedBy ?? "—"}</td>

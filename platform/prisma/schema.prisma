@@ -229,6 +229,7 @@ model Onboarding {
   googleAccess        String?   @map("google_access")
   launchFeeCollected  String?   @map("launch_fee_collected")
   designerNotes       String?   @map("designer_notes")
+  publishedDate       DateTime? @map("published_date") @db.Date
 
   deal             Deal?     @relation(fields: [dealId], references: [id])
   product          Product?  @relation(fields: [productId], references: [id])
