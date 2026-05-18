@@ -8,9 +8,9 @@ import { useAuthContext } from "@/lib/auth-context";
 import NotificationBell from "@/components/NotificationBell";
 
 const DEPT_NAV: Record<string, string[]> = {
-  designer:   ["dashboard", "onboarding", "tasks", "settings"],
-  onboarding: ["dashboard", "contacts", "onboarding", "tasks", "support", "settings"],
-  publishing: ["dashboard", "onboarding", "tasks", "settings"],
+  designer:   ["dashboard", "onboarding", "settings"],
+  onboarding: ["dashboard", "contacts", "onboarding", "support", "settings"],
+  publishing: ["dashboard", "onboarding", "settings"],
   sales:      ["dashboard", "contacts", "pipeline", "support", "ar", "settings"],
   all:        [],
 };
@@ -97,7 +97,7 @@ export default function Sidebar() {
             pathname === item.href ||
             (item.key === "contacts" && pathname.startsWith("/contacts")) ||
             (item.key === "onboarding" && pathname.startsWith("/onboarding")) ||
-            (item.key === "tasks" && pathname === "/onboarding/by-task") ||
+
             (item.key === "team" && pathname.startsWith("/team")) ||
             (item.key === "products" && pathname.startsWith("/products")) ||
             (item.key === "marketing" && pathname.startsWith("/marketing"));

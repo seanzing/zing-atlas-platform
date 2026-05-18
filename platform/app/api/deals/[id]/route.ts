@@ -130,7 +130,6 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://atlas.zingwebsitedesign.com';
           const gbpFormUrl = `${appUrl}/forms/gbp-info?contact=${deal.contactId ?? ''}`;
-          const designBriefUrl = `${appUrl}/forms/design-brief?contact=${deal.contactId ?? ''}`;
           const customerName = contact.company || contact.name || 'there';
           const bookingStep = designer?.bookingLink
             ? `
@@ -138,7 +137,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
               <td style="padding: 0 0 16px 0;">
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left: 4px solid #050536; background-color: #F5F7FA; border-radius: 0 6px 6px 0;">
                   <tr><td style="padding: 20px 24px;">
-                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 3</p>
+                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 2</p>
                     <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Book Your Onboarding Call</p>
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.5;">Schedule a call with your designer to go over your project.</p>
                     <table cellpadding="0" cellspacing="0" border="0">
@@ -192,25 +191,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
                 </td>
               </tr>
 
-              <!-- Step 2 -->
-              <tr>
-                <td style="padding: 0 0 16px 0;">
-                  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left: 4px solid #050536; background-color: #F5F7FA; border-radius: 0 6px 6px 0;">
-                    <tr><td style="padding: 20px 24px;">
-                      <p style="margin: 0 0 4px 0; font-size: 13px; color: #050536; font-weight: 700; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Step 2</p>
-                      <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif;">Complete Your Website Design Brief</p>
-                      <p style="margin: 0 0 16px 0; font-size: 14px; color: #5a5f7a; font-family: Arial, sans-serif; line-height: 1.5;">Tell us about your business, style preferences, and what you need from your website.</p>
-                      <table cellpadding="0" cellspacing="0" border="0">
-                        <tr><td style="background-color: #050536; border-radius: 4px;">
-                          <a href="${designBriefUrl}" style="display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; font-family: Arial, sans-serif;">Complete Design Brief</a>
-                        </td></tr>
-                      </table>
-                    </td></tr>
-                  </table>
-                </td>
-              </tr>
-
-              <!-- Step 3 (conditional) -->
+              <!-- Step 2 (conditional) -->
               ${bookingStep}
 
             </table>
