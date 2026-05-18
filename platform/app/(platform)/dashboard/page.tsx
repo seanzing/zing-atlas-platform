@@ -21,6 +21,10 @@ interface DashboardData {
   live_customers: number;
   arpu: number;
   churn_rate: number;
+  ltv: number | null;
+  cac: number | null;
+  ltv_cac_ratio: number | null;
+  expansion_revenue: number;
   active_leads: number;
   product_tier_breakdown: { tier: string; count: number; mrr: number }[];
   onboarding_in_queue: number;
@@ -351,6 +355,40 @@ export default function DashboardPage() {
           value={`${data.nrr}%`}
           sub={`Churn rate: ${pct(data.churn_rate)}`}
           accent="linear-gradient(90deg, #f59e0b, #fcd34d)"
+        />
+      </div>
+
+      {/* ─── Section 1b: Remaining SaaS Valuation Metrics ───────────────── */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+        <KpiCard
+          label="Churn Rate"
+          value={pct(data.churn_rate)}
+          sub={data.churn_rate === 0 ? "No cancellations" : `${data.live_customers} active · ${Math.round(data.live_customers * data.churn_rate / 100)} at risk`}
+          accent="linear-gradient(90deg, #ef4444, #fca5a5)"
+        />
+        <KpiCard
+          label="Lifetime Value (LTV)"
+          value={data.ltv !== null ? fmt(data.ltv) : "—"}
+          sub={data.ltv !== null ? `ARPU ÷ monthly churn` : "Insufficient churn data"}
+          accent="linear-gradient(90deg, #8b5cf6, #c4b5fd)"
+        />
+        <KpiCard
+          label="CAC"
+          value={data.cac !== null ? fmt(data.cac) : "—"}
+          sub="Requires cost tracking"
+          accent="linear-gradient(90deg, #ec4899, #fbcfe8)"
+        />
+        <KpiCard
+          label="LTV : CAC Ratio"
+          value={data.ltv_cac_ratio !== null ? `${data.ltv_cac_ratio}x` : "—"}
+          sub={data.ltv_cac_ratio !== null ? (data.ltv_cac_ratio >= 3 ? "✓ Healthy (3x+)" : "⚠ Below benchmark") : "Set CAC to calculate"}
+          accent="linear-gradient(90deg, #06b6d4, #a5f3fc)"
+        />
+        <KpiCard
+          label="Expansion Revenue"
+          value={fmt(data.expansion_revenue)}
+          sub={`Upgrades & add-ons · ${periodLabel}`}
+          accent="linear-gradient(90deg, #10b981, #6ee7b7)"
         />
       </div>
 

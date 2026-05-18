@@ -257,6 +257,24 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // ─── Derived SaaS metrics ─────────────────────────────────────────────
+
+    // LTV = ARPU / monthly_churn_rate  (if churn = 0, LTV is infinite → null)
+    const monthly_churn_decimal = churn_rate / 100;
+    const ltv = monthly_churn_decimal > 0 ? Math.round(arpu / monthly_churn_decimal) : null;
+
+    // Expansion revenue (upgrades + add-ons in the period)
+    const expansion_revenue = expansion_mrr;
+
+    // CAC — requires marketing/sales cost data not yet tracked; null until configured
+    const cac: number | null = null;
+
+    // LTV:CAC ratio
+    const ltv_cac_ratio: number | null =
+      ltv !== null && cac !== null && cac > 0
+        ? Math.round((ltv / cac) * 10) / 10
+        : null;
+
     return NextResponse.json({
       // Period metrics
       period_revenue,
@@ -265,12 +283,16 @@ export async function GET(req: NextRequest) {
       deal_type_breakdown,
       daily_revenue_chart,
       rep_leaderboard,
-      // All-time / live metrics
+      expansion_revenue,
+      // All-time / live metrics — the 10 SaaS valuation metrics
       mrr,
       arr,
       live_customers,
       arpu,
       churn_rate,
+      ltv,
+      cac,
+      ltv_cac_ratio,
       active_leads,
       product_tier_breakdown,
       // Operational
