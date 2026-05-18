@@ -139,6 +139,15 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
             value: deal.value ?? null,
             wonDate: effectiveWonDate,
             status: "active",
+            ...(body.existingUrl && { existingUrl: body.existingUrl }),
+            ...(body.colourSchemeNotes && { colourSchemeNotes: body.colourSchemeNotes }),
+            ...(body.service1 && { service1: body.service1 }),
+            ...(body.service2 && { service2: body.service2 }),
+            ...(body.service3 && { service3: body.service3 }),
+            ...(body.service4 && { service4: body.service4 }),
+            ...(body.service5 && { service5: body.service5 }),
+            ...(body.service6 && { service6: body.service6 }),
+            ...(body.designerNotes && { designerNotes: body.designerNotes }),
           },
         });
 

@@ -18,8 +18,9 @@ function toYMD(d: Date) { return d.toISOString().slice(0, 10); }
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Product { id: string; description: string; price: number; }
-interface TeamMember { id: string; firstName: string; lastName: string | null; }
-interface Designer { id: string; name: string | null; }
+interface TeamMember { id: string; firstName: string; lastName: string | null; department: string | null; }
+// Designer interface kept for future use
+// interface Designer { id: string; name: string | null; }
 interface ContactResult { id: string; name: string | null; company: string | null; email: string | null; }
 
 export interface ExistingDeal {
@@ -145,7 +146,8 @@ export function WonDealModal({
 }) {
   const { data: products } = useSWR<Product[]>("/api/products", fetcher);
   const { data: team } = useSWR<TeamMember[]>("/api/team", fetcher);
-  const { data: designers } = useSWR<Designer[]>("/api/designers", fetcher);
+  // designers endpoint replaced by team members filtered by Design dept
+  // const { data: designers } = useSWR<Designer[]>("/api/designers", fetcher);
   const { data: allContacts } = useSWR<ContactResult[]>("/api/contacts", fetcher);
 
   const isMarkWon = !!existingDeal;
@@ -183,6 +185,14 @@ export function WonDealModal({
   // ── Additional ──
   const [industry, setIndustry] = useState("");
   const [marketingComments, setMarketingComments] = useState("");
+  const [colourSchemeNotes, setColourSchemeNotes] = useState("");
+  const [service1, setService1] = useState("");
+  const [service2, setService2] = useState("");
+  const [service3, setService3] = useState("");
+  const [service4, setService4] = useState("");
+  const [service5, setService5] = useState("");
+  const [service6, setService6] = useState("");
+  const [designerBriefNotes, setDesignerBriefNotes] = useState("");
 
   // ── Submission / payment state ──
   const [submitting, setSubmitting] = useState(false);
@@ -238,8 +248,11 @@ export function WonDealModal({
 
   const designerOptions = useMemo(() => [
     { value: "", label: "Select designer..." },
-    ...(designers ?? []).map((d) => ({ value: d.name || d.id, label: d.name || "Unknown" })),
-  ], [designers]);
+    ...(team ?? []).filter((m) => m.department === "Design").map((m) => ({
+      value: `${m.firstName} ${m.lastName || ""}`.trim(),
+      label: `${m.firstName} ${m.lastName || ""}`.trim(),
+    })),
+  ], [team]);
 
   function getStripePriceId(pid: string): string | null {
     const p = (products ?? []).find((pr) => pr.id === pid);
@@ -291,6 +304,12 @@ export function WonDealModal({
             assignedDesigner: designer || undefined,
             launchFeeAmount: launchFee ? Number(launchFee) : undefined, rep: rep || undefined,
             wonDate: wonDate || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined,
+            existingUrl: existingUrl.trim() || undefined,
+            colourSchemeNotes: colourSchemeNotes.trim() || undefined,
+            service1: service1.trim() || undefined, service2: service2.trim() || undefined,
+            service3: service3.trim() || undefined, service4: service4.trim() || undefined,
+            service5: service5.trim() || undefined, service6: service6.trim() || undefined,
+            designerNotes: designerBriefNotes.trim() || undefined,
           }),
         });
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to mark deal as won"); }
@@ -310,6 +329,12 @@ export function WonDealModal({
             designerCallDate: designerCallDate || undefined,
             assignedDesigner: designer || undefined, launchFeeAmount: launchFee ? Number(launchFee) : undefined,
             domainType: domainType || undefined, domainName: domainName.trim() || undefined,
+            existingUrl: existingUrl.trim() || undefined,
+            colourSchemeNotes: colourSchemeNotes.trim() || undefined,
+            service1: service1.trim() || undefined, service2: service2.trim() || undefined,
+            service3: service3.trim() || undefined, service4: service4.trim() || undefined,
+            service5: service5.trim() || undefined, service6: service6.trim() || undefined,
+            designerNotes: designerBriefNotes.trim() || undefined,
           }),
         });
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to create deal"); }
@@ -331,7 +356,7 @@ export function WonDealModal({
     } finally {
       setSubmitting(false);
     }
-  }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, designerCallDate, deliveryDate, designer, launchFee]);
+  }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, designerCallDate, deliveryDate, designer, launchFee, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
 
   const activeDeal = createdDeal ?? (existingDeal ? { id: existingDeal.id, contactId: existingDeal.contactId, contactName: existingDeal.contactName, contact: existingDeal.contact } : null);
   const showPayment = !!createdDeal;
@@ -488,6 +513,28 @@ export function WonDealModal({
               </FormField>
               <FormField label="Marketing Comments">
                 <Input value={marketingComments} onChange={setMarketingComments} placeholder="Notes for marketing team" />
+              </FormField>
+            </div>
+
+            {/* Design Brief */}
+            <div style={{ borderTop: `1px solid ${Z.border}`, paddingTop: 16, marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Design Brief</div>
+              <FormField label="Existing Website URL">
+                <Input value={existingUrl} onChange={setExistingUrl} placeholder="https://theircurrentsite.com" />
+              </FormField>
+              <FormField label="Colour Scheme Notes">
+                <Input value={colourSchemeNotes} onChange={setColourSchemeNotes} placeholder="e.g. Blues and greens, modern feel..." />
+              </FormField>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <FormField label="Service 1"><Input value={service1} onChange={setService1} placeholder="e.g. Plumbing" /></FormField>
+                <FormField label="Service 2"><Input value={service2} onChange={setService2} placeholder="e.g. Emergency repairs" /></FormField>
+                <FormField label="Service 3"><Input value={service3} onChange={setService3} placeholder="Service 3" /></FormField>
+                <FormField label="Service 4"><Input value={service4} onChange={setService4} placeholder="Service 4" /></FormField>
+                <FormField label="Service 5"><Input value={service5} onChange={setService5} placeholder="Service 5" /></FormField>
+                <FormField label="Service 6"><Input value={service6} onChange={setService6} placeholder="Service 6" /></FormField>
+              </div>
+              <FormField label="Notes for Designer">
+                <Input value={designerBriefNotes} onChange={setDesignerBriefNotes} placeholder="Any design guidance for the team..." />
               </FormField>
             </div>
 
