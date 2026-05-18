@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
       where: {
         organizationId: ORG_ID,
         status: "Cancelled",
+        deletedAt: null,
       },
     });
 
