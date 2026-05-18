@@ -228,6 +228,25 @@ export function WonDealModal({
   // Shared: create contact + deal (if new sale), then return dealId + contact info
   const ensureDeal = useCallback(async (): Promise<{ dealId: string; contactName: string; contactEmail: string } | null> => {
     if (existingDeal) {
+      // For existing deals, save brief fields to the deal before payment
+      const brief = {
+        existingUrl: existingUrl.trim() || undefined,
+        colourSchemeNotes: colourSchemeNotes.trim() || undefined,
+        service1: service1.trim() || undefined,
+        service2: service2.trim() || undefined,
+        service3: service3.trim() || undefined,
+        service4: service4.trim() || undefined,
+        service5: service5.trim() || undefined,
+        service6: service6.trim() || undefined,
+        location: location.trim() || undefined,
+        designerNotes: designerBriefNotes.trim() || undefined,
+      };
+      if (Object.values(brief).some(Boolean)) {
+        await fetch(`/api/deals/${existingDeal.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(brief),
+        });
+      }
       return { dealId: existingDeal.id, contactName: existingDeal.contactName || "", contactEmail: existingDeal.contact?.email || sendLinkEmail || "" };
     }
     // New sale - create contact then deal
@@ -237,11 +256,23 @@ export function WonDealModal({
       if (cRes.ok) { const c = await cRes.json(); contactId = c.id; }
     }
     const title = businessName.trim() || customerName.trim();
-    const dRes = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, contactName: customerName.trim() || undefined, contactId: contactId || undefined, stage: "link-sent", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined, rep: rep || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined, location: location.trim() || undefined }) });
+    const briefData = {
+      existingUrl: existingUrl.trim() || undefined,
+      colourSchemeNotes: colourSchemeNotes.trim() || undefined,
+      service1: service1.trim() || undefined,
+      service2: service2.trim() || undefined,
+      service3: service3.trim() || undefined,
+      service4: service4.trim() || undefined,
+      service5: service5.trim() || undefined,
+      service6: service6.trim() || undefined,
+      location: location.trim() || undefined,
+      designerNotes: designerBriefNotes.trim() || undefined,
+    };
+    const dRes = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, contactName: customerName.trim() || undefined, contactId: contactId || undefined, stage: "link-sent", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined, rep: rep || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined, ...briefData }) });
     if (!dRes.ok) { const err = await dRes.json(); throw new Error(err.error || "Failed to create deal"); }
     const deal = await dRes.json();
     return { dealId: deal.id, contactName: customerName.trim() || businessName.trim(), contactEmail: email.trim() };
-  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName, location]);
+  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName, location, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
 
   // Send Link - emails Stripe Checkout URL to customer, moves deal to link-sent
   const handleSendLink = useCallback(async () => {

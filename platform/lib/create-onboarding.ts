@@ -48,6 +48,17 @@ export async function createOnboardingForDeal(dealId: string): Promise<string | 
         value: deal.value ?? null,
         wonDate,
         status: "active",
+        // Copy design brief fields from deal
+        existingUrl: deal.existingUrl ?? null,
+        colourSchemeNotes: deal.colourSchemeNotes ?? null,
+        service1: deal.service1 ?? null,
+        service2: deal.service2 ?? null,
+        service3: deal.service3 ?? null,
+        service4: deal.service4 ?? null,
+        service5: deal.service5 ?? null,
+        service6: deal.service6 ?? null,
+        location: deal.location ?? null,
+        designerNotes: deal.designerNotes ?? null,
       },
     });
 

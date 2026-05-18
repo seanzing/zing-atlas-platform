@@ -106,6 +106,16 @@ model Deal {
   domainType          String?   @map("domain_type")
   domainName          String?   @map("domain_name")
   designerCallDate    DateTime? @map("designer_call_date") @db.Date
+  location            String?   @map("location")
+  existingUrl         String?   @map("existing_url")
+  colourSchemeNotes   String?   @map("colour_scheme_notes")
+  service1            String?   @map("service_1")
+  service2            String?   @map("service_2")
+  service3            String?   @map("service_3")
+  service4            String?   @map("service_4")
+  service5            String?   @map("service_5")
+  service6            String?   @map("service_6")
+  designerNotes       String?   @map("designer_notes")
 
   contact          Contact?           @relation(fields: [contactId], references: [id])
   product          Product?           @relation(fields: [productId], references: [id])
