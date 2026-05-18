@@ -64,6 +64,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         websiteStatus: ob.websiteStatus ?? "not_started",
         status: ob.status,
         wonDate: ob.wonDate,
+        existingUrl: ob.existingUrl ?? null,
+        colourSchemeNotes: ob.colourSchemeNotes ?? null,
+        service1: ob.service1 ?? null,
+        service2: ob.service2 ?? null,
+        service3: ob.service3 ?? null,
+        service4: ob.service4 ?? null,
+        service5: ob.service5 ?? null,
+        service6: ob.service6 ?? null,
+        designerNotes: ob.designerNotes ?? null,
       }));
     });
 

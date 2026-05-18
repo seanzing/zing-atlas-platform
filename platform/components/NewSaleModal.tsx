@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { Modal, FormField, Input, Select, Btn } from "@/components/ui";
+import { Z } from "@/lib/constants";
 
 interface Product {
   id: string;
@@ -37,6 +38,14 @@ export function NewSaleModal({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [existingUrl, setExistingUrl] = useState("");
+  const [colourSchemeNotes, setColourSchemeNotes] = useState("");
+  const [service1, setService1] = useState("");
+  const [service2, setService2] = useState("");
+  const [service3, setService3] = useState("");
+  const [service4, setService4] = useState("");
+  const [service5, setService5] = useState("");
+  const [service6, setService6] = useState("");
+  const [designerNotes, setDesignerNotes] = useState("");
   const [domainType, setDomainType] = useState<"" | "existing" | "new">("");
   const [domainName, setDomainName] = useState("");
   const [productId, setProductId] = useState("");
@@ -91,6 +100,14 @@ export function NewSaleModal({
     setEmail("");
     setPhone("");
     setExistingUrl("");
+    setColourSchemeNotes("");
+    setService1("");
+    setService2("");
+    setService3("");
+    setService4("");
+    setService5("");
+    setService6("");
+    setDesignerNotes("");
     setDomainType("");
     setDomainName("");
     setProductId("");
@@ -161,6 +178,14 @@ export function NewSaleModal({
           value: dealValue ? Number(dealValue) : undefined,
           wonDate: wonDate || undefined,
           existingUrl: existingUrl.trim() || undefined,
+          colourSchemeNotes: colourSchemeNotes.trim() || undefined,
+          service1: service1.trim() || undefined,
+          service2: service2.trim() || undefined,
+          service3: service3.trim() || undefined,
+          service4: service4.trim() || undefined,
+          service5: service5.trim() || undefined,
+          service6: service6.trim() || undefined,
+          designerNotes: designerNotes.trim() || undefined,
           domainType: domainType || undefined,
           domainName: domainName.trim() || undefined,
         }),
@@ -184,7 +209,7 @@ export function NewSaleModal({
     } finally {
       setSubmitting(false);
     }
-  }, [customerName, businessName, email, phone, existingUrl, domainType, domainName, productId, rep, wonDate, dealValue, onSuccess]);
+  }, [customerName, businessName, email, phone, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerNotes, domainType, domainName, productId, rep, wonDate, dealValue, onSuccess]);
 
   return (
     <Modal open={open} onClose={handleClose} title="New Sale">
@@ -205,10 +230,6 @@ export function NewSaleModal({
             <Input value={phone} onChange={setPhone} placeholder="(555) 123-4567" />
           </FormField>
         </div>
-
-        <FormField label="Existing Website URL">
-          <Input value={existingUrl} onChange={setExistingUrl} placeholder="https://acme.com" />
-        </FormField>
 
         <FormField label="Domain Preference *">
           <Select
@@ -247,6 +268,42 @@ export function NewSaleModal({
           </FormField>
           <FormField label="Deal Value ($/mo)">
             <Input value={dealValue} onChange={setDealValue} placeholder="0" type="number" />
+          </FormField>
+        </div>
+
+        {/* Design Brief section */}
+        <div style={{ borderTop: `1px solid ${Z.border}`, paddingTop: 16, marginTop: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
+            Design Brief
+          </div>
+          <FormField label="Existing Website URL">
+            <Input value={existingUrl} onChange={setExistingUrl} placeholder="https://theirsitetoday.com" />
+          </FormField>
+          <FormField label="Colour Scheme Notes">
+            <Input value={colourSchemeNotes} onChange={setColourSchemeNotes} placeholder="e.g. Blues and greens, modern feel..." />
+          </FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <FormField label="Service 1">
+              <Input value={service1} onChange={setService1} placeholder="e.g. Plumbing" />
+            </FormField>
+            <FormField label="Service 2">
+              <Input value={service2} onChange={setService2} placeholder="e.g. Emergency repairs" />
+            </FormField>
+            <FormField label="Service 3">
+              <Input value={service3} onChange={setService3} placeholder="Service 3" />
+            </FormField>
+            <FormField label="Service 4">
+              <Input value={service4} onChange={setService4} placeholder="Service 4" />
+            </FormField>
+            <FormField label="Service 5">
+              <Input value={service5} onChange={setService5} placeholder="Service 5" />
+            </FormField>
+            <FormField label="Service 6">
+              <Input value={service6} onChange={setService6} placeholder="Service 6" />
+            </FormField>
+          </div>
+          <FormField label="Notes for Designer">
+            <Input value={designerNotes} onChange={setDesignerNotes} placeholder="Any other design guidance..." />
           </FormField>
         </div>
 

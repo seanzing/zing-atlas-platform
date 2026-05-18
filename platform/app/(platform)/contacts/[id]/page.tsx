@@ -69,6 +69,15 @@ interface OnboardingRecord {
   websiteStatus: string | null;
   status: string | null;
   wonDate: string | null;
+  existingUrl: string | null;
+  colourSchemeNotes: string | null;
+  service1: string | null;
+  service2: string | null;
+  service3: string | null;
+  service4: string | null;
+  service5: string | null;
+  service6: string | null;
+  designerNotes: string | null;
 }
 
 // Campaign data is included inline from the contacts API
@@ -709,6 +718,8 @@ export default function ContactDetailPage() {
   };
 
   const timelineEntries = generateTimeline(contact, activeTab);
+  const designBriefOb = (contact.onboardingRecords ?? [])[0] ?? null;
+  const hasDesignBrief: boolean = designBriefOb !== null && !!(designBriefOb.existingUrl || designBriefOb.colourSchemeNotes || designBriefOb.service1 || designBriefOb.designerNotes);
 
   return (
     <div>
@@ -1263,6 +1274,7 @@ export default function ContactDetailPage() {
 
           {/* Active Onboarding */}
           {contact.onboardingRecords && contact.onboardingRecords.length > 0 && (
+            <>
             <div style={{ marginTop: 24 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
                 Active Onboarding
@@ -1328,6 +1340,42 @@ export default function ContactDetailPage() {
                 })}
               </div>
             </div>
+
+            {/* Design Brief — from onboarding record */}
+            {hasDesignBrief && designBriefOb !== null && (
+              <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary, marginBottom: 14 }}>Design Brief</div>
+                {designBriefOb.existingUrl && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Existing Website</div>
+                    <a href={designBriefOb.existingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: Z.ultramarine }}>{designBriefOb.existingUrl}</a>
+                  </div>
+                )}
+                {designBriefOb.colourSchemeNotes && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Colour Scheme</div>
+                    <div style={{ fontSize: 13, color: Z.textPrimary }}>{designBriefOb.colourSchemeNotes}</div>
+                  </div>
+                )}
+                {[designBriefOb.service1, designBriefOb.service2, designBriefOb.service3, designBriefOb.service4, designBriefOb.service5, designBriefOb.service6].some(Boolean) && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Services</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {[designBriefOb.service1, designBriefOb.service2, designBriefOb.service3, designBriefOb.service4, designBriefOb.service5, designBriefOb.service6].filter(Boolean).map((s, i) => (
+                        <span key={i} style={{ padding: "3px 10px", borderRadius: 20, background: `${Z.ultramarine}12`, color: Z.ultramarine, fontSize: 12, fontWeight: 600 }}>{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {designBriefOb.designerNotes && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Notes for Designer</div>
+                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.6 }}>{designBriefOb.designerNotes}</div>
+                  </div>
+                )}
+              </div>
+            )}
+            </>
           )}
 
           {/* Pipeline Notes — department notes, identical to the pipeline panel */}
