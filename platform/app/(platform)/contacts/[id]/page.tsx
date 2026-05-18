@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
+import { WonDealModal } from "@/components/WonDealModal";
 import EmailThreadCard from "@/components/EmailThreadCard";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -414,11 +415,8 @@ export default function ContactDetailPage() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const { toast, showToast } = useToast();
-  const [addDealOpen, setAddDealOpen] = useState(false);
-  const [dealTitle, setDealTitle] = useState("");
-  const [dealValue, setDealValue] = useState("");
-  const [dealStage, setDealStage] = useState("call-now");
-  const [dealProductId, setDealProductId] = useState("");
+  const [raiseSaleOpen, setRaiseSaleOpen] = useState(false);
+  // Legacy simple deal state removed — using WonDealModal now
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editDealTitle, setEditDealTitle] = useState("");
   const [editDealValue, setEditDealValue] = useState("");
@@ -571,27 +569,7 @@ export default function ContactDetailPage() {
     mutateTasks();
   };
 
-  const handleAddDeal = async () => {
-    if (!dealTitle.trim()) return;
-    await fetch("/api/deals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: dealTitle.trim(),
-        value: dealValue ? parseFloat(dealValue) : 0,
-        stage: dealStage,
-        contactId: id,
-        contactName: contact?.name,
-        productId: dealProductId || undefined,
-      }),
-    });
-    setDealTitle("");
-    setDealValue("");
-    setDealStage("call-now");
-    setDealProductId("");
-    setAddDealOpen(false);
-    mutate();
-  };
+  // handleAddDeal removed — replaced by WonDealModal (raiseSaleOpen)
 
   const handleEditDeal = async () => {
     if (!editingDeal || !editDealTitle.trim()) return;
@@ -1077,7 +1055,9 @@ export default function ContactDetailPage() {
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: Z.textPrimary }}>Deals</div>
-                <Btn variant="secondary" onClick={() => setAddDealOpen(true)}>+ Add Deal</Btn>
+                <Btn onClick={() => setRaiseSaleOpen(true)}
+                  style={{ background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`, color: "#fff", border: "none" }}
+                >+ Raise a Sale</Btn>
               </div>
               {contact.deals && contact.deals.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1897,56 +1877,12 @@ export default function ContactDetailPage() {
           )}
         </div>
       )}
-      <Modal open={addDealOpen} onClose={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); setDealProductId(""); }} title="Add Deal">
-        <FormField label="Product">
-          <Select
-            value={dealProductId}
-            onChange={(val) => {
-              setDealProductId(val);
-              const product = (productOptions || []).find(p => p.id === val);
-              if (product) {
-                setDealTitle(product.description);
-                setDealValue(String(product.price));
-              }
-            }}
-            options={[
-              { value: "", label: "Select a product..." },
-              ...(productOptions || []).map(p => ({
-                value: p.id,
-                label: `${p.description} — $${Number(p.price).toFixed(2)}/mo`,
-              })),
-            ]}
-          />
-        </FormField>
-        <FormField label="Title">
-          <Input value={dealTitle} onChange={setDealTitle} placeholder="Auto-filled from product" />
-        </FormField>
-        <FormField label="Value ($)">
-          <Input value={dealValue} onChange={setDealValue} placeholder="0" type="number" />
-        </FormField>
-        <FormField label="Stage">
-          <Select
-            value={dealStage}
-            onChange={setDealStage}
-            options={[
-              { value: "call-now", label: "Call Now" },
-              { value: "call-no-answer", label: "Call No Answer" },
-              { value: "hot-72", label: "Hot 72" },
-              { value: "active", label: "Active" },
-              { value: "appointment", label: "Appointment" },
-              { value: "appt-no-show", label: "Appt No Show" },
-              { value: "marketing-appt", label: "Marketing Appt" },
-              { value: "promo-hot", label: "Promo Hot" },
-              { value: "promo-cold", label: "Promo Cold" },
-              { value: "won", label: "Won" },
-            ]}
-          />
-        </FormField>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-          <Btn variant="secondary" onClick={() => { setAddDealOpen(false); setDealTitle(""); setDealValue(""); setDealStage("call-now"); setDealProductId(""); }}>Cancel</Btn>
-          <Btn onClick={handleAddDeal} disabled={!dealProductId || !dealTitle.trim()}>Create Deal</Btn>
-        </div>
-      </Modal>
+      <WonDealModal
+        open={raiseSaleOpen}
+        onClose={() => setRaiseSaleOpen(false)}
+        onSuccess={() => { setRaiseSaleOpen(false); showToast("Sale raised", true); mutate(); }}
+        prefillContact={contact ? { id: contact.id, name: contact.name ?? "", email: contact.email, phone: contact.phone } : null}
+      />
       <Modal
         open={!!editingDeal}
         onClose={() => setEditingDeal(null)}

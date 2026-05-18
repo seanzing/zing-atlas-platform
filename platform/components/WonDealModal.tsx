@@ -76,11 +76,14 @@ export function WonDealModal({
   onClose,
   onSuccess,
   existingDeal,
+  prefillContact,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess: (title: string) => void;
   existingDeal?: ExistingDeal | null;
+  /** Pre-fill contact fields when opening from a contact page (new sale mode) */
+  prefillContact?: { id: string; name: string; email?: string | null; phone?: string | null } | null;
 }) {
   const { data: products } = useSWR<Product[]>("/api/products", fetcher);
   const { data: team } = useSWR<TeamMember[]>("/api/team", fetcher);
@@ -138,15 +141,23 @@ export function WonDealModal({
   // createdDeal removed — no longer needed (payment flows use Stripe Checkout)
   const [sendLinkEmail, setSendLinkEmail] = useState("");
 
-  // Pre-fill from existingDeal when in raise-sale mode
+  // Pre-fill from existingDeal (raise-sale mode) or prefillContact (new sale from contact page)
   useEffect(() => {
-    if (existingDeal && open) {
+    if (!open) return;
+    if (existingDeal) {
       setProductId(existingDeal.productId || "");
       setDealValue(existingDeal.value ? String(Number(existingDeal.value)) : "");
       setRep(existingDeal.rep || "");
       setSendLinkEmail(existingDeal.contact?.email || "");
+    } else if (prefillContact) {
+      setLinkedContactId(prefillContact.id);
+      setContactSearch(`${prefillContact.name}`);
+      setCustomerName(prefillContact.name || "");
+      setEmail(prefillContact.email || "");
+      setPhone(prefillContact.phone || "");
+      setSendLinkEmail(prefillContact.email || "");
     }
-  }, [existingDeal, open]);
+  }, [existingDeal, prefillContact, open]);
 
   function reset() {
     setContactSearch(""); setLinkedContactId(""); setCustomerName(""); setBusinessName(""); setEmail(""); setPhone("");
@@ -274,7 +285,31 @@ export function WonDealModal({
     } finally { setSubmitting(false); }
   }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId]);
 
-
+  // Payment Taken — finds existing Stripe subscription by email, links it, marks as won, creates onboarding
+  const handlePaymentTaken = useCallback(async () => {
+    if (!productId) { setError("Select a product first"); return; }
+    const targetEmail = sendLinkEmail || email.trim();
+    if (!targetEmail) { setError("Customer email is required to look up the Stripe subscription"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const dealInfo = await ensureDeal();
+      if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
+      const res = await fetch("/api/stripe/mark-paid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealId: dealInfo.dealId, email: targetEmail, contactId: existingDeal?.contactId ?? (prefillContact?.id ?? null) }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to link subscription");
+      if (existingDeal?.id) {
+        await fetch(`/api/deals/${existingDeal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rep: rep || undefined }) });
+      }
+      mutate("/api/deals"); mutate("/api/contacts"); mutate("/api/onboarding?status=active");
+      setLinkSentSuccess(`Payment confirmed — subscription linked ($${data.mrr}/mo). Onboarding created.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally { setSubmitting(false); }
+  }, [existingDeal, prefillContact, sendLinkEmail, email, productId, rep, ensureDeal]);
 
   return (
     <Modal open={open} onClose={handleClose} title={isMarkWon ? `Raise Sale - ${existingDeal?.title ?? ""}` : "New Sale"}>
@@ -464,11 +499,13 @@ export function WonDealModal({
               </div>
             ) : (
               <>
-                {/* Customer email - shown for Send Link; pre-filled if available */}
+                {/* Customer email — pre-filled from contact if available */}
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Customer Email (for Send Link)</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Customer Email</div>
                   <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" type="email" />
                 </div>
+
+                {/* Primary actions: Take Payment + Send Link */}
                 <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
                   <button
                     disabled={submitting}
@@ -476,7 +513,7 @@ export function WonDealModal({
                     style={{
                       flex: 1, padding: "16px 0", borderRadius: 12,
                       background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
-                      border: "none", color: "#fff", fontSize: 15, fontWeight: 800,
+                      border: "none", color: "#fff", fontSize: 14, fontWeight: 800,
                       cursor: submitting ? "not-allowed" : "pointer",
                       opacity: submitting ? 0.7 : 1,
                       boxShadow: "0 4px 14px rgba(58,90,255,0.35)",
@@ -492,7 +529,7 @@ export function WonDealModal({
                       flex: 1, padding: "16px 0", borderRadius: 12,
                       background: "transparent",
                       border: `2px solid ${Z.ultramarine}`,
-                      color: Z.ultramarine, fontSize: 15, fontWeight: 800,
+                      color: Z.ultramarine, fontSize: 14, fontWeight: 800,
                       cursor: submitting ? "not-allowed" : "pointer",
                       opacity: submitting ? 0.7 : 1,
                       transition: "all 0.15s",
@@ -501,8 +538,26 @@ export function WonDealModal({
                     {submitting ? "Sending..." : "🔗 Send Link"}
                   </button>
                 </div>
-                <div style={{ fontSize: 11, color: Z.textMuted, textAlign: "center", marginTop: 8 }}>
-                  Take Payment opens a Stripe checkout window. Send Link emails the checkout link to the customer.
+
+                {/* Payment Taken — looks up existing Stripe subscription */}
+                <button
+                  disabled={submitting}
+                  onClick={handlePaymentTaken}
+                  style={{
+                    width: "100%", marginTop: 10, padding: "13px 0", borderRadius: 12,
+                    background: "transparent",
+                    border: `2px solid #10b981`,
+                    color: "#059669", fontSize: 14, fontWeight: 700,
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    opacity: submitting ? 0.7 : 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {submitting ? "Looking up..." : "✅ Payment Taken"}
+                </button>
+
+                <div style={{ fontSize: 11, color: Z.textMuted, textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>
+                  <strong>Take Payment</strong> opens Stripe checkout · <strong>Send Link</strong> emails it · <strong>Payment Taken</strong> links an existing subscription
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
                   <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
