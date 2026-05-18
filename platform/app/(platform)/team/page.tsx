@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 // showToast(message, ok: boolean) — true=success, false=error
-import { Btn, Modal, FormField, Input } from "@/components/ui";
+import { Btn, Modal, FormField, Input, Select } from "@/components/ui";
 import { Z, fmt, AVATAR_COLORS } from "@/lib/constants";
 
 interface TeamMemberPerf {
@@ -327,6 +327,7 @@ export default function TeamPage() {
   const [formEmail, setFormEmail] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formTarget, setFormTarget] = useState("");
+  const [formDept, setFormDept] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Edit form state
@@ -416,6 +417,7 @@ export default function TeamPage() {
     setFormEmail("");
     setFormPhone("");
     setFormTarget("");
+    setFormDept("");
   }
 
   async function handleAddMember() {
@@ -434,6 +436,7 @@ export default function TeamPage() {
           email: formEmail.trim() || undefined,
           phone: formPhone.trim() || undefined,
           monthlyTarget: formTarget ? Number(formTarget) : undefined,
+          department: formDept || undefined,
         }),
       });
       if (!res.ok) {
@@ -731,6 +734,22 @@ export default function TeamPage() {
               onChange={(v) => setFormTarget(v)}
               placeholder="e.g. 5000"
               type="number"
+            />
+          </FormField>
+          <FormField label="Department">
+            <Select
+              value={formDept}
+              onChange={setFormDept}
+              options={[
+                { value: "", label: "Select department..." },
+                { value: "Sales", label: "Sales" },
+                { value: "Marketing", label: "Marketing" },
+                { value: "Admin", label: "Admin" },
+                { value: "Design", label: "Design" },
+                { value: "Support", label: "Support" },
+                { value: "Product Development", label: "Product Development" },
+                { value: "Executive", label: "Executive" },
+              ]}
             />
           </FormField>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
