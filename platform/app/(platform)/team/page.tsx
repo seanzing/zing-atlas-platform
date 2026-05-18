@@ -337,6 +337,7 @@ export default function TeamPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editTarget, setEditTarget] = useState("");
   const [editActive, setEditActive] = useState(true);
+  const [editDept, setEditDept] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   function openEdit(m: TeamMemberPerf) {
@@ -347,6 +348,7 @@ export default function TeamPage() {
     setEditPhone(m.phone || "");
     setEditTarget(m.monthlyTarget ? String(m.monthlyTarget) : "");
     setEditActive(m.active);
+    setEditDept(m.department || "");
   }
 
   async function handleEditSave() {
@@ -367,6 +369,7 @@ export default function TeamPage() {
           phone: editPhone.trim() || undefined,
           monthlyTarget: editTarget ? Number(editTarget) : undefined,
           active: editActive,
+          department: editDept || undefined,
         }),
       });
       if (!res.ok) {
@@ -653,6 +656,22 @@ export default function TeamPage() {
           </FormField>
           <FormField label="Monthly Target ($)">
             <Input value={editTarget} onChange={setEditTarget} placeholder="e.g. 5000" type="number" />
+          </FormField>
+          <FormField label="Department">
+            <Select
+              value={editDept}
+              onChange={setEditDept}
+              options={[
+                { value: "", label: "Select department..." },
+                { value: "Sales", label: "Sales" },
+                { value: "Marketing", label: "Marketing" },
+                { value: "Admin", label: "Admin" },
+                { value: "Design", label: "Design" },
+                { value: "Support", label: "Support" },
+                { value: "Product Development", label: "Product Development" },
+                { value: "Executive", label: "Executive" },
+              ]}
+            />
           </FormField>
           <FormField label="Status">
             <div style={{ display: "flex", gap: 10 }}>
