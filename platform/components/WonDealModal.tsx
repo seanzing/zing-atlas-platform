@@ -229,7 +229,8 @@ export function WonDealModal({
     setIndustry(""); setMarketingComments("");
     setSubmitting(false); setError(null); setCreatedDeal(null);
     setPaymentMethod("take-sale"); setPaymentLoading(false); setPaymentError(null);
-    setPaymentSuccess(null); setPaymentLinkUrl(null); setSendLinkEmail(""); setBillingName(""); setBillingEmail(""); setLinkCopied(false);
+    setPaymentSuccess(null); setPaymentLinkUrl(null); setSendLinkEmail(""); setBillingName(""); setBillingEmail(""); setLinkCopied(false); setLinkSentSuccess(null);
+    setColourSchemeNotes(""); setService1(""); setService2(""); setService3(""); setService4(""); setService5(""); setService6(""); setDesignerBriefNotes("");
   }
 
   const handleClose = useCallback(() => { reset(); onClose(); }, [onClose]);
@@ -357,6 +358,45 @@ export function WonDealModal({
       setSubmitting(false);
     }
   }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, designerCallDate, deliveryDate, designer, launchFee, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
+
+  // ── Send Link handler: moves deal to 'link-sent' stage, emails payment link — does NOT mark as won
+  const [linkSentSuccess, setLinkSentSuccess] = useState<string | null>(null);
+  const handleSendLink = useCallback(async () => {
+    if (!productId) { setError("Select a product first"); return; }
+    const targetEmail = sendLinkEmail || email.trim();
+    if (!targetEmail) { setError("Customer email is required to send a payment link"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const priceId = getStripePriceId(productId);
+      if (!priceId) { setError("No Stripe price configured for this product"); setSubmitting(false); return; }
+      const p = (products ?? []).find((pr) => pr.id === productId);
+      const contactName = existingDeal?.contactName || customerName.trim();
+
+      // 1. Generate + email the Stripe payment link
+      const linkRes = await fetch("/api/stripe/payment-link", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: contactName, email: targetEmail, priceId, dealId: existingDeal?.id || "pending", productName: p?.description || "", sendEmail: true }),
+      });
+      const linkData = await linkRes.json();
+      if (!linkData.success) throw new Error(linkData.error || "Failed to send payment link");
+
+      // 2. Move deal to 'link-sent' stage (not won)
+      if (existingDeal?.id) {
+        await fetch(`/api/deals/${existingDeal.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage: "link-sent", rep: rep || undefined }),
+        });
+      }
+
+      mutate("/api/deals");
+      mutate("/api/contacts");
+      setLinkSentSuccess(`Payment link sent to ${targetEmail}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [existingDeal, customerName, email, sendLinkEmail, productId, rep, products]);
 
   const activeDeal = createdDeal ?? (existingDeal ? { id: existingDeal.id, contactId: existingDeal.contactId, contactName: existingDeal.contactName, contact: existingDeal.contact } : null);
   const showPayment = !!createdDeal;
@@ -540,41 +580,55 @@ export function WonDealModal({
 
             {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>{error}</div>}
 
-            <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-              <button
-                disabled={submitting}
-                onClick={() => { setPaymentMethod("take-sale"); handleSubmit(); }}
-                style={{
-                  flex: 1, padding: "16px 0", borderRadius: 12,
-                  background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
-                  border: "none", color: "#fff", fontSize: 15, fontWeight: 800,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  opacity: submitting ? 0.7 : 1,
-                  boxShadow: "0 4px 14px rgba(58,90,255,0.35)",
-                  transition: "all 0.15s",
-                }}
-              >
-                {submitting ? "Processing..." : "💳 Take Payment"}
-              </button>
-              <button
-                disabled={submitting}
-                onClick={() => { setPaymentMethod("send-link"); handleSubmit(); }}
-                style={{
-                  flex: 1, padding: "16px 0", borderRadius: 12,
-                  background: "transparent",
-                  border: `2px solid ${Z.ultramarine}`,
-                  color: Z.ultramarine, fontSize: 15, fontWeight: 800,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  opacity: submitting ? 0.7 : 1,
-                  transition: "all 0.15s",
-                }}
-              >
-                {submitting ? "Processing..." : "🔗 Send Link"}
-              </button>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-              <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
-            </div>
+            {linkSentSuccess ? (
+              <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 12, padding: 20, textAlign: "center" }}>
+                <div style={{ fontSize: 20, marginBottom: 6 }}>📧</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginBottom: 4 }}>{linkSentSuccess}</div>
+                <div style={{ fontSize: 12, color: "#065f46", opacity: 0.8, marginBottom: 16 }}>Deal moved to “Link Sent” in the pipeline. It will move to Won once payment is confirmed.</div>
+                <Btn onClick={() => { onSuccess(existingDeal?.title || customerName); handleClose(); }}>Done</Btn>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+                  <button
+                    disabled={submitting}
+                    onClick={() => { setPaymentMethod("take-sale"); handleSubmit(); }}
+                    style={{
+                      flex: 1, padding: "16px 0", borderRadius: 12,
+                      background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+                      border: "none", color: "#fff", fontSize: 15, fontWeight: 800,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.7 : 1,
+                      boxShadow: "0 4px 14px rgba(58,90,255,0.35)",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {submitting ? "Processing..." : "💳 Take Payment"}
+                  </button>
+                  <button
+                    disabled={submitting}
+                    onClick={handleSendLink}
+                    style={{
+                      flex: 1, padding: "16px 0", borderRadius: 12,
+                      background: "transparent",
+                      border: `2px solid ${Z.ultramarine}`,
+                      color: Z.ultramarine, fontSize: 15, fontWeight: 800,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.7 : 1,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {submitting ? "Sending..." : "🔗 Send Link"}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: Z.textMuted, textAlign: "center", marginTop: 8 }}>
+                  Take Payment marks as Won. Send Link moves to “Link Sent” until payment confirms.
+                </div>
+                <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
+                  <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                </div>
+              </>
+            )}
           </>
         )}
 

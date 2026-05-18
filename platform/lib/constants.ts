@@ -35,6 +35,7 @@ export const STAGES = [
   { key: "marketing-appt", label: "Marketing Appt", color: Z.ultramarine },
   { key: "promo-hot", label: "Promo Hot", color: Z.purple },
   { key: "promo-cold", label: "Promo Cold", color: "#a855f7" },
+  { key: "link-sent", label: "Link Sent", color: "#06b6d4" },
   { key: "won", label: "Won", color: "#10b981" },
 ] as const;
 
