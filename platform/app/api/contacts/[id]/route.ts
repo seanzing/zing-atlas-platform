@@ -72,12 +72,34 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         service4: ob.service4 ?? null,
         service5: ob.service5 ?? null,
         service6: ob.service6 ?? null,
+        location: ob.location ?? null,
         designerNotes: ob.designerNotes ?? null,
       }));
     });
 
+    // Build a deal-level brief for deals that don't have onboarding yet (link-sent stage)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dealBrief = contact.deals.reduce((acc: any, deal: any) => {
+      if (acc) return acc; // use first deal that has any brief field
+      const hasBrief = deal.existingUrl || deal.colourSchemeNotes || deal.service1 || deal.location || deal.designerNotes;
+      if (!hasBrief) return null;
+      return {
+        dealId: deal.id,
+        existingUrl: deal.existingUrl ?? null,
+        colourSchemeNotes: deal.colourSchemeNotes ?? null,
+        service1: deal.service1 ?? null,
+        service2: deal.service2 ?? null,
+        service3: deal.service3 ?? null,
+        service4: deal.service4 ?? null,
+        service5: deal.service5 ?? null,
+        service6: deal.service6 ?? null,
+        location: deal.location ?? null,
+        designerNotes: deal.designerNotes ?? null,
+      };
+    }, null);
+
     return NextResponse.json(
-      serialize({ ...contact, onboarding: onboardingItems, onboardingRecords }),
+      serialize({ ...contact, onboarding: onboardingItems, onboardingRecords, dealBrief }),
       { status: 200 }
     );
   } catch (error) {

@@ -78,6 +78,7 @@ interface OnboardingRecord {
   service4: string | null;
   service5: string | null;
   service6: string | null;
+  location: string | null;
   designerNotes: string | null;
 }
 
@@ -99,6 +100,20 @@ interface ContactTask {
   createdAt: string;
 }
 
+interface DealBrief {
+  dealId: string;
+  existingUrl: string | null;
+  colourSchemeNotes: string | null;
+  service1: string | null;
+  service2: string | null;
+  service3: string | null;
+  service4: string | null;
+  service5: string | null;
+  service6: string | null;
+  location: string | null;
+  designerNotes: string | null;
+}
+
 interface ContactDetail {
   id: string;
   name: string;
@@ -117,6 +132,7 @@ interface ContactDetail {
   tickets: Ticket[];
   onboarding: OnboardingItem[];
   onboardingRecords?: OnboardingRecord[];
+  dealBrief?: DealBrief | null;
 }
 
 interface ActivityEntry {
@@ -1321,14 +1337,33 @@ export default function ContactDetailPage() {
               </div>
             </div>
 
-            {/* Design Brief — always visible if onboarding exists, editable inline */}
-            {designBriefOb !== null && (() => {
-              const saveObField = (field: string, value: string) =>
-                fetch(`/api/onboarding/${designBriefOb.id}`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ [field]: value }),
-                }).then(() => mutate());
+            {/* Design Brief — shows if onboarding exists OR if deal has brief data; editable inline */}
+            {(() => {
+              // Prefer onboarding record; fall back to deal-level brief
+              const brief = designBriefOb
+                ? { source: "onboarding" as const, id: designBriefOb.id, data: designBriefOb }
+                : contact.dealBrief
+                ? { source: "deal" as const, id: contact.dealBrief.dealId, data: contact.dealBrief }
+                : null;
+
+              if (!brief) return null;
+
+              const saveField = (field: string, value: string) => {
+                if (brief.source === "onboarding") {
+                  return fetch(`/api/onboarding/${brief.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ [field]: value }),
+                  }).then(() => mutate());
+                } else {
+                  return fetch(`/api/deals/${brief.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ [field]: value }),
+                  }).then(() => mutate());
+                }
+              };
+
               const inputSt: React.CSSProperties = {
                 width: "100%", padding: "7px 10px", borderRadius: 8,
                 border: `1px solid ${Z.border}`, background: Z.bg,
@@ -1338,29 +1373,36 @@ export default function ContactDetailPage() {
               const fieldLabel = (label: string) => (
                 <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
               );
+              const d = brief.data;
+              const key = brief.id;
+
               return (
                 <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary, marginBottom: 16 }}>Design Brief</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
                       {fieldLabel("Existing Website")}
-                      <input key={`ew-${designBriefOb.id}`} style={inputSt} defaultValue={designBriefOb.existingUrl ?? ""} placeholder="https://theircurrentsite.com" onBlur={(e) => saveObField("existingUrl", e.target.value)} />
+                      <input key={`ew-${key}`} style={inputSt} defaultValue={d.existingUrl ?? ""} placeholder="https://theircurrentsite.com" onBlur={(e) => saveField("existingUrl", e.target.value)} />
                     </div>
                     <div>
                       {fieldLabel("Colour Scheme Notes")}
-                      <input key={`cs-${designBriefOb.id}`} style={inputSt} defaultValue={designBriefOb.colourSchemeNotes ?? ""} placeholder="e.g. Blues and greens, modern feel..." onBlur={(e) => saveObField("colourSchemeNotes", e.target.value)} />
+                      <input key={`cs-${key}`} style={inputSt} defaultValue={d.colourSchemeNotes ?? ""} placeholder="e.g. Blues and greens, modern feel..." onBlur={(e) => saveField("colourSchemeNotes", e.target.value)} />
                     </div>
                     <div>
                       {fieldLabel("Services")}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         {(["service1","service2","service3","service4","service5","service6"] as const).map((k, i) => (
-                          <input key={`${k}-${designBriefOb.id}`} style={inputSt} defaultValue={(designBriefOb as unknown as Record<string, string | null>)[k] ?? ""} placeholder={`Service ${i + 1}`} onBlur={(e) => saveObField(k, e.target.value)} />
+                          <input key={`${k}-${key}`} style={inputSt} defaultValue={(d as unknown as Record<string, string | null>)[k] ?? ""} placeholder={`Service ${i + 1}`} onBlur={(e) => saveField(k, e.target.value)} />
                         ))}
                       </div>
                     </div>
                     <div>
+                      {fieldLabel("Location")}
+                      <input key={`loc-${key}`} style={inputSt} defaultValue={d.location ?? ""} placeholder="e.g. Denver, CO" onBlur={(e) => saveField("location", e.target.value)} />
+                    </div>
+                    <div>
                       {fieldLabel("Notes for Designer")}
-                      <textarea key={`dn-${designBriefOb.id}`} style={{ ...inputSt, resize: "vertical", fontFamily: "inherit", minHeight: 72 }} defaultValue={designBriefOb.designerNotes ?? ""} placeholder="Any design guidance for the team..." onBlur={(e) => saveObField("designerNotes", e.target.value)} />
+                      <textarea key={`dn-${key}`} style={{ ...inputSt, resize: "vertical", fontFamily: "inherit", minHeight: 72 }} defaultValue={d.designerNotes ?? ""} placeholder="Any design guidance for the team..." onBlur={(e) => saveField("designerNotes", e.target.value)} />
                     </div>
                   </div>
                 </div>
