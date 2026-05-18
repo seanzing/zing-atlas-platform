@@ -236,6 +236,7 @@ model Onboarding {
   service4            String?   @map("service_4")
   service5            String?   @map("service_5")
   service6            String?   @map("service_6")
+  location            String?   @map("location")
   publishedDate       DateTime? @map("published_date") @db.Date
 
   deal             Deal?     @relation(fields: [dealId], references: [id])

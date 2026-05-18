@@ -133,6 +133,7 @@ export function WonDealModal({
   const [service4, setService4] = useState("");
   const [service5, setService5] = useState("");
   const [service6, setService6] = useState("");
+  const [location, setLocation] = useState("");
   const [designerBriefNotes, setDesignerBriefNotes] = useState("");
 
   // ── Submission / payment state ──
@@ -168,7 +169,7 @@ export function WonDealModal({
     setIndustry(""); setMarketingComments("");
     setSubmitting(false); setError(null);
     setSendLinkEmail(""); setLinkSentSuccess(null);
-    setColourSchemeNotes(""); setService1(""); setService2(""); setService3(""); setService4(""); setService5(""); setService6(""); setDesignerBriefNotes("");
+    setColourSchemeNotes(""); setService1(""); setService2(""); setService3(""); setService4(""); setService5(""); setService6(""); setLocation(""); setDesignerBriefNotes("");
   }
 
   const handleClose = useCallback(() => { reset(); onClose(); }, [onClose]);
@@ -220,11 +221,11 @@ export function WonDealModal({
       if (cRes.ok) { const c = await cRes.json(); contactId = c.id; }
     }
     const title = businessName.trim() || customerName.trim();
-    const dRes = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, contactName: customerName.trim() || undefined, contactId: contactId || undefined, stage: "link-sent", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined, rep: rep || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined }) });
+    const dRes = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, contactName: customerName.trim() || undefined, contactId: contactId || undefined, stage: "link-sent", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined, rep: rep || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined, location: location.trim() || undefined }) });
     if (!dRes.ok) { const err = await dRes.json(); throw new Error(err.error || "Failed to create deal"); }
     const deal = await dRes.json();
     return { dealId: deal.id, contactName: customerName.trim() || businessName.trim(), contactEmail: email.trim() };
-  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName]);
+  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName, location]);
 
   // Send Link - emails Stripe Checkout URL to customer, moves deal to link-sent
   const handleSendLink = useCallback(async () => {
@@ -483,6 +484,9 @@ export function WonDealModal({
                 <FormField label="Service 5"><Input value={service5} onChange={setService5} placeholder="Service 5" /></FormField>
                 <FormField label="Service 6"><Input value={service6} onChange={setService6} placeholder="Service 6" /></FormField>
               </div>
+              <FormField label="Location">
+                <Input value={location} onChange={setLocation} placeholder="e.g. Denver, CO" />
+              </FormField>
               <FormField label="Notes for Designer">
                 <Input value={designerBriefNotes} onChange={setDesignerBriefNotes} placeholder="Any design guidance for the team..." />
               </FormField>

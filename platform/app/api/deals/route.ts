@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     const whitelist = [
       "title", "stage", "value", "rep", "contactName", "dealType",
       "productId", "contactId", "assignedDesigner", "launchFeeAmount",
-      "domainType", "domainName",
+      "domainType", "domainName", "location",
     ];
     const dealData: Record<string, unknown> = { organizationId: ORG_ID };
     for (const key of whitelist) {
