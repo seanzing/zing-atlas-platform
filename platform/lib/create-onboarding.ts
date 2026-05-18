@@ -102,6 +102,14 @@ export async function createOnboardingForDeal(dealId: string): Promise<string | 
       });
     }
 
+    // Mark the contact as a Live Customer
+    if (deal.contactId) {
+      await prisma.contact.updateMany({
+        where: { id: deal.contactId, organizationId: ORG_ID, deletedAt: null },
+        data: { status: "Live Customer" },
+      }).catch((err) => logger.warn({ err, contactId: deal.contactId }, "createOnboardingForDeal: could not update contact status"));
+    }
+
     logger.info({ dealId, onboardingId: onboarding.id }, "createOnboardingForDeal: onboarding created");
     return onboarding.id;
   } catch (err) {

@@ -432,6 +432,11 @@ export default function ContactDetailPage() {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const { toast, showToast } = useToast();
   const [raiseSaleOpen, setRaiseSaleOpen] = useState(false);
+  // Design brief controlled state
+  const [briefFields, setBriefFields] = useState({ existingUrl: "", colourSchemeNotes: "", service1: "", service2: "", service3: "", service4: "", service5: "", service6: "", location: "", designerNotes: "" });
+  const [briefSaving, setBriefSaving] = useState(false);
+  const [briefSaved, setBriefSaved] = useState(false);
+
   // Legacy simple deal state removed — using WonDealModal now
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editDealTitle, setEditDealTitle] = useState("");
@@ -463,6 +468,28 @@ export default function ContactDetailPage() {
   useEffect(() => {
     if (activityData) setLastChecked(new Date());
   }, [activityData]);
+
+  // Seed brief fields when contact data loads
+  useEffect(() => {
+    const src = designBriefOb ?? contact?.dealBrief;
+    if (src) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const s = src as any;
+      setBriefFields({
+        existingUrl: s.existingUrl ?? "",
+        colourSchemeNotes: s.colourSchemeNotes ?? "",
+        service1: s.service1 ?? "",
+        service2: s.service2 ?? "",
+        service3: s.service3 ?? "",
+        service4: s.service4 ?? "",
+        service5: s.service5 ?? "",
+        service6: s.service6 ?? "",
+        location: s.location ?? "",
+        designerNotes: s.designerNotes ?? "",
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact?.id]);
 
   useEffect(() => {
     if (activeTab === "Email" && contact) {
@@ -713,6 +740,14 @@ export default function ContactDetailPage() {
 
   const timelineEntries = generateTimeline(contact, activeTab);
   const designBriefOb = (contact.onboardingRecords ?? [])[0] ?? null;
+  // Brief source: prefer onboarding record, fall back to deal, fall back to null (no deal)
+  const briefSource = designBriefOb
+    ? { type: "onboarding" as const, id: designBriefOb.id }
+    : contact.dealBrief
+    ? { type: "deal" as const, id: contact.dealBrief.dealId }
+    : (contact.deals ?? []).length > 0
+    ? { type: "deal" as const, id: (contact.deals ?? [])[0].id }
+    : null;
 
 
   return (
@@ -1337,77 +1372,84 @@ export default function ContactDetailPage() {
               </div>
             </div>
 
-            {/* Design Brief — shows if onboarding exists OR if deal has brief data; editable inline */}
-            {(() => {
-              // Prefer onboarding record; fall back to deal-level brief
-              const brief = designBriefOb
-                ? { source: "onboarding" as const, id: designBriefOb.id, data: designBriefOb }
-                : contact.dealBrief
-                ? { source: "deal" as const, id: contact.dealBrief.dealId, data: contact.dealBrief }
-                : null;
-
-              if (!brief) return null;
-
-              const saveField = (field: string, value: string) => {
-                if (brief.source === "onboarding") {
-                  return fetch(`/api/onboarding/${brief.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ [field]: value }),
-                  }).then(() => mutate());
-                } else {
-                  return fetch(`/api/deals/${brief.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ [field]: value }),
-                  }).then(() => mutate());
-                }
-              };
-
-              const inputSt: React.CSSProperties = {
-                width: "100%", padding: "7px 10px", borderRadius: 8,
-                border: `1px solid ${Z.border}`, background: Z.bg,
-                color: Z.textPrimary, fontSize: 13, outline: "none",
-                boxSizing: "border-box" as const,
-              };
-              const fieldLabel = (label: string) => (
-                <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
-              );
-              const d = brief.data;
-              const key = brief.id;
-
-              return (
-                <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary, marginBottom: 16 }}>Design Brief</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div>
-                      {fieldLabel("Existing Website")}
-                      <input key={`ew-${key}`} style={inputSt} defaultValue={d.existingUrl ?? ""} placeholder="https://theircurrentsite.com" onBlur={(e) => saveField("existingUrl", e.target.value)} />
-                    </div>
-                    <div>
-                      {fieldLabel("Colour Scheme Notes")}
-                      <input key={`cs-${key}`} style={inputSt} defaultValue={d.colourSchemeNotes ?? ""} placeholder="e.g. Blues and greens, modern feel..." onBlur={(e) => saveField("colourSchemeNotes", e.target.value)} />
-                    </div>
-                    <div>
-                      {fieldLabel("Services")}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        {(["service1","service2","service3","service4","service5","service6"] as const).map((k, i) => (
-                          <input key={`${k}-${key}`} style={inputSt} defaultValue={(d as unknown as Record<string, string | null>)[k] ?? ""} placeholder={`Service ${i + 1}`} onBlur={(e) => saveField(k, e.target.value)} />
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      {fieldLabel("Location")}
-                      <input key={`loc-${key}`} style={inputSt} defaultValue={d.location ?? ""} placeholder="e.g. Denver, CO" onBlur={(e) => saveField("location", e.target.value)} />
-                    </div>
-                    <div>
-                      {fieldLabel("Notes for Designer")}
-                      <textarea key={`dn-${key}`} style={{ ...inputSt, resize: "vertical", fontFamily: "inherit", minHeight: 72 }} defaultValue={d.designerNotes ?? ""} placeholder="Any design guidance for the team..." onBlur={(e) => saveField("designerNotes", e.target.value)} />
-                    </div>
+            {/* Design Brief — always shown when contact has a deal; controlled state with Save button */}
+            {briefSource && (
+              <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary }}>Design Brief</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {briefSaved && <span style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
+                    <Btn
+                      disabled={briefSaving}
+                      onClick={async () => {
+                        setBriefSaving(true); setBriefSaved(false);
+                        const endpoint = briefSource.type === "onboarding"
+                          ? `/api/onboarding/${briefSource.id}`
+                          : `/api/deals/${briefSource.id}`;
+                        await fetch(endpoint, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(briefFields),
+                        });
+                        setBriefSaving(false); setBriefSaved(true);
+                        await mutate();
+                        setTimeout(() => setBriefSaved(false), 3000);
+                      }}
+                    >
+                      {briefSaving ? "Saving..." : "Save Brief"}
+                    </Btn>
                   </div>
                 </div>
-              );
-            })()}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {([
+                    { key: "existingUrl", label: "Existing Website", placeholder: "https://theircurrentsite.com", type: "input" },
+                    { key: "colourSchemeNotes", label: "Colour Scheme Notes", placeholder: "e.g. Blues and greens, modern feel...", type: "input" },
+                  ] as const).map(({ key, label, placeholder }) => (
+                    <div key={key}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+                      <input
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, background: "#fff", color: Z.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                        value={briefFields[key]}
+                        placeholder={placeholder}
+                        onChange={(e) => setBriefFields((p) => ({ ...p, [key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Services</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {(["service1","service2","service3","service4","service5","service6"] as const).map((k, i) => (
+                        <input
+                          key={k}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, background: "#fff", color: Z.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                          value={briefFields[k]}
+                          placeholder={`Service ${i + 1}`}
+                          onChange={(e) => setBriefFields((p) => ({ ...p, [k]: e.target.value }))}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Location</div>
+                    <input
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, background: "#fff", color: Z.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                      value={briefFields.location}
+                      placeholder="e.g. Denver, CO"
+                      onChange={(e) => setBriefFields((p) => ({ ...p, location: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Notes for Designer</div>
+                    <textarea
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, background: "#fff", color: Z.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit", minHeight: 72 }}
+                      value={briefFields.designerNotes}
+                      placeholder="Any design guidance for the team..."
+                      onChange={(e) => setBriefFields((p) => ({ ...p, designerNotes: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             </>
           )}
 
