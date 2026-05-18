@@ -2,14 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import useSWR, { mutate } from "swr";
-import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
 import { Modal, FormField, Input, Select, Btn } from "@/components/ui";
 import { Z, fmt, STRIPE_PRICE_IDS } from "@/lib/constants";
-
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-  : null;
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -54,7 +48,7 @@ function ContactSearch({
     )
     .slice(0, 6);
   if (!results.length) return (
-    <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 4, padding: "6px 0" }}>No existing contacts found — will create new</div>
+    <div style={{ fontSize: 12, color: Z.textMuted, marginTop: 4, padding: "6px 0" }}>No existing contacts found - will create new</div>
   );
   return (
     <div style={{ border: `1px solid ${Z.border}`, borderRadius: 8, marginTop: 4, overflow: "hidden", background: "#fff", position: "absolute", zIndex: 50, width: "100%", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
@@ -64,7 +58,7 @@ function ContactSearch({
           onClick={() => onSelect(c.id, c.name || "", c.company || "")}
           style={{ width: "100%", textAlign: "left", padding: "10px 12px", fontSize: 13, background: "none", border: "none", borderBottom: `1px solid ${Z.borderLight}`, cursor: "pointer", display: "flex", flexDirection: "column", gap: 2 }}
         >
-          <span style={{ fontWeight: 600, color: Z.textPrimary }}>{c.name || "—"}</span>
+          <span style={{ fontWeight: 600, color: Z.textPrimary }}>{c.name || "-"}</span>
           {(c.company || c.email) && (
             <span style={{ fontSize: 11, color: Z.textMuted }}>{[c.company, c.email].filter(Boolean).join(" · ")}</span>
           )}
@@ -74,63 +68,7 @@ function ContactSearch({
   );
 }
 
-// ── TakeSaleForm (Stripe card entry) ─────────────────────────────────────────
-
-import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
-
-function TakeSaleForm({
-  billingName, setBillingName, billingEmail, setBillingEmail,
-  amount, priceId, dealId, contactId, phone,
-  loading, setLoading, error, setError, onSuccess,
-}: {
-  billingName: string; setBillingName: (v: string) => void;
-  billingEmail: string; setBillingEmail: (v: string) => void;
-  amount: string; priceId: string | null; dealId: string; contactId: string | null;
-  phone: string | undefined; loading: boolean; setLoading: (v: boolean) => void;
-  error: string | null; setError: (v: string | null) => void;
-  onSuccess: (msg: string) => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-
-  const handleSubmit = async () => {
-    if (!stripe || !elements || !priceId) return;
-    setLoading(true);
-    setError(null);
-    const card = elements.getElement(CardElement);
-    if (!card) { setLoading(false); return; }
-    const { error: pmError, paymentMethod } = await stripe.createPaymentMethod({ type: "card", card, billing_details: { name: billingName, email: billingEmail } });
-    if (pmError) { setError(pmError.message || "Card error"); setLoading(false); return; }
-    const res = await fetch("/api/stripe/subscription", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentMethodId: paymentMethod!.id, priceId, name: billingName, email: billingEmail, phone, dealId, contactId }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (data.success) { onSuccess("Payment successful — subscription active!"); mutate("/api/deals"); mutate("/api/ar"); }
-    else setError(data.error || "Payment failed");
-  };
-
-  return (
-    <div>
-      <FormField label="Cardholder Name">
-        <Input value={billingName} onChange={setBillingName} placeholder="Name on card" />
-      </FormField>
-      <FormField label="Email for Receipt">
-        <Input value={billingEmail} onChange={setBillingEmail} placeholder="customer@example.com" type="email" />
-      </FormField>
-      <div style={{ border: `1px solid ${Z.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 16 }}>
-        <CardElement options={{ style: { base: { fontSize: "14px", color: Z.textPrimary } } }} />
-      </div>
-      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{error}</div>}
-      <Btn disabled={loading || !stripe || !priceId} onClick={handleSubmit}>
-        {loading ? "Processing..." : `Charge ${amount ? fmt(Number(amount)) : ""}/mo`}
-      </Btn>
-    </div>
-  );
-}
-
+// TakeSaleForm removed - both payment flows now use Stripe Checkout
 // ── Main Modal ─────────────────────────────────────────────────────────────────
 
 export function WonDealModal({
@@ -197,26 +135,16 @@ export function WonDealModal({
   // ── Submission / payment state ──
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdDeal, setCreatedDeal] = useState<{ id: string; contactId: string | null; contactName: string | null; contact?: ExistingDeal["contact"] } | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"take-sale" | "send-link">("take-sale");
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
-  const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
+  // createdDeal removed — no longer needed (payment flows use Stripe Checkout)
   const [sendLinkEmail, setSendLinkEmail] = useState("");
-  const [billingName, setBillingName] = useState("");
-  const [billingEmail, setBillingEmail] = useState("");
-  const [linkCopied, setLinkCopied] = useState(false);
 
-  // Pre-fill from existingDeal when in mark-won mode
+  // Pre-fill from existingDeal when in raise-sale mode
   useEffect(() => {
     if (existingDeal && open) {
       setProductId(existingDeal.productId || "");
       setDealValue(existingDeal.value ? String(Number(existingDeal.value)) : "");
       setRep(existingDeal.rep || "");
-      setBillingName(existingDeal.contactName || existingDeal.contact?.name || "");
       setSendLinkEmail(existingDeal.contact?.email || "");
-      setBillingEmail(existingDeal.contact?.email || "");
     }
   }, [existingDeal, open]);
 
@@ -227,9 +155,8 @@ export function WonDealModal({
     setDesignerCallDate(""); setDeliveryDate(""); setDesigner("");
     setLaunchFee(""); setSplitPayments(false); setSplitCount("2");
     setIndustry(""); setMarketingComments("");
-    setSubmitting(false); setError(null); setCreatedDeal(null);
-    setPaymentMethod("take-sale"); setPaymentLoading(false); setPaymentError(null);
-    setPaymentSuccess(null); setPaymentLinkUrl(null); setSendLinkEmail(""); setBillingName(""); setBillingEmail(""); setLinkCopied(false); setLinkSentSuccess(null);
+    setSubmitting(false); setError(null);
+    setSendLinkEmail(""); setLinkSentSuccess(null);
     setColourSchemeNotes(""); setService1(""); setService2(""); setService3(""); setService4(""); setService5(""); setService6(""); setDesignerBriefNotes("");
   }
 
@@ -239,7 +166,7 @@ export function WonDealModal({
   const productOptions = useMemo(() => {
     const prods = (products ?? []).filter((p) => ["DISCOVER","BOOST","DOMINATE"].some((t) => (p.description ?? "").toUpperCase().includes(t)));
     prods.sort((a, b) => Number(a.price) - Number(b.price));
-    return [{ value: "", label: "Select product..." }, ...prods.map((p) => ({ value: p.id, label: `${p.description} — $${Number(p.price)}/mo` }))];
+    return [{ value: "", label: "Select product..." }, ...prods.map((p) => ({ value: p.id, label: `${p.description} - $${Number(p.price)}/mo` }))];
   }, [products]);
 
   const repOptions = useMemo(() => [
@@ -255,112 +182,40 @@ export function WonDealModal({
     })),
   ], [team]);
 
-  function getStripePriceId(pid: string): string | null {
+  // Stable ref — defined outside callbacks so exhaustive-deps is happy
+  const getStripePriceId = useCallback((pid: string): string | null => {
     const p = (products ?? []).find((pr) => pr.id === pid);
     const desc = p?.description?.toUpperCase() ?? "";
     if (desc.includes("DISCOVER")) return STRIPE_PRICE_IDS.DISCOVER;
     if (desc.includes("BOOST")) return STRIPE_PRICE_IDS.BOOST;
     if (desc.includes("DOMINATE")) return STRIPE_PRICE_IDS.DOMINATE;
     return null;
-  }
+  }, [products]);
 
-  // Submit — create or mark won
-  const handleSubmit = useCallback(async () => {
-    if (!isMarkWon && !customerName.trim() && !businessName.trim()) {
-      setError("Customer name or business name is required"); return;
-    }
-    if (!isMarkWon && !domainType) {
-      setError("Domain preference is required"); return;
-    }
-    if (!isMarkWon && !domainName.trim()) {
-      setError(domainType === "existing" ? "Existing domain is required" : "Requested domain is required"); return;
-    }
+  // Submit - create or mark won
 
-    setSubmitting(true); setError(null);
-    try {
-      let contactId = linkedContactId || existingDeal?.contactId || null;
-
-      // Create contact if needed (new sale, no existing linked)
-      if (!isMarkWon && !contactId && (customerName.trim() || email.trim())) {
-        const cRes = await fetch("/api/contacts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: customerName.trim() || businessName.trim(), company: businessName.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined }),
-        });
-        if (cRes.ok) { const c = await cRes.json(); contactId = c.id; }
-        else { const err = await cRes.json(); throw new Error(err.error || "Failed to create contact"); }
-      }
-
-      let dealId: string;
-      let dealContactId: string | null = contactId;
-      let dealContactName: string | null = null;
-      let dealContact: ExistingDeal["contact"] = null;
-
-      if (isMarkWon && existingDeal) {
-        // PATCH existing deal to won
-        const res = await fetch(`/api/deals/${existingDeal.id}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stage: "won", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined,
-            deliveryDate: deliveryDate || undefined, designerCallDate: designerCallDate || undefined,
-            assignedDesigner: designer || undefined,
-            launchFeeAmount: launchFee ? Number(launchFee) : undefined, rep: rep || undefined,
-            wonDate: wonDate || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined,
-            existingUrl: existingUrl.trim() || undefined,
-            colourSchemeNotes: colourSchemeNotes.trim() || undefined,
-            service1: service1.trim() || undefined, service2: service2.trim() || undefined,
-            service3: service3.trim() || undefined, service4: service4.trim() || undefined,
-            service5: service5.trim() || undefined, service6: service6.trim() || undefined,
-            designerNotes: designerBriefNotes.trim() || undefined,
-          }),
-        });
-        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to raise sale"); }
-        dealId = existingDeal.id;
-        dealContactId = existingDeal.contactId;
-        dealContactName = existingDeal.contactName;
-        dealContact = existingDeal.contact ?? null;
-      } else {
-        // POST new deal as won
-        const title = businessName.trim() || customerName.trim();
-        const res = await fetch("/api/deals", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title, contactName: customerName.trim() || undefined, contactId: contactId || undefined,
-            stage: "won", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined,
-            rep: rep || undefined, wonDate: wonDate || undefined, deliveryDate: deliveryDate || undefined,
-            designerCallDate: designerCallDate || undefined,
-            assignedDesigner: designer || undefined, launchFeeAmount: launchFee ? Number(launchFee) : undefined,
-            domainType: domainType || undefined, domainName: domainName.trim() || undefined,
-            existingUrl: existingUrl.trim() || undefined,
-            colourSchemeNotes: colourSchemeNotes.trim() || undefined,
-            service1: service1.trim() || undefined, service2: service2.trim() || undefined,
-            service3: service3.trim() || undefined, service4: service4.trim() || undefined,
-            service5: service5.trim() || undefined, service6: service6.trim() || undefined,
-            designerNotes: designerBriefNotes.trim() || undefined,
-          }),
-        });
-        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to create deal"); }
-        const deal = await res.json();
-        dealId = deal.id;
-        dealContactName = deal.contactName;
-      }
-
-      await mutate("/api/deals");
-      mutate("/api/onboarding?status=active");
-      mutate("/api/contacts");
-
-      setCreatedDeal({ id: dealId, contactId: dealContactId, contactName: dealContactName, contact: dealContact });
-      setBillingName(dealContactName || customerName.trim() || "");
-      setSendLinkEmail(dealContact?.email || email.trim() || "");
-      setBillingEmail(dealContact?.email || email.trim() || "");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [isMarkWon, existingDeal, linkedContactId, customerName, businessName, email, phone, domainType, domainName, dealType, productId, dealValue, rep, wonDate, designerCallDate, deliveryDate, designer, launchFee, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
-
-  // ── Send Link handler: moves deal to 'link-sent' stage, emails payment link — does NOT mark as won
+  // ── Send Link handler: moves deal to 'link-sent' stage, emails payment link - does NOT mark as won
   const [linkSentSuccess, setLinkSentSuccess] = useState<string | null>(null);
+
+  // Shared: create contact + deal (if new sale), then return dealId + contact info
+  const ensureDeal = useCallback(async (): Promise<{ dealId: string; contactName: string; contactEmail: string } | null> => {
+    if (existingDeal) {
+      return { dealId: existingDeal.id, contactName: existingDeal.contactName || "", contactEmail: existingDeal.contact?.email || sendLinkEmail || "" };
+    }
+    // New sale - create contact then deal
+    let contactId = linkedContactId || null;
+    if (!contactId && (customerName.trim() || email.trim())) {
+      const cRes = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: customerName.trim() || businessName.trim(), company: businessName.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined }) });
+      if (cRes.ok) { const c = await cRes.json(); contactId = c.id; }
+    }
+    const title = businessName.trim() || customerName.trim();
+    const dRes = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, contactName: customerName.trim() || undefined, contactId: contactId || undefined, stage: "link-sent", dealType, productId: productId || undefined, value: dealValue ? Number(dealValue) : undefined, rep: rep || undefined, domainType: domainType || undefined, domainName: domainName.trim() || undefined }) });
+    if (!dRes.ok) { const err = await dRes.json(); throw new Error(err.error || "Failed to create deal"); }
+    const deal = await dRes.json();
+    return { dealId: deal.id, contactName: customerName.trim() || businessName.trim(), contactEmail: email.trim() };
+  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName]);
+
+  // Send Link - emails Stripe Checkout URL to customer, moves deal to link-sent
   const handleSendLink = useCallback(async () => {
     if (!productId) { setError("Select a product first"); return; }
     const targetEmail = sendLinkEmail || email.trim();
@@ -368,45 +223,65 @@ export function WonDealModal({
     setSubmitting(true); setError(null);
     try {
       const priceId = getStripePriceId(productId);
-      if (!priceId) { setError("No Stripe price configured for this product"); setSubmitting(false); return; }
+      if (!priceId) { setError("No Stripe price configured for this product. Select DISCOVER, BOOST, or DOMINATE."); setSubmitting(false); return; }
       const p = (products ?? []).find((pr) => pr.id === productId);
-      const contactName = existingDeal?.contactName || customerName.trim();
-
-      // 1. Generate + email the Stripe payment link
+      const dealInfo = await ensureDeal();
+      if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
       const linkRes = await fetch("/api/stripe/payment-link", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: contactName, email: targetEmail, priceId, dealId: existingDeal?.id || "pending", productName: p?.description || "", sendEmail: true }),
+        body: JSON.stringify({ name: dealInfo.contactName, email: targetEmail, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: true }),
       });
       const linkData = await linkRes.json();
       if (!linkData.success) throw new Error(linkData.error || "Failed to send payment link");
-
-      // 2. Move deal to 'link-sent' stage (not won)
+      // Move deal to link-sent if it's an existing deal (ensureDeal already sets link-sent for new deals)
       if (existingDeal?.id) {
-        await fetch(`/api/deals/${existingDeal.id}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stage: "link-sent", rep: rep || undefined }),
-        });
+        await fetch(`/api/deals/${existingDeal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "link-sent", rep: rep || undefined }) });
       }
-
-      mutate("/api/deals");
-      mutate("/api/contacts");
-      setLinkSentSuccess(`Payment link sent to ${targetEmail}`);
+      mutate("/api/deals"); mutate("/api/contacts");
+      setLinkSentSuccess(`Payment link sent to ${targetEmail} - deal moved to Link Sent`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [existingDeal, customerName, email, sendLinkEmail, productId, rep, products]);
+    } finally { setSubmitting(false); }
+  }, [existingDeal, sendLinkEmail, email, productId, rep, products, ensureDeal, getStripePriceId]);
 
-  const activeDeal = createdDeal ?? (existingDeal ? { id: existingDeal.id, contactId: existingDeal.contactId, contactName: existingDeal.contactName, contact: existingDeal.contact } : null);
-  const showPayment = !!createdDeal;
+  // Take Payment - opens Stripe Checkout in a new tab, moves deal to link-sent
+  const handleTakePayment = useCallback(async () => {
+    if (!productId) { setError("Select a product first"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const priceId = getStripePriceId(productId);
+      if (!priceId) { setError("No Stripe price configured for this product. Select DISCOVER, BOOST, or DOMINATE."); setSubmitting(false); return; }
+      const p = (products ?? []).find((pr) => pr.id === productId);
+      const dealInfo = await ensureDeal();
+      if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
+      const contactEmail = dealInfo.contactEmail || sendLinkEmail;
+      const linkRes = await fetch("/api/stripe/payment-link", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: dealInfo.contactName, email: contactEmail || undefined, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: false }),
+      });
+      const linkData = await linkRes.json();
+      if (!linkData.success) throw new Error(linkData.error || "Failed to create payment session");
+      // Move deal to link-sent if it's an existing deal
+      if (existingDeal?.id) {
+        await fetch(`/api/deals/${existingDeal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "link-sent", rep: rep || undefined }) });
+      }
+      mutate("/api/deals"); mutate("/api/contacts");
+      // Open Stripe Checkout in new tab
+      window.open(linkData.checkoutUrl, "_blank");
+      setLinkSentSuccess("Payment window opened - deal moved to Link Sent. It moves to Won when payment completes.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally { setSubmitting(false); }
+  }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId]);
+
+
 
   return (
-    <Modal open={open} onClose={handleClose} title={isMarkWon ? `Raise Sale — ${existingDeal?.title ?? ""}` : "New Sale"}>
+    <Modal open={open} onClose={handleClose} title={isMarkWon ? `Raise Sale - ${existingDeal?.title ?? ""}` : "New Sale"}>
       <div style={{ maxHeight: "75vh", overflowY: "auto", paddingRight: 4 }}>
 
         {/* ── SECTION: Contact ── */}
-        {!isMarkWon && !createdDeal && (
+        {!isMarkWon && !linkSentSuccess && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Contact</div>
 
@@ -459,7 +334,7 @@ export function WonDealModal({
         )}
 
         {/* ── SECTION: Deal Info ── */}
-        {!createdDeal && (
+        {!linkSentSuccess && (
           <>
             <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Deal</div>
 
@@ -582,17 +457,22 @@ export function WonDealModal({
 
             {linkSentSuccess ? (
               <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 12, padding: 20, textAlign: "center" }}>
-                <div style={{ fontSize: 20, marginBottom: 6 }}>📧</div>
+                <div style={{ fontSize: 20, marginBottom: 6 }}>{linkSentSuccess.startsWith("Payment window") ? "💳" : "📧"}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginBottom: 4 }}>{linkSentSuccess}</div>
-                <div style={{ fontSize: 12, color: "#065f46", opacity: 0.8, marginBottom: 16 }}>Deal moved to “Link Sent” in the pipeline. It will move to Won once payment is confirmed.</div>
+                <div style={{ fontSize: 12, color: "#065f46", opacity: 0.8, marginBottom: 16 }}>Deal moves to Won automatically when payment is confirmed.</div>
                 <Btn onClick={() => { onSuccess(existingDeal?.title || customerName); handleClose(); }}>Done</Btn>
               </div>
             ) : (
               <>
-                <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+                {/* Customer email - shown for Send Link; pre-filled if available */}
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Customer Email (for Send Link)</div>
+                  <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" type="email" />
+                </div>
+                <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
                   <button
                     disabled={submitting}
-                    onClick={() => { setPaymentMethod("take-sale"); handleSubmit(); }}
+                    onClick={handleTakePayment}
                     style={{
                       flex: 1, padding: "16px 0", borderRadius: 12,
                       background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
@@ -603,7 +483,7 @@ export function WonDealModal({
                       transition: "all 0.15s",
                     }}
                   >
-                    {submitting ? "Processing..." : "💳 Take Payment"}
+                    {submitting ? "Opening..." : "💳 Take Payment"}
                   </button>
                   <button
                     disabled={submitting}
@@ -622,7 +502,7 @@ export function WonDealModal({
                   </button>
                 </div>
                 <div style={{ fontSize: 11, color: Z.textMuted, textAlign: "center", marginTop: 8 }}>
-                  Take Payment marks as Won. Send Link moves to “Link Sent” until payment confirms.
+                  Take Payment opens a Stripe checkout window. Send Link emails the checkout link to the customer.
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
                   <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
@@ -632,96 +512,7 @@ export function WonDealModal({
           </>
         )}
 
-        {/* ── SECTION: Payment (after won) ── */}
-        {showPayment && activeDeal && (
-          <div>
-            <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, fontWeight: 700, color: "#065f46" }}>
-              ✓ Sale raised — onboarding created
-            </div>
-
-            {!paymentSuccess ? (
-              <>
-                <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary, marginBottom: 16 }}>
-                  {paymentMethod === "take-sale" ? "💳 Take Payment" : "🔗 Send Payment Link"}
-                </div>
-
-                {paymentMethod === "take-sale" && (
-                  !stripePromise ? (
-                    <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: 12, fontSize: 12, color: "#92400e" }}>Stripe publishable key not configured.</div>
-                  ) : (
-                    <Elements stripe={stripePromise} options={{ appearance: { theme: "stripe" } } as StripeElementsOptions}>
-                      <TakeSaleForm
-                        billingName={billingName} setBillingName={setBillingName}
-                        billingEmail={billingEmail} setBillingEmail={setBillingEmail}
-                        amount={dealValue} priceId={getStripePriceId(productId)}
-                        dealId={activeDeal.id} contactId={activeDeal.contactId}
-                        phone={activeDeal.contact?.phone ?? undefined}
-                        loading={paymentLoading} setLoading={setPaymentLoading}
-                        error={paymentError} setError={setPaymentError}
-                        onSuccess={(msg) => setPaymentSuccess(msg)}
-                      />
-                    </Elements>
-                  )
-                )}
-
-                {paymentMethod === "send-link" && (
-                  paymentSuccess ? null : (
-                    <div>
-                      <div style={{ fontSize: 13, color: Z.textSecondary, marginBottom: 12 }}>
-                        A payment link will be emailed directly to the customer.
-                      </div>
-                      <FormField label="Customer Email">
-                        <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" />
-                      </FormField>
-                      {paymentLinkUrl && (
-                        <div style={{ marginBottom: 12 }}>
-                          <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#065f46", fontWeight: 600, marginBottom: 8 }}>
-                            ✓ Payment link emailed to {sendLinkEmail}
-                          </div>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <input readOnly value={paymentLinkUrl} style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, fontSize: 11, outline: "none", background: Z.bg, color: Z.textMuted }} />
-                            <Btn variant="secondary" onClick={() => { navigator.clipboard.writeText(paymentLinkUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}>
-                              {linkCopied ? "Copied!" : "Copy"}
-                            </Btn>
-                          </div>
-                        </div>
-                      )}
-                      {paymentError && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{paymentError}</div>}
-                      {!paymentLinkUrl && (
-                        <Btn disabled={paymentLoading || !sendLinkEmail || !productId} onClick={async () => {
-                          setPaymentLoading(true); setPaymentError(null);
-                          try {
-                            const priceId = getStripePriceId(productId);
-                            if (!priceId) { setPaymentError("No Stripe price for this product."); setPaymentLoading(false); return; }
-                            const p = (products ?? []).find((pr) => pr.id === productId);
-                            const res = await fetch("/api/stripe/payment-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: activeDeal.contactName || customerName, email: sendLinkEmail, priceId, dealId: activeDeal.id, productName: p?.description || "", sendEmail: true }) });
-                            const data = await res.json();
-                            if (data.success) setPaymentLinkUrl(data.checkoutUrl);
-                            else setPaymentError(data.error || "Failed to send link");
-                          } catch { setPaymentError("Network error"); }
-                          setPaymentLoading(false);
-                        }}>
-                          {paymentLoading ? "Sending..." : "Send Payment Link"}
-                        </Btn>
-                      )}
-                    </div>
-                  )
-                )}
-              </>
-            ) : (
-              <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 10, padding: 16, textAlign: "center" }}>
-                <div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46" }}>{paymentSuccess}</div>
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-              <Btn onClick={() => { onSuccess(existingDeal?.title || businessName || customerName); handleClose(); }}>
-                {paymentSuccess ? "Done" : "Skip Payment"}
-              </Btn>
-            </div>
-          </div>
-        )}
+        {/* Payment section removed — both flows use Stripe Checkout via handleTakePayment / handleSendLink */}
       </div>
     </Modal>
   );

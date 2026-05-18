@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, email, priceId, dealId, productName } = body;
 
-    if (!email || !priceId || !dealId) {
+    if (!priceId || !dealId) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields: email, priceId, dealId" },
+        { success: false, error: "Missing required fields: priceId, dealId" },
         { status: 400 }
       );
     }
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create(
       {
         mode: "subscription",
-        customer_email: email,
+        ...(email ? { customer_email: email } : {}),
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/payment-cancelled`,
