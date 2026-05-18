@@ -140,6 +140,7 @@ model Product {
   commissionType  String?   @map("commission_type")
   commissionValue          Decimal?  @map("commission_value") @db.Decimal(12, 2)
   launchFeeCommissionRate  Decimal?  @map("launch_fee_commission_rate") @db.Decimal(5, 4)
+  stripePriceId   String?   @map("stripe_price_id")
 
   deals           Deal[]
   onboardings     Onboarding[]

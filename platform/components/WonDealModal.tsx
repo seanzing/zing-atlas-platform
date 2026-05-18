@@ -11,7 +11,7 @@ function toYMD(d: Date) { return d.toISOString().slice(0, 10); }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Product { id: string; description: string; price: number; }
+interface Product { id: string; description: string; price: number; stripePriceId?: string | null; category?: string | null; }
 interface TeamMember { id: string; firstName: string; lastName: string | null; department: string | null; }
 // Designer interface kept for future use
 // interface Designer { id: string; name: string | null; }
@@ -197,11 +197,20 @@ export function WonDealModal({
   // Stable ref — defined outside callbacks so exhaustive-deps is happy
   const getStripePriceId = useCallback((pid: string): string | null => {
     const p = (products ?? []).find((pr) => pr.id === pid);
-    const desc = p?.description?.toUpperCase() ?? "";
+    if (!p) return null;
+    // Use directly linked Stripe price if available
+    if (p.stripePriceId) return p.stripePriceId;
+    // Fall back to hardcoded mapping for legacy DISCOVER/BOOST/DOMINATE
+    const desc = p.description?.toUpperCase() ?? "";
     if (desc.includes("DISCOVER")) return STRIPE_PRICE_IDS.DISCOVER;
     if (desc.includes("BOOST")) return STRIPE_PRICE_IDS.BOOST;
     if (desc.includes("DOMINATE")) return STRIPE_PRICE_IDS.DOMINATE;
     return null;
+  }, [products]);
+
+  const getBillingType = useCallback((pid: string): "subscription" | "payment" => {
+    const p = (products ?? []).find((pr) => pr.id === pid);
+    return p?.category === "one-time" ? "payment" : "subscription";
   }, [products]);
 
   // Submit - create or mark won
@@ -241,7 +250,7 @@ export function WonDealModal({
       if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
       const linkRes = await fetch("/api/stripe/payment-link", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: dealInfo.contactName, email: targetEmail, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: true }),
+        body: JSON.stringify({ name: dealInfo.contactName, email: targetEmail, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: true, billingType: getBillingType(productId) }),
       });
       const linkData = await linkRes.json();
       if (!linkData.success) throw new Error(linkData.error || "Failed to send payment link");
@@ -254,7 +263,7 @@ export function WonDealModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally { setSubmitting(false); }
-  }, [existingDeal, sendLinkEmail, email, productId, rep, products, ensureDeal, getStripePriceId]);
+  }, [existingDeal, sendLinkEmail, email, productId, rep, products, ensureDeal, getStripePriceId, getBillingType]);
 
   // Take Payment - opens Stripe Checkout in a new tab, moves deal to link-sent
   const handleTakePayment = useCallback(async () => {
@@ -269,7 +278,7 @@ export function WonDealModal({
       const contactEmail = dealInfo.contactEmail || sendLinkEmail;
       const linkRes = await fetch("/api/stripe/payment-link", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: dealInfo.contactName, email: contactEmail || undefined, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: false }),
+        body: JSON.stringify({ name: dealInfo.contactName, email: contactEmail || undefined, priceId, dealId: dealInfo.dealId, productName: p?.description || "", sendEmail: false, billingType: getBillingType(productId) }),
       });
       const linkData = await linkRes.json();
       if (!linkData.success) throw new Error(linkData.error || "Failed to create payment session");
@@ -284,7 +293,7 @@ export function WonDealModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally { setSubmitting(false); }
-  }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId]);
+  }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId, getBillingType]);
 
   // Payment Taken — finds existing Stripe subscription by email, links it, marks as won, creates onboarding
   const handlePaymentTaken = useCallback(async () => {

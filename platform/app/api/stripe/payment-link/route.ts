@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     if (auth.error) return auth.error;
 
     const body = await req.json();
-    const { name, email, priceId, dealId, productName } = body;
+    const { name, email, priceId, dealId, productName, billingType } = body;
+    const isOneTime = billingType === "payment";
 
     if (!priceId || !dealId) {
       return NextResponse.json(
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     // 1. Create Stripe Checkout Session (idempotency key prevents duplicate sessions on retry)
     const session = await stripe.checkout.sessions.create(
       {
-        mode: "subscription",
+        mode: isOneTime ? "payment" : "subscription",
         ...(email ? { customer_email: email } : {}),
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,

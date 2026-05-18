@@ -280,6 +280,59 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── checkout.session.completed (one-time payment with dealId in metadata) ──
+    // Handles one-time charge products created via /api/stripe/payment-link with billingType="payment"
+    if (eventType === "checkout.session.completed") {
+      const session = eventObject;
+      const metadata = (session?.metadata as Record<string, string>) || {};
+      const dealId = metadata.dealId;
+      const sessionMode = session?.mode as string;
+
+      if (dealId && sessionMode === "payment" && session?.payment_status === "paid") {
+        const customerId = session?.customer as string | null;
+        const customerEmail = session?.customer_email as string | null;
+
+        // Mark deal as won
+        await prisma.deal.update({
+          where: { id: dealId },
+          data: {
+            stage: "won",
+            wonDate: new Date(),
+            paymentStatus: "confirmed",
+            ...(customerId ? { stripeCustomerId: customerId } : {}),
+          },
+        });
+
+        // Create AR account for the one-time payment
+        if (customerEmail) {
+          const amountTotal = ((session?.amount_total as number | null) ?? 0) / 100;
+          const existing = await prisma.arAccount.findFirst({
+            where: { email: customerEmail, organizationId: ORG_ID, deletedAt: null },
+          });
+          if (!existing) {
+            const deal = await prisma.deal.findFirst({ where: { id: dealId } });
+            await prisma.arAccount.create({
+              data: {
+                organizationId: ORG_ID,
+                customerName: deal?.contactName || (session?.customer_details as { name?: string } | null)?.name || "Unknown",
+                email: customerEmail,
+                status: "active",
+                mrr: amountTotal,
+                ...(customerId ? { stripeCustomerId: customerId } : {}),
+              },
+            }).catch(() => {});
+          }
+        }
+
+        // Create onboarding
+        const { createOnboardingForDeal } = await import("@/lib/create-onboarding");
+        await createOnboardingForDeal(dealId);
+
+        logger.info({ eventId, dealId, sessionMode }, "checkout.session.completed: one-time payment — deal won, onboarding created");
+        return NextResponse.json({ received: true, processed: "one_time_checkout_completed" });
+      }
+    }
+
     // ── customer.subscription.created ──
     if (eventType === "customer.subscription.created") {
       const subscription = eventObject;

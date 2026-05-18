@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
         commissionType: body.commissionType ?? null,
         commissionValue: body.commissionValue ?? null,
         launchFeeCommissionRate: body.launchFeeCommissionRate ?? null,
+        stripePriceId: body.stripePriceId ?? null,
         organizationId: ORG_ID,
       },
     });

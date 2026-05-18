@@ -138,6 +138,7 @@ export default function ProductsPage() {
   const [pbBasePlan, setPbBasePlan] = useState("Custom");
   const [pbCommValue, setPbCommValue] = useState("1");
   const [pbLaunchRate, setPbLaunchRate] = useState("20");
+  const [pbStripePriceId, setPbStripePriceId] = useState("");
 
   // Tasks (Step 2)
   const [pbTasks, setPbTasks] = useState<TaskTemplateRow[]>([]);
@@ -190,6 +191,7 @@ export default function ProductsPage() {
     setPbBasePlan("Custom");
     setPbCommValue("1");
     setPbLaunchRate("20");
+    setPbStripePriceId("");
     setPbTasks([]);
     setSelectedComponents(new Set());
     setCustomTasks([]);
@@ -207,6 +209,7 @@ export default function ProductsPage() {
     setPbBasePlan("Custom");
     setPbCommValue(String(p.commissionValue ?? 1));
     setPbLaunchRate(String(Math.round((p.launchFeeCommissionRate ?? 0.2) * 100)));
+    setPbStripePriceId((p as Product & { stripePriceId?: string }).stripePriceId || "");
     setBuilderStep(1);
     setShowCustomTasks(false);
 
@@ -257,6 +260,7 @@ export default function ProductsPage() {
     setPbBasePlan("Custom");
     setPbCommValue(String(p.commissionValue ?? 1));
     setPbLaunchRate(String(Math.round((p.launchFeeCommissionRate ?? 0.2) * 100)));
+    setPbStripePriceId((p as Product & { stripePriceId?: string }).stripePriceId || "");
     setBuilderStep(2);
     setShowCustomTasks(false);
 
@@ -385,6 +389,7 @@ export default function ProductsPage() {
             commissionType: pbCategory === "one-time" ? "one-time" : "subscription",
             commissionValue: isNaN(parseFloat(pbCommValue)) ? 0 : parseFloat(pbCommValue),
             launchFeeCommissionRate: isNaN(parseFloat(pbLaunchRate)) ? 0 : parseFloat(pbLaunchRate) / 100,
+            stripePriceId: pbStripePriceId.trim() || null,
           }),
         });
 
@@ -842,6 +847,16 @@ export default function ProductsPage() {
                       </FormField>
                     </>
                   )}
+                  <FormField label="Stripe Price ID">
+                    <Input
+                      value={pbStripePriceId}
+                      onChange={setPbStripePriceId}
+                      placeholder="price_1ABC... (from Stripe dashboard)"
+                    />
+                    <div style={{ fontSize: 11, color: Z.textMuted, marginTop: 4 }}>
+                      Paste the Price ID from your Stripe product. Required for Take Payment and Send Link.
+                    </div>
+                  </FormField>
                 </div>
               )}
 

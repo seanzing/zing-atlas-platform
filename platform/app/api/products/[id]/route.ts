@@ -73,7 +73,7 @@ export async function PUT(
 
     // Whitelist allowed fields to prevent mass assignment
     const allowedFields: Record<string, unknown> = {};
-    const whitelist = ["description", "price", "category", "commissionType", "commissionValue", "launchFeeCommissionRate"];
+    const whitelist = ["description", "price", "category", "commissionType", "commissionValue", "launchFeeCommissionRate", "stripePriceId"];
     for (const key of whitelist) {
       if (key in body) allowedFields[key] = body[key];
     }
