@@ -540,11 +540,40 @@ export function WonDealModal({
 
             {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>{error}</div>}
 
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
-              <Btn variant="secondary" onClick={handleClose}>Cancel</Btn>
-              <Btn onClick={handleSubmit} disabled={submitting}>
-                {submitting ? "Saving..." : isMarkWon ? "Mark as Won" : "Create Sale"}
-              </Btn>
+            <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+              <button
+                disabled={submitting}
+                onClick={() => { setPaymentMethod("take-sale"); handleSubmit(); }}
+                style={{
+                  flex: 1, padding: "16px 0", borderRadius: 12,
+                  background: `linear-gradient(135deg, ${Z.ultramarine}, ${Z.violet})`,
+                  border: "none", color: "#fff", fontSize: 15, fontWeight: 800,
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  opacity: submitting ? 0.7 : 1,
+                  boxShadow: "0 4px 14px rgba(58,90,255,0.35)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {submitting ? "Processing..." : "💳 Take Payment"}
+              </button>
+              <button
+                disabled={submitting}
+                onClick={() => { setPaymentMethod("send-link"); handleSubmit(); }}
+                style={{
+                  flex: 1, padding: "16px 0", borderRadius: 12,
+                  background: "transparent",
+                  border: `2px solid ${Z.ultramarine}`,
+                  color: Z.ultramarine, fontSize: 15, fontWeight: 800,
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  opacity: submitting ? 0.7 : 1,
+                  transition: "all 0.15s",
+                }}
+              >
+                {submitting ? "Processing..." : "🔗 Send Link"}
+              </button>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+              <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
             </div>
           </>
         )}
@@ -558,14 +587,8 @@ export function WonDealModal({
 
             {!paymentSuccess ? (
               <>
-                <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary, marginBottom: 12 }}>Process Payment</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                  {(["take-sale", "send-link"] as const).map((m) => (
-                    <button key={m} onClick={() => { setPaymentMethod(m); setPaymentError(null); setPaymentLinkUrl(null); }}
-                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: paymentMethod === m ? `2px solid ${Z.ultramarine}` : `1px solid ${Z.border}`, background: paymentMethod === m ? `${Z.ultramarine}10` : "transparent", color: paymentMethod === m ? Z.ultramarine : Z.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                      {m === "take-sale" ? "💳 Take Sale" : "🔗 Send Link"}
-                    </button>
-                  ))}
+                <div style={{ fontSize: 14, fontWeight: 700, color: Z.textPrimary, marginBottom: 16 }}>
+                  {paymentMethod === "take-sale" ? "💳 Take Payment" : "🔗 Send Payment Link"}
                 </div>
 
                 {paymentMethod === "take-sale" && (
