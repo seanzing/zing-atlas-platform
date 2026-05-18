@@ -84,7 +84,7 @@ function fmtDate(d: string | Date | null): string {
 export default function OnboardingFullPage() {
   const { data: rows, mutate: refresh } = useSWR<FullRow[]>("/api/onboarding/full");
   const { data: teamMembers } = useSWR<{ id: string; firstName: string | null; lastName: string | null; department: string | null }[]>("/api/team");
-  const designers = (teamMembers ?? []).filter((m) => m.department === "Design" || m.department === "design").map((m) => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim()).filter(Boolean);
+  const designers = (teamMembers ?? []).filter((m) => m.department?.toLowerCase() === "design").map((m) => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim()).filter(Boolean);
   const { toast, showToast } = useToast();
   const router = useRouter();
 
