@@ -719,7 +719,7 @@ export default function ContactDetailPage() {
 
   const timelineEntries = generateTimeline(contact, activeTab);
   const designBriefOb = (contact.onboardingRecords ?? [])[0] ?? null;
-  const hasDesignBrief: boolean = designBriefOb !== null && !!(designBriefOb.existingUrl || designBriefOb.colourSchemeNotes || designBriefOb.service1 || designBriefOb.designerNotes);
+
 
   return (
     <div>
@@ -1341,40 +1341,51 @@ export default function ContactDetailPage() {
               </div>
             </div>
 
-            {/* Design Brief — from onboarding record */}
-            {hasDesignBrief && designBriefOb !== null && (
-              <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary, marginBottom: 14 }}>Design Brief</div>
-                {designBriefOb.existingUrl && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Existing Website</div>
-                    <a href={designBriefOb.existingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: Z.ultramarine }}>{designBriefOb.existingUrl}</a>
-                  </div>
-                )}
-                {designBriefOb.colourSchemeNotes && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Colour Scheme</div>
-                    <div style={{ fontSize: 13, color: Z.textPrimary }}>{designBriefOb.colourSchemeNotes}</div>
-                  </div>
-                )}
-                {[designBriefOb.service1, designBriefOb.service2, designBriefOb.service3, designBriefOb.service4, designBriefOb.service5, designBriefOb.service6].some(Boolean) && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Services</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {[designBriefOb.service1, designBriefOb.service2, designBriefOb.service3, designBriefOb.service4, designBriefOb.service5, designBriefOb.service6].filter(Boolean).map((s, i) => (
-                        <span key={i} style={{ padding: "3px 10px", borderRadius: 20, background: `${Z.ultramarine}12`, color: Z.ultramarine, fontSize: 12, fontWeight: 600 }}>{s}</span>
-                      ))}
+            {/* Design Brief — always visible if onboarding exists, editable inline */}
+            {designBriefOb !== null && (() => {
+              const saveObField = (field: string, value: string) =>
+                fetch(`/api/onboarding/${designBriefOb.id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ [field]: value }),
+                }).then(() => mutate());
+              const inputSt: React.CSSProperties = {
+                width: "100%", padding: "7px 10px", borderRadius: 8,
+                border: `1px solid ${Z.border}`, background: Z.bg,
+                color: Z.textPrimary, fontSize: 13, outline: "none",
+                boxSizing: "border-box" as const,
+              };
+              const fieldLabel = (label: string) => (
+                <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+              );
+              return (
+                <div style={{ background: Z.bg, border: `1px solid ${Z.border}`, borderRadius: 14, padding: 20, marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: Z.textPrimary, marginBottom: 16 }}>Design Brief</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      {fieldLabel("Existing Website")}
+                      <input key={`ew-${designBriefOb.id}`} style={inputSt} defaultValue={designBriefOb.existingUrl ?? ""} placeholder="https://theircurrentsite.com" onBlur={(e) => saveObField("existingUrl", e.target.value)} />
+                    </div>
+                    <div>
+                      {fieldLabel("Colour Scheme Notes")}
+                      <input key={`cs-${designBriefOb.id}`} style={inputSt} defaultValue={designBriefOb.colourSchemeNotes ?? ""} placeholder="e.g. Blues and greens, modern feel..." onBlur={(e) => saveObField("colourSchemeNotes", e.target.value)} />
+                    </div>
+                    <div>
+                      {fieldLabel("Services")}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        {(["service1","service2","service3","service4","service5","service6"] as const).map((k, i) => (
+                          <input key={`${k}-${designBriefOb.id}`} style={inputSt} defaultValue={(designBriefOb as unknown as Record<string, string | null>)[k] ?? ""} placeholder={`Service ${i + 1}`} onBlur={(e) => saveObField(k, e.target.value)} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      {fieldLabel("Notes for Designer")}
+                      <textarea key={`dn-${designBriefOb.id}`} style={{ ...inputSt, resize: "vertical", fontFamily: "inherit", minHeight: 72 }} defaultValue={designBriefOb.designerNotes ?? ""} placeholder="Any design guidance for the team..." onBlur={(e) => saveObField("designerNotes", e.target.value)} />
                     </div>
                   </div>
-                )}
-                {designBriefOb.designerNotes && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Notes for Designer</div>
-                    <div style={{ fontSize: 13, color: Z.textPrimary, lineHeight: 1.6 }}>{designBriefOb.designerNotes}</div>
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
             </>
           )}
 
