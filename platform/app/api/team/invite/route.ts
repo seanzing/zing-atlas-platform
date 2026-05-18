@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: { firstName, lastName },
-        redirectTo: `${appUrl}/auth/callback?next=/auth/reset`,
+        redirectTo: `${appUrl}/auth/reset`,
       });
 
     if (inviteError) {
