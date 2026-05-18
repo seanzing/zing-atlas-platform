@@ -588,37 +588,45 @@ export function WonDealModal({
                 )}
 
                 {paymentMethod === "send-link" && (
-                  paymentLinkUrl ? (
+                  paymentSuccess ? null : (
                     <div>
-                      <div style={{ fontSize: 12, color: Z.textSecondary, marginBottom: 8 }}>Share this with the customer to complete their subscription.</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input readOnly value={paymentLinkUrl} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${Z.border}`, fontSize: 12, outline: "none", background: Z.bg }} />
-                        <Btn variant="secondary" onClick={() => { navigator.clipboard.writeText(paymentLinkUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}>
-                          {linkCopied ? "Copied!" : "Copy"}
-                        </Btn>
+                      <div style={{ fontSize: 13, color: Z.textSecondary, marginBottom: 12 }}>
+                        A payment link will be emailed directly to the customer.
                       </div>
-                    </div>
-                  ) : (
-                    <div>
                       <FormField label="Customer Email">
                         <Input value={sendLinkEmail} onChange={setSendLinkEmail} placeholder="customer@example.com" />
                       </FormField>
+                      {paymentLinkUrl && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ background: "#d1fae5", border: "1px solid #10b981", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#065f46", fontWeight: 600, marginBottom: 8 }}>
+                            ✓ Payment link emailed to {sendLinkEmail}
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <input readOnly value={paymentLinkUrl} style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: `1px solid ${Z.border}`, fontSize: 11, outline: "none", background: Z.bg, color: Z.textMuted }} />
+                            <Btn variant="secondary" onClick={() => { navigator.clipboard.writeText(paymentLinkUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}>
+                              {linkCopied ? "Copied!" : "Copy"}
+                            </Btn>
+                          </div>
+                        </div>
+                      )}
                       {paymentError && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>{paymentError}</div>}
-                      <Btn disabled={paymentLoading || !sendLinkEmail || !productId} onClick={async () => {
-                        setPaymentLoading(true); setPaymentError(null);
-                        try {
-                          const priceId = getStripePriceId(productId);
-                          if (!priceId) { setPaymentError("No Stripe price for this product"); setPaymentLoading(false); return; }
-                          const p = (products ?? []).find((pr) => pr.id === productId);
-                          const res = await fetch("/api/stripe/payment-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: activeDeal.contactName || customerName, email: sendLinkEmail, priceId, dealId: activeDeal.id, productName: p?.description || "" }) });
-                          const data = await res.json();
-                          if (data.success) setPaymentLinkUrl(data.checkoutUrl);
-                          else setPaymentError(data.error || "Failed to generate link");
-                        } catch { setPaymentError("Network error"); }
-                        setPaymentLoading(false);
-                      }}>
-                        {paymentLoading ? "Generating..." : "Generate Payment Link"}
-                      </Btn>
+                      {!paymentLinkUrl && (
+                        <Btn disabled={paymentLoading || !sendLinkEmail || !productId} onClick={async () => {
+                          setPaymentLoading(true); setPaymentError(null);
+                          try {
+                            const priceId = getStripePriceId(productId);
+                            if (!priceId) { setPaymentError("No Stripe price for this product."); setPaymentLoading(false); return; }
+                            const p = (products ?? []).find((pr) => pr.id === productId);
+                            const res = await fetch("/api/stripe/payment-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: activeDeal.contactName || customerName, email: sendLinkEmail, priceId, dealId: activeDeal.id, productName: p?.description || "", sendEmail: true }) });
+                            const data = await res.json();
+                            if (data.success) setPaymentLinkUrl(data.checkoutUrl);
+                            else setPaymentError(data.error || "Failed to send link");
+                          } catch { setPaymentError("Network error"); }
+                          setPaymentLoading(false);
+                        }}>
+                          {paymentLoading ? "Sending..." : "Send Payment Link"}
+                        </Btn>
+                      )}
                     </div>
                   )
                 )}
