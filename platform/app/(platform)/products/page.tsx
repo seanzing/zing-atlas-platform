@@ -263,6 +263,7 @@ export default function ProductsPage() {
     setPbStripePriceId((p as Product & { stripePriceId?: string }).stripePriceId || "");
     setBuilderStep(1);
     setShowCustomTasks(false);
+    setCustomTasks([]);
     const res = await fetch(`/api/products/${p.id}/tasks`);
     if (res.ok) {
       const tasks = await res.json();
@@ -270,7 +271,19 @@ export default function ProductsPage() {
         id: t.id, taskType: t.taskType, taskName: t.taskName, taskOrder: t.taskOrder,
         ownerRole: t.ownerRole, daysOffset: t.daysOffset, isConditional: t.isConditional, statusOptions: t.statusOptions,
       }));
-      setPbTasks(loadedTasks);
+      // Rebuild selectedComponents for Step 2 highlights
+      const compKeys = new Set<ComponentKey>();
+      const customs: TaskTemplateRow[] = [];
+      for (const task of loadedTasks) {
+        const matchKey = (Object.keys(COMPONENT_LIBRARY) as ComponentKey[]).find(
+          (k) => COMPONENT_LIBRARY[k].name === task.taskName
+        );
+        if (matchKey) compKeys.add(matchKey);
+        else customs.push(task);
+      }
+      setSelectedComponents(compKeys);
+      setCustomTasks(customs.map((t, i) => ({ ...t, taskOrder: i })));
+      setPbTasks(loadedTasks); // useEffect is suppressed in edit mode, so this sticks
     }
     setBuilderOpen(true);
   };
@@ -287,10 +300,13 @@ export default function ProductsPage() {
   }, [pbBasePlan, builderStep, builderMode]);
 
   useEffect(() => {
+    // In edit mode, tasks are loaded from DB and managed directly.
+    // Only rebuild from component selection for new/clone modes.
+    if (builderMode === "edit") return;
     const compTasks = componentKeysToTasks(Array.from(selectedComponents));
     const allTasks = [...compTasks, ...customTasks].map((t, i) => ({ ...t, taskOrder: i }));
     setPbTasks(allTasks);
-  }, [selectedComponents, customTasks]);
+  }, [selectedComponents, customTasks, builderMode]);
 
   const toggleComponent = (key: ComponentKey) => {
     setSelectedComponents((prev) => {
@@ -299,6 +315,11 @@ export default function ProductsPage() {
         next.delete(key);
       } else {
         next.add(key);
+      }
+      // In edit mode the useEffect is suppressed, so update pbTasks directly
+      if (builderMode === "edit") {
+        const compTasks = componentKeysToTasks(Array.from(next));
+        setPbTasks([...compTasks, ...customTasks].map((t, i) => ({ ...t, taskOrder: i })));
       }
       return next;
     });
