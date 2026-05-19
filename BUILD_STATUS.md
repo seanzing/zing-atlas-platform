@@ -132,6 +132,20 @@ npm run build → ✅ PASSES
 
 ---
 
+## 2026-05-19 — Stripe Webhook Bug Fix (Sage)
+
+### Bug Fixed
+- **customer.subscription.created webhook missing dealId** — Checkout sessions created by `/api/stripe/payment-link` had `dealId` in session-level `metadata`, but NOT in `subscription_data.metadata`. Stripe does not auto-copy session metadata to the subscription object. So when `customer.subscription.created` fired, `subscription.metadata.dealId` was undefined — the webhook skipped processing entirely. Deals stayed in `link-sent`, contacts stayed "Active Lead", no onboarding was created.
+- **Fix:** Added `subscription_data: { metadata: { dealId } }` to the checkout session creation for subscription-mode payments.
+- **Data fix for Rik Thompson:** Contact status manually updated to "Live Customer", deal updated to `won/confirmed`, onboarding record created in DB.
+
+### Build
+```
+npm run build → ✅ PASSES
+```
+
+---
+
 ## Previous Build History
 See git log for full history. Major milestones:
 - **2026-04-02:** Security audit passes 1-4 (auth, mass assignment, Stripe webhooks, commission bugs)

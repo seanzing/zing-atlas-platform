@@ -100,7 +100,8 @@ export default function Sidebar() {
 
             (item.key === "team" && pathname.startsWith("/team")) ||
             (item.key === "products" && pathname.startsWith("/products")) ||
-            (item.key === "marketing" && pathname.startsWith("/marketing"));
+            (item.key === "marketing" && pathname.startsWith("/marketing")) ||
+            (item.key === "deals" && pathname.startsWith("/deals"));
           const isOnboardingSection = item.key === "onboarding" && pathname.startsWith("/onboarding");
 
           return (
