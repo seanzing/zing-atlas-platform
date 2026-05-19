@@ -356,6 +356,43 @@ export function WonDealModal({
     } finally { setSubmitting(false); }
   }, [existingDeal, sendLinkEmail, productId, rep, products, ensureDeal, getStripePriceId, getBillingType]);
 
+  // Card on File - finds Stripe customer by email, charges their saved card directly
+  const handleCardOnFile = useCallback(async () => {
+    if (!productId) { setError("Select a product first"); return; }
+    const targetEmail = sendLinkEmail || email.trim();
+    if (!targetEmail) { setError("Customer email is required to look up their saved card"); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const priceId = getStripePriceId(productId);
+      if (!priceId) { setError("No Stripe Price ID configured for this product."); setSubmitting(false); return; }
+      const dealInfo = await ensureDeal();
+      if (!dealInfo) { setError("Failed to prepare deal"); setSubmitting(false); return; }
+      const res = await fetch("/api/stripe/charge-on-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealId: dealInfo.dealId,
+          email: targetEmail,
+          priceId,
+          contactId: existingDeal?.contactId ?? (prefillContact?.id ?? null),
+          billingType: getBillingType(productId),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to charge card");
+      if (existingDeal?.id) {
+        await fetch(`/api/deals/${existingDeal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rep: rep || undefined }) });
+      }
+      mutate("/api/deals"); mutate("/api/contacts"); mutate("/api/onboarding?status=active");
+      const msg = data.type === "subscription"
+        ? `Card charged successfully — $${data.mrr}/mo subscription created. Onboarding created.`
+        : `Card charged successfully — $${data.amountPaid} collected. Onboarding created.`;
+      setLinkSentSuccess(msg);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally { setSubmitting(false); }
+  }, [existingDeal, prefillContact, sendLinkEmail, email, productId, rep, ensureDeal, getStripePriceId, getBillingType]);
+
   // Payment Taken - finds existing Stripe subscription by email, links it, marks as won, creates onboarding
   const handlePaymentTaken = useCallback(async () => {
     if (!productId) { setError("Select a product first"); return; }
@@ -637,25 +674,43 @@ export function WonDealModal({
                   </button>
                 </div>
 
+                {/* Card on File - charges saved card directly */}
+                <button
+                  disabled={submitting}
+                  onClick={handleCardOnFile}
+                  style={{
+                    width: "100%", marginTop: 10, padding: "13px 0", borderRadius: 12,
+                    background: `linear-gradient(135deg, #f59e0b, #d97706)`,
+                    border: "none",
+                    color: "#fff", fontSize: 14, fontWeight: 800,
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    opacity: submitting ? 0.7 : 1,
+                    boxShadow: "0 4px 14px rgba(245,158,11,0.3)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {submitting ? "Charging..." : "⚡ Card on File"}
+                </button>
+
                 {/* Payment Taken - looks up existing Stripe subscription */}
                 <button
                   disabled={submitting}
                   onClick={handlePaymentTaken}
                   style={{
-                    width: "100%", marginTop: 10, padding: "13px 0", borderRadius: 12,
+                    width: "100%", marginTop: 8, padding: "11px 0", borderRadius: 12,
                     background: "transparent",
-                    border: `2px solid #10b981`,
-                    color: "#059669", fontSize: 14, fontWeight: 700,
+                    border: `1px solid ${Z.border}`,
+                    color: Z.textMuted, fontSize: 13, fontWeight: 600,
                     cursor: submitting ? "not-allowed" : "pointer",
                     opacity: submitting ? 0.7 : 1,
                     transition: "all 0.15s",
                   }}
                 >
-                  {submitting ? "Looking up..." : "✅ Payment Taken"}
+                  {submitting ? "Looking up..." : "✅ Payment Taken (link existing sub)"}
                 </button>
 
                 <div style={{ fontSize: 11, color: Z.textMuted, textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>
-                  <strong>Take Payment</strong> opens Stripe checkout · <strong>Send Link</strong> emails it · <strong>Payment Taken</strong> links an existing subscription
+                  <strong>Take Payment</strong> opens checkout · <strong>Send Link</strong> emails it · <strong>Card on File</strong> charges saved card · <strong>Payment Taken</strong> links existing sub
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
                   <button onClick={handleClose} style={{ background: "none", border: "none", color: Z.textMuted, fontSize: 12, cursor: "pointer" }}>Cancel</button>

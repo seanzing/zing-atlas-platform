@@ -973,10 +973,11 @@ export default function ContactDetailPage() {
                   }}
                 >
                   <DetailField label="Primary Email"><CopyableText value={contact.email} type="email" style={{ fontSize: 13, fontWeight: 500 }} /></DetailField>
-                  <DetailField
-                    label="Secondary Email"
-                    value={contact.secondaryEmail || "--"}
-                  />
+                  <DetailField label="Secondary Email">
+                    {contact.secondaryEmail
+                      ? <CopyableText value={contact.secondaryEmail} type="email" style={{ fontSize: 13, fontWeight: 500 }} />
+                      : <span style={{ fontSize: 13, color: Z.textMuted }}>--</span>}
+                  </DetailField>
                   <DetailField label="Phone"><CopyableText value={contact.phone} type="phone" style={{ fontSize: 13, fontWeight: 500 }} /></DetailField>
                   <DetailField label="Company" value={contact.company} />
                   <DetailField
@@ -1044,25 +1045,24 @@ export default function ContactDetailPage() {
                       type="email"
                     />
                   </FormField>
-                  {contact.secondaryEmail && (
-                    <button
-                      onClick={() => setShowSecondaryEmail(!showSecondaryEmail)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: Z.ultramarine,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        padding: 0,
-                        marginTop: -8,
-                      }}
-                    >
-                      {showSecondaryEmail
-                        ? "Hide secondary email"
-                        : "Show secondary email"}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowSecondaryEmail(!showSecondaryEmail)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: Z.ultramarine,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: 0,
+                      marginTop: 4,
+                      display: "block",
+                    }}
+                  >
+                    {showSecondaryEmail
+                      ? "Hide secondary email"
+                      : contact.secondaryEmail ? "Edit secondary email" : "+ Add secondary email"}
+                  </button>
                   {showSecondaryEmail && (
                     <div style={{ marginTop: 8 }}>
                       <FormField label="Secondary Email">

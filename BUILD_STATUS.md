@@ -132,6 +132,23 @@ npm run build → ✅ PASSES
 
 ---
 
+## 2026-05-19 — All Deals View (Sage)
+
+### Features Added
+- **All Deals nav item** — new entry in left sidebar between Pipeline and Team
+- **Page:** `/deals` — table of every deal across all reps and stages, sorted newest first
+- **Columns:** Date, Business name, Customer name, Phone, Email, Purchased (product), Deal type, Rep, Stage badge
+- **Filters:** search box, date presets (Today/This Week/This Month/Last Month/All Time), stage dropdown
+- **Stats row:** Total Deals, Won count, Total Value, Won Value
+- Business name and customer name are clickable contact links; phone/email are copy-on-click
+
+### Build
+```
+npm run build → ✅ PASSES
+```
+
+---
+
 ## 2026-05-19 — Stripe Webhook Bug Fix (Sage)
 
 ### Bug Fixed
