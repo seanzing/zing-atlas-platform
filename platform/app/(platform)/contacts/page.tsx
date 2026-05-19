@@ -37,6 +37,7 @@ interface Contact {
   websiteUrl: string | null;
   rep: string | null;
   dealValue: string | null;
+  product: string | null;
   hasActiveDeal: boolean;
 }
 
@@ -291,7 +292,7 @@ export default function ContactsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr",
+            gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1.2fr 1fr 1fr 1fr",
             padding: "14px 24px",
             borderBottom: `1px solid ${Z.border}`,
             background: Z.bg,
@@ -309,7 +310,7 @@ export default function ContactsPage() {
                 style={{ cursor: "pointer", width: 16, height: 16 }}
               />
             </div>
-          {["Name", "Email", "Phone", "Company", "Industry", "Lead Source", "Status", "Value", "Rep"].map(
+          {["Name", "Email", "Phone", "Company", "Industry", "Lead Source", "Status", "Product", "Value", "Rep"].map(
             (h) => (
               <div
                 key={h}
@@ -338,7 +339,7 @@ export default function ContactsPage() {
               onMouseLeave={() => setHoveredRow(null)}
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "40px 2fr 1.5fr 1fr 1fr 1fr 1fr 1.2fr 1fr 1fr 1fr",
                 padding: "14px 24px",
                 alignItems: "center",
                 borderBottom: `1px solid ${Z.borderLight}`,
@@ -445,6 +446,19 @@ export default function ContactsPage() {
                   label={c.status}
                   color={STATUS_COLORS[c.status] || Z.grey}
                 />
+              </div>
+
+              {/* Product */}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: Z.textSecondary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.product || <span style={{ color: Z.textMuted }}>—</span>}
               </div>
 
               {/* Value */}

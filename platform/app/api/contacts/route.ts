@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         },
         deals: {
           where: { deletedAt: null },
-          select: { rep: true, value: true, stage: true },
+          select: { rep: true, value: true, stage: true, product: { select: { description: true } } },
           orderBy: { createdAt: "desc" },
         },
       },
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         ...c,
         rep,
         dealValue: wonDeal?.value ?? null,
+        product: wonDeal?.product?.description ?? c.deals[0]?.product?.description ?? null,
         hasActiveDeal,
       };
     });
