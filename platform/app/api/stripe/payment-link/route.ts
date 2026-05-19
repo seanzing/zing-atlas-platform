@@ -35,6 +35,10 @@ export async function POST(req: NextRequest) {
         success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/payment-cancelled`,
         metadata: { dealId },
+        // Copy dealId into subscription_data.metadata so customer.subscription.created
+        // webhook can identify which deal to mark won (session metadata is NOT copied
+        // automatically to the subscription object).
+        ...(!isOneTime ? { subscription_data: { metadata: { dealId } } } : {}),
       },
       { idempotencyKey: `checkout_${dealId}_${priceId}` }
     );
