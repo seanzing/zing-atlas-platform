@@ -25,7 +25,7 @@ export interface ExistingDeal {
   productId?: string | null;
   value?: number | null;
   rep?: string | null;
-  contact?: { name?: string | null; email?: string | null; phone?: string | null; } | null;
+  contact?: { name?: string | null; email?: string | null; phone?: string | null; company?: string | null; address?: string | null; } | null;
 }
 
 // ── Contact search dropdown ────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export function WonDealModal({
   onSuccess: (title: string) => void;
   existingDeal?: ExistingDeal | null;
   /** Pre-fill contact fields when opening from a contact page (new sale mode) */
-  prefillContact?: { id: string; name: string; email?: string | null; phone?: string | null } | null;
+  prefillContact?: { id: string; name: string; email?: string | null; phone?: string | null; company?: string | null; address?: string | null } | null;
 }) {
   const { data: products } = useSWR<Product[]>("/api/products", fetcher);
   const { data: team } = useSWR<TeamMember[]>("/api/team", fetcher);
@@ -100,6 +100,7 @@ export function WonDealModal({
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
 
   // ── Deal fields ──
   const [rep, setRep] = useState("");
@@ -149,19 +150,26 @@ export function WonDealModal({
       setProductId(existingDeal.productId || "");
       setDealValue(existingDeal.value ? String(Number(existingDeal.value)) : "");
       setRep(existingDeal.rep || "");
+      setCustomerName(existingDeal.contactName || existingDeal.contact?.name || "");
+      setBusinessName(existingDeal.contact?.company || "");
+      setEmail(existingDeal.contact?.email || "");
+      setPhone(existingDeal.contact?.phone || "");
+      setAddress((existingDeal.contact as { address?: string | null } | null | undefined)?.address || "");
       setSendLinkEmail(existingDeal.contact?.email || "");
     } else if (prefillContact) {
       setLinkedContactId(prefillContact.id);
       setContactSearch(`${prefillContact.name}`);
       setCustomerName(prefillContact.name || "");
+      setBusinessName(prefillContact.company || "");
       setEmail(prefillContact.email || "");
       setPhone(prefillContact.phone || "");
+      setAddress(prefillContact.address || "");
       setSendLinkEmail(prefillContact.email || "");
     }
   }, [existingDeal, prefillContact, open]);
 
   function reset() {
-    setContactSearch(""); setLinkedContactId(""); setCustomerName(""); setBusinessName(""); setEmail(""); setPhone("");
+    setContactSearch(""); setLinkedContactId(""); setCustomerName(""); setBusinessName(""); setEmail(""); setPhone(""); setAddress("");
     setRep(""); setWonDate(toYMD(new Date())); setDomainType(""); setDomainName(""); setExistingUrl("");
     setDealType("new"); setProductId(""); setDealValue("");
     setDesignerCallDate(""); setDeliveryDate(""); setDesigner("");
@@ -247,12 +255,27 @@ export function WonDealModal({
           body: JSON.stringify(brief),
         });
       }
-      return { dealId: existingDeal.id, contactName: existingDeal.contactName || "", contactEmail: existingDeal.contact?.email || sendLinkEmail || "" };
+      // Save updated contact info back to the contact record
+      if (existingDeal.contactId) {
+        const contactUpdates: Record<string, string> = {};
+        if (customerName.trim()) contactUpdates.name = customerName.trim();
+        if (businessName.trim()) contactUpdates.company = businessName.trim();
+        if (email.trim()) contactUpdates.email = email.trim();
+        if (phone.trim()) contactUpdates.phone = phone.trim();
+        if (address.trim()) contactUpdates.address = address.trim();
+        if (Object.keys(contactUpdates).length > 0) {
+          await fetch(`/api/contacts/${existingDeal.contactId}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(contactUpdates),
+          });
+        }
+      }
+      return { dealId: existingDeal.id, contactName: existingDeal.contactName || customerName || "", contactEmail: email.trim() || existingDeal.contact?.email || sendLinkEmail || "" };
     }
     // New sale - create contact then deal
     let contactId = linkedContactId || null;
     if (!contactId && (customerName.trim() || email.trim())) {
-      const cRes = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: customerName.trim() || businessName.trim(), company: businessName.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined }) });
+      const cRes = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: customerName.trim() || businessName.trim(), company: businessName.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined, address: address.trim() || undefined }) });
       if (cRes.ok) { const c = await cRes.json(); contactId = c.id; }
     }
     const title = businessName.trim() || customerName.trim();
@@ -272,7 +295,7 @@ export function WonDealModal({
     if (!dRes.ok) { const err = await dRes.json(); throw new Error(err.error || "Failed to create deal"); }
     const deal = await dRes.json();
     return { dealId: deal.id, contactName: customerName.trim() || businessName.trim(), contactEmail: email.trim() };
-  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName, location, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
+  }, [existingDeal, linkedContactId, customerName, businessName, email, phone, address, sendLinkEmail, dealType, productId, dealValue, rep, domainType, domainName, location, existingUrl, colourSchemeNotes, service1, service2, service3, service4, service5, service6, designerBriefNotes]);
 
   // Send Link - emails Stripe Checkout URL to customer, moves deal to link-sent
   const handleSendLink = useCallback(async () => {
@@ -363,7 +386,31 @@ export function WonDealModal({
     <Modal open={open} onClose={handleClose} title={isMarkWon ? `Raise Sale - ${existingDeal?.title ?? ""}` : "New Sale"}>
       <div style={{ maxHeight: "75vh", overflowY: "auto", paddingRight: 4 }}>
 
-        {/* ── SECTION: Contact ── */}
+        {/* ── SECTION: Customer Info — always visible ── */}
+        {!linkSentSuccess && (
+          <div style={{ marginBottom: 20, padding: "14px 16px", background: Z.bg, borderRadius: 10, border: `1px solid ${Z.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Customer Info</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <FormField label="Customer / Lead Name">
+                <Input value={customerName} onChange={setCustomerName} placeholder="Jane Smith" />
+              </FormField>
+              <FormField label="Business Name">
+                <Input value={businessName} onChange={setBusinessName} placeholder="Acme Corp" />
+              </FormField>
+              <FormField label="Email">
+                <Input value={email || sendLinkEmail} onChange={(v) => { setEmail(v); setSendLinkEmail(v); }} placeholder="jane@acme.com" type="email" />
+              </FormField>
+              <FormField label="Phone">
+                <Input value={phone} onChange={setPhone} placeholder="(555) 123-4567" />
+              </FormField>
+            </div>
+            <FormField label="Address">
+              <Input value={address} onChange={setAddress} placeholder="123 Main St, Denver, CO 80202" />
+            </FormField>
+          </div>
+        )}
+
+        {/* ── SECTION: Contact Search (new sale only) ── */}
         {!isMarkWon && !linkSentSuccess && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Contact</div>

@@ -26,6 +26,7 @@ model Contact {
   avatar          String?
   industry         String?
   websiteUrl       String?   @map("website_url")
+  address          String?   @map("address") @db.Text
   marketingComments String?  @map("marketing_comments") @db.Text
   assignedRep      String?   @map("assigned_rep")
 

@@ -1966,7 +1966,7 @@ export default function ContactDetailPage() {
         open={raiseSaleOpen}
         onClose={() => setRaiseSaleOpen(false)}
         onSuccess={() => { setRaiseSaleOpen(false); showToast("Sale raised", true); mutate(); }}
-        prefillContact={contact ? { id: contact.id, name: contact.name ?? "", email: contact.email, phone: contact.phone } : null}
+        prefillContact={contact ? { id: contact.id, name: contact.name ?? "", email: contact.email, phone: contact.phone, company: contact.company, address: (contact as ContactDetail & { address?: string }).address } : null}
       />
       <Modal
         open={!!editingDeal}

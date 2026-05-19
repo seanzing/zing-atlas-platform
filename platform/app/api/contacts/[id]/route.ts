@@ -133,7 +133,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     // Whitelist allowed fields to prevent mass assignment
     const allowedFields: Record<string, unknown> = {};
-    const whitelist = ["name", "email", "phone", "company", "status", "leadSource", "notes", "campaignId"];
+    const whitelist = ["name", "email", "phone", "company", "address", "status", "leadSource", "notes", "campaignId"];
     for (const key of whitelist) {
       if (key in body) allowedFields[key] = body[key];
     }
