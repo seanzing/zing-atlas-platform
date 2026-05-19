@@ -470,24 +470,24 @@ export default function ContactDetailPage() {
   }, [activityData]);
 
   // Seed brief fields when contact data loads
+  // NOTE: must NOT reference designBriefOb here (defined after early return guard)
   useEffect(() => {
-    const src = designBriefOb ?? contact?.dealBrief;
-    if (src) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const s = src as any;
-      setBriefFields({
-        existingUrl: s.existingUrl ?? "",
-        colourSchemeNotes: s.colourSchemeNotes ?? "",
-        service1: s.service1 ?? "",
-        service2: s.service2 ?? "",
-        service3: s.service3 ?? "",
-        service4: s.service4 ?? "",
-        service5: s.service5 ?? "",
-        service6: s.service6 ?? "",
-        location: s.location ?? "",
-        designerNotes: s.designerNotes ?? "",
-      });
-    }
+    if (!contact) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s: any = (contact.onboardingRecords ?? [])[0] ?? contact.dealBrief;
+    if (!s) return;
+    setBriefFields({
+      existingUrl: s.existingUrl ?? "",
+      colourSchemeNotes: s.colourSchemeNotes ?? "",
+      service1: s.service1 ?? "",
+      service2: s.service2 ?? "",
+      service3: s.service3 ?? "",
+      service4: s.service4 ?? "",
+      service5: s.service5 ?? "",
+      service6: s.service6 ?? "",
+      location: s.location ?? "",
+      designerNotes: s.designerNotes ?? "",
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contact?.id]);
 
