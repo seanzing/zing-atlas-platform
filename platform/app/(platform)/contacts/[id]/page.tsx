@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 import { WonDealModal } from "@/components/WonDealModal";
+import { CopyableText } from "@/components/CopyableText";
 import EmailThreadCard from "@/components/EmailThreadCard";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -807,9 +808,9 @@ export default function ContactDetailPage() {
           >
             <span>{contact.company}</span>
             <span style={{ color: Z.borderLight }}>|</span>
-            <span>{contact.email}</span>
+            <CopyableText value={contact.email} type="email" />
             <span style={{ color: Z.borderLight }}>|</span>
-            <span>{contact.phone}</span>
+            <CopyableText value={contact.phone} type="phone" />
           </div>
         </div>
         <Badge
@@ -971,12 +972,12 @@ export default function ContactDetailPage() {
                     gap: 20,
                   }}
                 >
-                  <DetailField label="Primary Email" value={contact.email} />
+                  <DetailField label="Primary Email"><CopyableText value={contact.email} type="email" style={{ fontSize: 13, fontWeight: 500 }} /></DetailField>
                   <DetailField
                     label="Secondary Email"
                     value={contact.secondaryEmail || "--"}
                   />
-                  <DetailField label="Phone" value={contact.phone} />
+                  <DetailField label="Phone"><CopyableText value={contact.phone} type="phone" style={{ fontSize: 13, fontWeight: 500 }} /></DetailField>
                   <DetailField label="Company" value={contact.company} />
                   <DetailField
                     label="Pipeline Value"

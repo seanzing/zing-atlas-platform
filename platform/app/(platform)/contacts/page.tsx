@@ -18,6 +18,7 @@ import {
   FilterBtn,
 } from "@/components/ui";
 import { Z, fmt, STATUS_COLORS, LEAD_SOURCE_COLORS } from "@/lib/constants";
+import { CopyableText } from "@/components/CopyableText";
 
 interface Contact {
   id: string;
@@ -390,7 +391,7 @@ export default function ContactsPage() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {c.email}
+                <CopyableText value={c.email} type="email" style={{ fontSize: 13 }} />
               </div>
 
               {/* Phone */}
@@ -403,7 +404,7 @@ export default function ContactsPage() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {c.phone || "—"}
+                {c.phone ? <CopyableText value={c.phone} type="phone" style={{ fontSize: 13 }} /> : "—"}
               </div>
 
               {/* Company */}

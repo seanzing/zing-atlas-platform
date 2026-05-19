@@ -11,6 +11,7 @@ import Link from "next/link";
 import { WonDealModal } from "@/components/WonDealModal";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
 import ContactLink from "@/components/ContactLink";
+import { CopyableText } from "@/components/CopyableText";
 
 // Inline contact search for Add Lead modal
 type ContactSearchResult = { id: string; name: string | null; company: string | null; email: string | null };
@@ -1426,14 +1427,10 @@ export default function PipelinePage() {
                   {/* Contact info block */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 8, fontSize: 12 }}>
                     {selectedDeal.contact?.email && (
-                      <a href={`mailto:${selectedDeal.contact.email}`} style={{ color: Z.ultramarine, textDecoration: "none" }}>
-                        ✉ {selectedDeal.contact.email}
-                      </a>
+                      <CopyableText value={selectedDeal.contact.email} type="email" style={{ fontSize: 12 }} />
                     )}
                     {selectedDeal.contact?.phone && (
-                      <a href={`tel:${selectedDeal.contact.phone}`} style={{ color: Z.ultramarine, textDecoration: "none" }}>
-                        📞 {selectedDeal.contact.phone}
-                      </a>
+                      <CopyableText value={selectedDeal.contact.phone} type="phone" style={{ fontSize: 12 }} />
                     )}
                     {selectedDeal.contact?.company && (
                       <span style={{ color: Z.textSecondary }}>🏢 {selectedDeal.contact.company}</span>
@@ -1806,7 +1803,9 @@ export default function PipelinePage() {
                   {selectedDeal.contact?.name || selectedDeal.contactName || "—"}
                 </div>
                 <div style={{ color: Z.textSecondary, fontSize: 13 }}>
-                  {selectedDeal.contact?.email || "No email on file"}
+                  {selectedDeal.contact?.email
+                    ? <CopyableText value={selectedDeal.contact.email} type="email" style={{ fontSize: 13 }} />
+                    : "No email on file"}
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>

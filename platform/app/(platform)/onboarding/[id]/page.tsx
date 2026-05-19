@@ -8,6 +8,7 @@ import { Z } from "@/lib/constants";
 import { PageLoader } from "@/components/PageLoader";
 import { Toast, useToast } from "@/components/Toast";
 import FloatingEmailCompose from "@/components/FloatingEmailCompose";
+import { CopyableText } from "@/components/CopyableText";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -344,13 +345,13 @@ export default function OnboardingDetailPage() {
           {ob.email && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Email</div>
-              <a href={`mailto:${ob.email}`} style={{ fontSize: 13, color: Z.ultramarine, textDecoration: "none" }}>{ob.email}</a>
+              <CopyableText value={ob.email} type="email" style={{ fontSize: 13 }} />
             </div>
           )}
           {ob.phone && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: Z.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>Phone</div>
-              <span style={{ fontSize: 13, color: Z.textPrimary }}>{ob.phone}</span>
+              <CopyableText value={ob.phone} type="phone" style={{ fontSize: 13 }} />
             </div>
           )}
           {ob.existingUrl && (
